@@ -1,11 +1,13 @@
 //! Descriptions on hover (interface.gesture-map-widgets, its first row): with Ctrl held over a
 //! button, a box at the pointer says what the button's command does, the command's address and
-//! the key bound to it; with Ctrl+Alt, the command's whole docs. Without them nothing shows.
+//! the key bound to it; with Ctrl+Alt, the command's whole docs. Without them nothing shows,
+//! but over a brush's button, whose box leads with the keys that pick the brush.
 
 use gs_platform::Modifiers;
+use serde_json::json;
 
 use crate::region::middle;
-use crate::rig::{Ui, held};
+use crate::rig::{Ui, center, held};
 
 #[test]
 fn ctrl_over_a_button_describes_it_and_ctrl_alt_shows_the_whole_docs() {
@@ -45,6 +47,39 @@ fn ctrl_over_a_button_describes_it_and_ctrl_alt_shows_the_whole_docs() {
 
     ui.input(&[], Modifiers::default());
     assert!(ui.labels("description").is_empty(), "gone with Ctrl let go");
+}
+
+/// What the box says with the pen at (`x`, `y`) in pixels and `keys` held.
+fn over(ui: &mut Ui, [x, y]: [f64; 2], keys: Modifiers) -> Vec<String> {
+    ui.pen(x, y);
+    ui.input(&[], keys);
+    ui.labels("description")
+}
+
+/// Interface.tooltips: the pointer on a brush's button shows at once, with no key held, the
+/// keys that pick the brush first, then its name and its hint; with Ctrl they lead the
+/// description in place of its key line. A Smooth brush's button runs `brush.slot` and its key
+/// `brush.set`, and Shift held strokes with it; a key you bind shows over the built-in one.
+#[test]
+fn hovering_a_brush_shows_the_keys_that_pick_it_first() {
+    let mut ui = Ui::new();
+    let none = Modifiers::default();
+    let face = ui.face("Build");
+    let hint = face["hint"].as_str().unwrap_or_default().to_string();
+    let shown = over(&mut ui, center(&face["rect"]), none);
+    assert_eq!(shown, ["B S T", "Draw", &hint], "the shelf's Build button");
+    ui.open_family("Smooth");
+    let smooth = middle(ui.rect("family > Smooth"));
+    let shown = over(&mut ui, smooth, none);
+    assert_eq!(shown[..2], ["B S M or Shift held", "Smooth"], "{shown:?}");
+    let ctrl = over(&mut ui, smooth, held("Ctrl"));
+    assert_eq!(ctrl[0], "B S M or Shift held", "{ctrl:?}");
+    assert!(ctrl.iter().any(|l| l.contains("brush.slot")), "{ctrl:?}");
+    assert!(!ctrl.iter().any(|l| l.starts_with("Key: ")), "{ctrl:?}");
+    let k = json!({ "bind": "K", "command": "brush.set", "args": { "brush": "Smooth" } });
+    ui.ok("ui.keymap", k);
+    let rebound = over(&mut ui, smooth, none);
+    assert_eq!(rebound[0], "K or Shift held", "{rebound:?}");
 }
 
 /// The shipped sets whose controls still wait for their hints, each until the build step that

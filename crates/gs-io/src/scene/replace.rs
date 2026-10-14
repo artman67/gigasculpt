@@ -1,9 +1,8 @@
 //! Replacing a file without ever risking the last good one (decision 0016, section 4;
 //! research 15, section 3.1): write a hidden temporary file beside the target, flush it to
 //! disk, keep the old file as the backup through a hard link, rename the new file over the
-//! target, then flush the folder. Until the rename the target is untouched; any failure before
-//! it removes the temporary file. Unix only for now: Windows and macOS need their own flush and
-//! replace calls (research 15, open question 6).
+//! target, then flush the folder (on Unix: see [`RealDisk`]'s `sync_dir`). Until the rename the
+//! target is untouched; any failure before it removes the temporary file.
 //!
 //! Every operation goes through [`Disk`], so tests can make each one fail in turn.
 
@@ -63,8 +62,15 @@ impl Disk for RealDisk {
     fn rename(&self, from: &Path, to: &Path) -> io::Result<()> {
         fs::rename(from, to)
     }
+    #[cfg(unix)]
     fn sync_dir(&self, dir: &Path) -> io::Result<()> {
         File::open(dir)?.sync_all()
+    }
+    /// Skipped: Windows cannot open a folder as a file, and there the rename itself is what
+    /// makes the new file appear whole.
+    #[cfg(not(unix))]
+    fn sync_dir(&self, _: &Path) -> io::Result<()> {
+        Ok(())
     }
     #[cfg(unix)]
     fn free(&self, dir: &Path) -> Option<u64> {

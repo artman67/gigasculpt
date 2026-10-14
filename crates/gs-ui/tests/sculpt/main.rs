@@ -3,6 +3,7 @@
 //! against the command path (ARCHITECTURE 10.1).
 
 mod background;
+mod brush_tips;
 mod curve;
 mod deform_preview;
 mod detail;

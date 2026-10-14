@@ -5,12 +5,13 @@
 //! Blender is `GS_BLENDER`, else `/usr/bin/blender`; `GS_BLENDER=skip` skips these tests with a
 //! SKIP line on stderr. Tier 1 leaves this module to tier 2.
 
+use std::ffi::OsString;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use gs_io::mesh::column;
-use gs_protocol::{AttrDomain, PlainMesh};
+use gs_protocol::{AttrDomain, PlainMesh, System, cache_dir_in, session_dir_in};
 use gs_testkit::measure::{self, norm, sub};
 use gs_testkit::{Session, text};
 use serde_json::{Value, json};
@@ -401,6 +402,39 @@ fn f_the_name_table_matches_blender_5_2() {
         "f: {} names checked against Blender {}",
         r["checked"], r["blender"]
     );
+}
+
+/// The add-on finds the session and cache folders the engine finds on each system, so both
+/// meet at one socket and one exchange folder.
+#[test]
+fn the_add_on_finds_the_engines_session_and_cache_folders_on_each_system() {
+    let systems = [
+        (System::Linux, "linux"),
+        (System::MacOs, "darwin"),
+        (System::Windows, "win32"),
+    ];
+    let envs = [
+        json!({ "HOME": "/h", "LOCALAPPDATA": "/l" }),
+        json!({ "HOME": "/h", "LOCALAPPDATA": "/l",
+                "XDG_RUNTIME_DIR": "/r", "XDG_CACHE_HOME": "/c" }),
+        json!({ "HOME": "/h", "XDG_CACHE_HOME": "c" }),
+        json!({}),
+    ];
+    let (mut cases, mut want) = (Vec::new(), Vec::new());
+    for (system, platform) in systems {
+        for vars in &envs {
+            let env = |name: &str| vars.get(name)?.as_str().map(OsString::from);
+            let found = |dir: Result<PathBuf, String>| dir.ok().map(|dir| arg(&dir));
+            let (session, cache) = (session_dir_in(system, &env), cache_dir_in(system, &env));
+            want.push(json!({ "session": found(session), "cache": found(cache) }));
+            cases.push(json!({ "platform": platform, "env": vars }));
+        }
+    }
+    let cases = json!(cases).to_string();
+    let Some(r) = blender("t2-folders", "folders_check.py", &[cases], &[]) else {
+        return;
+    };
+    assert_eq!(r, json!(want));
 }
 
 #[test]

@@ -6,8 +6,9 @@ window or without one, is a session that listens on a socket, and `gs` talks to 
 
 ## gs
 
-`gs` comes with GigaSculpt and finds the `gigasculpt` program beside itself. With the window
-open (its session is named `main`):
+`gs` comes with GigaSculpt and finds the `gigasculpt` program beside itself (on Windows they are
+`gs.exe` and `gigasculpt.exe`; on macOS both are inside `GigaSculpt.app/Contents/MacOS/`). With
+the window open (its session is named `main`):
 
 ```
 gs commands                              # every command
@@ -42,9 +43,14 @@ gs -s work look --out sphere.png
 gs -s work stop --key KEY
 ```
 
-`gigasculpt serve --headless` starts one by hand; `gigasculpt serve --help` lists its options.
-Offscreen pictures in a headless session draw on lavapipe, Mesa's software Vulkan driver, unless
-`--adapter` names another, so they come out the same on any machine.
+`gigasculpt serve --headless` starts one by hand; `gigasculpt serve --help` lists its options
+and the folders it uses. On Linux, offscreen pictures in a headless session draw on lavapipe,
+Mesa's software Vulkan driver, unless `--adapter` names another, so they come out the same on
+any machine. On Windows and macOS they draw on the first graphics adapter the system offers.
+
+A session's name is letters, digits, `-` and `_`. Its socket's path has a length limit (shorter
+on macOS than on Linux), so a name too long for it is refused with a message that says how long
+a name may be.
 
 ## Scripts and replays
 
@@ -57,9 +63,11 @@ A script is a JSONL file, one command per line:
 ```
 
 This one carves a groove across a sphere and masks it. A stroke's points are in the scene's
-units here; given a `camera`, they are screen positions instead. `gs run script.jsonl` runs it line by line into a session and stops at the first error. Every
-session writes such a log of what it ran (on Linux in `~/.local/state/gigasculpt/logs/`), so a
-log replayed into a fresh session rebuilds the scene. A session started with `--verify` also
+units here; given a `camera`, they are screen positions instead. `gs run script.jsonl` runs it
+line by line into a session and stops at the first error. Every session writes such a log of
+what it ran, in the `logs` folder of GigaSculpt's state folder (see
+[Files](files.md#where-gigasculpt-keeps-its-files)), so a log replayed into a fresh session
+rebuilds the scene. A session started with `--verify` also
 writes the scene's hash after each step, and `gs run` then names the first line that replays
 differently. `gs run --files DIR` replays a log that opened or imported files, reading them
 from `DIR` by their content.

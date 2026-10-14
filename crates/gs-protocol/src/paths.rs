@@ -53,20 +53,71 @@ pub fn state_dir() -> Result<PathBuf, String> {
 }
 
 /// The state folder on `system` in `env`: `$XDG_STATE_HOME/gigasculpt` wherever that is an
-/// absolute path (as the XDG Base Directory spec says, an empty or relative one counts as
-/// unset); else `$HOME/.local/state/gigasculpt` on Linux, and the app's own folder elsewhere.
+/// absolute path; else `$HOME/.local/state/gigasculpt` on Linux, and the app's own folder
+/// elsewhere.
 pub fn state_dir_in(system: System, env: Env) -> Result<PathBuf, String> {
-    let set = env("XDG_STATE_HOME")
-        .map(PathBuf::from)
-        .filter(|dir| dir.is_absolute());
-    if let Some(dir) = set {
-        return Ok(dir.join("gigasculpt"));
+    if let Some(dir) = xdg(env, "XDG_STATE_HOME") {
+        return Ok(dir);
     }
     match system {
-        System::Linux => (env("HOME").map(|h| PathBuf::from(h).join(".local/state/gigasculpt")))
-            .ok_or_else(|| "neither XDG_STATE_HOME nor HOME is set".to_string()),
+        System::Linux => in_home(env, ".local/state/gigasculpt", "XDG_STATE_HOME"),
         System::MacOs | System::Windows => app_dir(system, env),
     }
+}
+
+/// The folder for what can be made again (the Quad Remesh program), from this process's
+/// environment.
+pub fn cache_dir() -> Result<PathBuf, String> {
+    cache_dir_in(System::HERE, &|name| std::env::var_os(name))
+}
+
+/// The cache folder on `system` in `env`: `$XDG_CACHE_HOME/gigasculpt` wherever that is an
+/// absolute path; else `$HOME/.cache/gigasculpt` on Linux, `~/Library/Caches/GigaSculpt` on
+/// macOS and `cache` in the app's own folder on Windows.
+pub fn cache_dir_in(system: System, env: Env) -> Result<PathBuf, String> {
+    if let Some(dir) = xdg(env, "XDG_CACHE_HOME") {
+        return Ok(dir);
+    }
+    match system {
+        System::Linux => in_home(env, ".cache/gigasculpt", "XDG_CACHE_HOME"),
+        System::MacOs => in_home(env, "Library/Caches/GigaSculpt", "XDG_CACHE_HOME"),
+        System::Windows => Ok(app_dir(system, env)?.join("cache")),
+    }
+}
+
+/// The folder for the user's settings (keys, layouts, preferences, materials), from this
+/// process's environment.
+pub fn config_dir() -> Result<PathBuf, String> {
+    config_dir_in(System::HERE, &|name| std::env::var_os(name))
+}
+
+/// The config folder on `system` in `env`: `$XDG_CONFIG_HOME/gigasculpt` wherever that is an
+/// absolute path; else `$HOME/.config/gigasculpt` on Linux, the app's own folder on macOS and
+/// `%APPDATA%\GigaSculpt` on Windows (the roaming folder, which follows the user to another
+/// machine as settings should).
+pub fn config_dir_in(system: System, env: Env) -> Result<PathBuf, String> {
+    if let Some(dir) = xdg(env, "XDG_CONFIG_HOME") {
+        return Ok(dir);
+    }
+    match system {
+        System::Linux => in_home(env, ".config/gigasculpt", "XDG_CONFIG_HOME"),
+        System::MacOs => app_dir(system, env),
+        System::Windows => (env("APPDATA").map(|dir| PathBuf::from(dir).join("GigaSculpt")))
+            .ok_or_else(|| "APPDATA is not set".into()),
+    }
+}
+
+/// `$<var>/gigasculpt` when `var` is an absolute path: as the XDG Base Directory spec says, an
+/// empty or relative one counts as unset.
+fn xdg(env: Env, var: &str) -> Option<PathBuf> {
+    let dir = env(var).map(PathBuf::from)?;
+    dir.is_absolute().then(|| dir.join("gigasculpt"))
+}
+
+/// `sub` in the home folder; `var` is the variable that would have won.
+fn in_home(env: Env, sub: &str, var: &str) -> Result<PathBuf, String> {
+    (env("HOME").map(|home| PathBuf::from(home).join(sub)))
+        .ok_or_else(|| format!("neither {var} nor HOME is set"))
 }
 
 /// The app's own per-user folder: `~/Library/Application Support/GigaSculpt` on macOS,
@@ -83,11 +134,32 @@ fn app_dir(system: System, env: Env) -> Result<PathBuf, String> {
     base.map(|dir| dir.join("GigaSculpt")).map_err(String::from)
 }
 
-/// The socket of session `name`: `<session_dir>/<name>.sock`. Refuses names that are not a
-/// valid session name, so no name can point outside the session folder.
+/// The socket of session `name`, from this process's environment (see [`socket_path_in`]).
 pub fn socket_path(name: &str) -> Result<PathBuf, String> {
+    socket_path_in(System::HERE, &|name| std::env::var_os(name), name)
+}
+
+/// The socket of session `name` on `system` in `env`: `<session folder>/<name>.sock`. Refuses
+/// names that are not a valid session name, so no name can point outside the session folder,
+/// and names whose socket path would not fit in the system's socket address, before any bind.
+pub fn socket_path_in(system: System, env: Env, name: &str) -> Result<PathBuf, String> {
     check_session_name(name)?;
-    Ok(session_dir()?.join(format!("{name}.sock")))
+    let dir = session_dir_in(system, env)?;
+    let path = dir.join(format!("{name}.sock"));
+    let (bytes, limit) = (path.as_os_str().len(), crate::socket::longest_path(system));
+    if bytes <= limit {
+        return Ok(path);
+    }
+    let fits = match name.len().checked_sub(bytes - limit) {
+        Some(n) if n > 0 => format!("names of up to {n} characters fit"),
+        _ => "no name fits; set XDG_RUNTIME_DIR to a shorter folder".to_string(),
+    };
+    Err(format!(
+        "session name '{name}' is too long: its socket {} would be {bytes} bytes, and sockets \
+         take at most {limit} bytes here; in {}, {fits}",
+        path.display(),
+        dir.display()
+    ))
 }
 
 /// A session name is one or more ASCII letters, digits, `-` and `_`.

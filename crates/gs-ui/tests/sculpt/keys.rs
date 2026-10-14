@@ -7,6 +7,7 @@
 //! table's Check (`interface.default-bindings-sculpt`) runs as written.
 
 use gs_platform::{Input, Modifiers};
+use gs_ui::Keymap;
 use serde_json::{Value, json};
 
 use crate::region::middle;
@@ -62,6 +63,30 @@ fn letters_after_b_pick_the_brush() {
     // A key that ends no sequence starts one of its own (the second B), or none (Q).
     tap(&mut w, &["B", "Q", "B", "B", "C", "C"]);
     assert_eq!(current(&mut w)["brush"], json!("Clip Curve"));
+}
+
+/// Every brush the engine lists has a built-in key, B and two letters, and pressing it picks
+/// that brush: a brush added without one fails here.
+#[test]
+fn every_brush_the_engine_lists_has_a_key_that_picks_it() {
+    let mut w = Window::new(None);
+    let keymap = Keymap::default();
+    let listed = w.ok("brush.list", json!({}))["brushes"].clone();
+    let names = (listed.as_array().into_iter().flatten()).filter_map(|b| b["name"].as_str());
+    let names: Vec<String> = names.map(str::to_string).collect();
+    assert!(names.len() >= 24, "the engine lists its brushes: {names:?}");
+    for name in names {
+        let args = toml::Table::from_iter([("brush".into(), name.clone().into())]);
+        let key = keymap.key_for_args("brush.set", &args);
+        let key = key.unwrap_or_else(|| panic!("{name} has no built-in key"));
+        let letters: Vec<&str> = key.split(' ').collect();
+        assert!(
+            letters.len() == 3 && letters[0] == "B",
+            "{name}'s key {key} is B and two letters"
+        );
+        tap(&mut w, &letters);
+        assert_eq!(current(&mut w)["brush"], json!(name), "{key} picks {name}");
+    }
 }
 
 #[test]

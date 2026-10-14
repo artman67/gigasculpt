@@ -6,6 +6,7 @@ use sdl3::EventPump;
 use sdl3::video::Window;
 
 use crate::clock::Clock;
+use crate::icon;
 use crate::input::{EventMapper, Input, Modifiers};
 use crate::surface::{self, SurfaceHandle};
 
@@ -78,12 +79,13 @@ impl Platform {
         }
         let sdl = sdl3::init().map_err(|e| e.to_string())?;
         let video = sdl.video().map_err(|e| e.to_string())?;
-        let window = video
+        let mut window = video
             .window(&options.title, options.width, options.height)
             .high_pixel_density()
             .resizable()
             .build()
             .map_err(|e| e.to_string())?;
+        icon::show(&mut window);
         let mut pump = sdl.event_pump().map_err(|e| e.to_string())?;
         let events = sdl.event().map_err(|e| e.to_string())?;
         let (density, mut mapper) = (window.pixel_density(), EventMapper::default());

@@ -1,5 +1,5 @@
 //! The brush tip's falloff: how strength fades from the center of a dab to its rim. The one home
-//! of falloff (CLAUDE.md, "one home per concept"); every kernel weighs vertices through
+//! of falloff; every kernel weighs vertices through
 //! [`Tip::falloff`].
 //!
 //! For a vertex at distance `d` from the dab center, in brush radii:

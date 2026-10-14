@@ -14,6 +14,8 @@ gs-protocol.workspace = true
 # library at run time by mistake.
 sdl3.workspace = true
 raw-window-handle.workspace = true
+# Decodes the window's icon, built in from assets/brand/.
+png = "0.18"
 
 [features]
 # Test support: a private Xvfb display (`src/xvfb.rs`). Test programs only.

@@ -1,3 +1,5 @@
+*mog the other sculpting programs*
+
 GigaSculpt is early: expect rough edges, and scene files may change between versions. Linux is
 built and tested on every change; the Windows and macOS builds are new and less tested.
 
@@ -19,7 +21,9 @@ command-line client and MCP server. Keep them in the same folder; on macOS `gs` 
 
 These builds are not signed yet, so each system warns the first time.
 
-- **Linux:** unpack the archive and run `./gigasculpt`. Nothing more is needed.
+- **Linux:** unpack the archive and run `./gigasculpt`. Nothing more is needed. To find it in
+  your app menu, put `gigasculpt` and `gs` in `~/.local/bin`, `gigasculpt.desktop` in
+  `~/.local/share/applications` and `gigasculpt.png` in `~/.local/share/icons/hicolor/256x256/apps`.
 - **Windows:** unpack the zip and run `gigasculpt.exe`. If SmartScreen says it protected your
   PC, click "More info", then "Run anyway".
 - **macOS:** open the disk image and drag GigaSculpt to Applications. Open it once; macOS

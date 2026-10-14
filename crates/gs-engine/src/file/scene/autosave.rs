@@ -37,7 +37,8 @@ const AUTOSAVE: &str = "autosave";
 pub struct StateFolder {
     /// The folder for the autosave folders (`autosave/`), the session markers (`sessions/`),
     /// autosave's settings (`autosave.json`) and the recent files list (`recent.json`):
-    /// `$XDG_STATE_HOME/gigasculpt`, never a temporary folder, which a reboot empties.
+    /// the state folder (`gs_protocol::state_dir`), never a temporary folder, which a reboot
+    /// empties.
     pub state_dir: PathBuf,
     /// Max Duration: since the last save of any kind.
     pub max_duration: Duration,

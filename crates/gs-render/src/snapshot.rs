@@ -242,8 +242,8 @@ pub struct Renderer {
 }
 
 impl Renderer {
-    /// Opens a device on `kind`.
-    pub fn new(kind: AdapterKind) -> Result<Renderer, RenderError> {
+    /// Opens a device on `kind`, or with no kind on the first adapter wgpu offers.
+    pub fn new(kind: impl Into<Option<AdapterKind>>) -> Result<Renderer, RenderError> {
         Ok(Renderer::with_gpu(Gpu::open(kind)?))
     }
 

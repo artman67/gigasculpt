@@ -292,3 +292,66 @@ fn every_key_on_the_keys_sheet_reads_a_title_the_palette_shows() {
         assert!(labels.contains(&row), "{row} in {labels:?}");
     }
 }
+
+/// The key the button of `brush` records in its family's window (`ui.describe`).
+fn brush_key(ui: &mut Ui, family: &str, brush: &str) -> Value {
+    ui.open_family(family);
+    let button = ui
+        .widgets("family")
+        .into_iter()
+        .find(|w| w["label"] == brush);
+    button.unwrap_or_else(|| panic!("no {brush} in the {family} family"))["key"].clone()
+}
+
+/// One answer to which key picks a brush: its button says the key that picks it, a Smooth
+/// brush's too, though its button runs `brush.slot` and its key `brush.set`. A key the user
+/// binds to it shows over its built-in one, and a brush whose keys are all removed has none.
+#[test]
+fn a_brush_buttons_key_is_the_one_that_picks_it_in_your_keymap() {
+    let mut ui = Ui::new();
+    let draw = brush_key(&mut ui, "Build", "Draw");
+    assert_eq!(draw, json!("B S T"), "Draw's built-in key");
+    let smooth = brush_key(&mut ui, "Smooth", "Smooth");
+    assert_eq!(
+        smooth,
+        json!("B S M"),
+        "its key, though its button runs brush.slot"
+    );
+    let draw = json!({ "bind": "K", "command": "brush.set", "args": { "brush": "Draw" } });
+    ui.ok("ui.keymap", draw);
+    let bound = brush_key(&mut ui, "Build", "Draw");
+    assert_eq!(bound, json!("K"), "the key you bound");
+    ui.ok("ui.keymap", json!({ "restore": "K" }));
+    ui.ok("ui.keymap", json!({ "bind": "B S T", "command": "" }));
+    let removed = brush_key(&mut ui, "Build", "Draw");
+    assert_eq!(removed, Value::Null, "no key left");
+}
+
+/// Holding a slot's keys strokes with the brush on that slot, so they pick it too: a brush on a
+/// slot names them after its key, as the slots are now, and a brush nothing picks says so.
+#[test]
+fn a_brush_on_a_slot_is_picked_by_holding_its_keys_too() {
+    let built_in = Keymap::default();
+    let empty = Keymap {
+        bindings: Vec::new(),
+        changes: Vec::new(),
+    };
+    let slots = gs_engine::Slots::default();
+    let clay = gs_engine::Slots {
+        mask: "Clay".into(),
+        ..slots.clone()
+    };
+    for (keymap, slots, brush, says) in [
+        (&built_in, &slots, "Smooth", "B S M or Shift held"),
+        (&built_in, &slots, "Mask Pen", "B M K or Ctrl held"),
+        (&built_in, &slots, "Select Rect", "B S R or Ctrl+Shift held"),
+        (&built_in, &slots, "Draw", "B S T"),
+        (&built_in, &clay, "Clay", "B C A or Ctrl held"),
+        (&built_in, &clay, "Mask Pen", "B M K"),
+        (&empty, &slots, "Draw", "No key"),
+        (&empty, &slots, "Smooth", "Shift held"),
+    ] {
+        let text = keymap.brush_keys(brush, slots).text();
+        assert_eq!(text, says, "{brush} on {slots:?}");
+    }
+}

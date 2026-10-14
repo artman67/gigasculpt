@@ -9,9 +9,10 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use gs_protocol::{
-    Length, NO_VERTEX, RpcRequest, RunParams, ScriptLine, System, UnixListener, UnixStream, arity,
-    check_session_name, corners, face_triangles, free_path, rpc_code, session_dir, session_dir_in,
-    socket_path, state_dir, state_dir_in,
+    Env, Length, NO_VERTEX, RpcRequest, RunParams, ScriptLine, System, UnixListener, UnixStream,
+    arity, cache_dir, cache_dir_in, check_session_name, config_dir, config_dir_in, corners,
+    face_triangles, free_path, rpc_code, session_dir, session_dir_in, socket_path, socket_path_in,
+    state_dir, state_dir_in,
 };
 
 #[test]
@@ -279,6 +280,41 @@ fn sockets_live_in_the_session_folder() {
     );
 }
 
+/// A socket's path fits in its system's `sun_path` less the closing NUL: 107 bytes on Linux and
+/// Windows, 103 on macOS. A longer session name is refused before any bind, naming the limit and
+/// the longest name that fits in that session folder.
+#[test]
+fn a_session_name_too_long_for_its_socket_is_refused() {
+    let vars = env(&[("XDG_RUNTIME_DIR", root("run/user/1000"))]);
+    for (system, limit) in [
+        (System::Linux, 107),
+        (System::MacOs, 103),
+        (System::Windows, 107),
+    ] {
+        let dir = session_dir_in(system, &vars).expect("a session folder");
+        // The folder, a separator, the name and ".sock".
+        let longest = limit - dir.as_os_str().len() - 6;
+        let fits = "n".repeat(longest);
+        assert_eq!(
+            socket_path_in(system, &vars, &fits).map(|path| path.as_os_str().len()),
+            Ok(limit),
+            "{system:?}: the longest name fits exactly"
+        );
+        let refused = socket_path_in(system, &vars, &format!("{fits}n"))
+            .expect_err("one character more is refused");
+        assert!(
+            refused.contains(&format!("at most {limit} bytes"))
+                && refused.contains(&format!("up to {longest} characters")),
+            "{system:?}: the refusal names the limit and the longest name: {refused}"
+        );
+    }
+    assert_eq!(
+        socket_path("x"),
+        socket_path_in(System::HERE, &|name| std::env::var_os(name), "x"),
+        "socket_path reads this system's environment"
+    );
+}
+
 /// Autosaves, crash markers and command logs must survive a reboot, so they live in the state
 /// folder (decision 0016, section 14): `$XDG_STATE_HOME/gigasculpt` on every system when that is
 /// an absolute path; else on Linux, by the XDG Base Directory spec, `$HOME/.local/state`, and
@@ -324,6 +360,64 @@ fn state_lives_in_the_state_folder() {
         state_dir(),
         state_dir_in(System::HERE, &|name| std::env::var_os(name)),
         "state_dir reads this system's environment"
+    );
+}
+
+/// What can be made again (the Blender exchange, the Quad Remesh program) goes in the cache
+/// folder and the user's settings in the config folder: `$XDG_CACHE_HOME/gigasculpt` and
+/// `$XDG_CONFIG_HOME/gigasculpt` on every system when that is an absolute path; else each
+/// system's own place.
+#[test]
+fn the_cache_and_config_folders_are_where_each_system_keeps_them() {
+    type Find = fn(System, Env) -> Result<PathBuf, String>;
+    let vars = [
+        ("HOME", root("h/u")),
+        ("LOCALAPPDATA", root("l")),
+        ("APPDATA", root("a")),
+    ];
+    let kinds: [(&str, Find, [PathBuf; 3]); 2] = [
+        (
+            "XDG_CACHE_HOME",
+            cache_dir_in,
+            [
+                root("h/u/.cache/gigasculpt"),
+                root("h/u/Library/Caches/GigaSculpt"),
+                root("l/GigaSculpt/cache"),
+            ],
+        ),
+        (
+            "XDG_CONFIG_HOME",
+            config_dir_in,
+            [
+                root("h/u/.config/gigasculpt"),
+                root("h/u/Library/Application Support/GigaSculpt"),
+                root("a/GigaSculpt"),
+            ],
+        ),
+    ];
+    for (var, find, own) in kinds {
+        for (system, folder) in SYSTEMS.into_iter().zip(own) {
+            let with = |value: PathBuf| env(&[vars.as_slice(), &[(var, value)]].concat());
+            assert_eq!(
+                (
+                    find(system, &with(root("x"))),
+                    find(system, &with("x".into()))
+                ),
+                (Ok(root("x").join("gigasculpt")), Ok(folder)),
+                "{system:?}: {var} wins, a relative one counting as unset"
+            );
+            assert!(
+                find(system, &env(&[])).is_err(),
+                "{system:?}: with none of its variables there is no folder"
+            );
+        }
+    }
+    let here = |name: &str| std::env::var_os(name);
+    assert_eq!(cache_dir(), cache_dir_in(System::HERE, &here), "cache_dir");
+    assert_eq!(
+        config_dir(),
+        config_dir_in(System::HERE, &here),
+        "config_dir"
     );
 }
 

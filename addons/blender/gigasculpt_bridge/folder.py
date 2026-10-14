@@ -3,12 +3,13 @@
 
 A folder holds one raw little-endian file per column and `manifest.json`, written last, so a
 reader that finds the manifest finds every file it lists. GigaSculpt writes `to-blender/` and
-reads `from-blender/`, both under `$XDG_CACHE_HOME/gigasculpt/exchange/<session>/`.
+reads `from-blender/`, both under `exchange/<session>/` in GigaSculpt's cache folder.
 """
 
 import json
 import os
 import re
+import sys
 
 import numpy as np
 
@@ -33,13 +34,54 @@ def check_session(session):
         raise ExchangeError(f"bad session name '{session}': use letters, digits, '-' and '_'")
 
 
+def _var(env, name, why):
+    """The variable `name` of `env`; `why` is raised when it is unset or empty."""
+    value = env.get(name)
+    if not value:
+        raise ExchangeError(why)
+    return value
+
+
+def _app_dir(platform, env):
+    """The app's own folder on macOS and Windows, as the engine finds it."""
+    if platform == "win32":
+        return os.path.join(_var(env, "LOCALAPPDATA", "LOCALAPPDATA is not set"), "GigaSculpt")
+    home = _var(env, "HOME", "HOME is not set")
+    return os.path.join(home, "Library", "Application Support", "GigaSculpt")
+
+
+def session_dir(platform=sys.platform, env=os.environ):
+    """The folder of every session's socket, as the engine finds it (gs_protocol's
+    `session_dir_in`): `$XDG_RUNTIME_DIR/gigasculpt` wherever that is set; else none on Linux,
+    and `sessions` in the app's own folder on macOS and Windows."""
+    runtime = env.get("XDG_RUNTIME_DIR")
+    if runtime:
+        return os.path.join(runtime, "gigasculpt")
+    if platform in ("darwin", "win32"):
+        return os.path.join(_app_dir(platform, env), "sessions")
+    raise ExchangeError("XDG_RUNTIME_DIR is not set, so there is no GigaSculpt session to find")
+
+
+def cache_dir(platform=sys.platform, env=os.environ):
+    """GigaSculpt's cache folder, as the engine finds it (gs_protocol's `cache_dir_in`):
+    `$XDG_CACHE_HOME/gigasculpt` wherever that is an absolute path (an empty or relative one
+    counts as unset); else `~/.cache/gigasculpt` on Linux, `~/Library/Caches/GigaSculpt` on
+    macOS and `cache` in the app's own folder on Windows."""
+    base = env.get("XDG_CACHE_HOME", "")
+    if os.path.isabs(base):
+        return os.path.join(base, "gigasculpt")
+    if platform == "win32":
+        return os.path.join(_app_dir(platform, env), "cache")
+    home = _var(env, "HOME", "neither XDG_CACHE_HOME nor HOME is set")
+    if platform == "darwin":
+        return os.path.join(home, "Library", "Caches", "GigaSculpt")
+    return os.path.join(home, ".cache", "gigasculpt")
+
+
 def root(session):
-    """The session's exchange folder. An empty or relative XDG_CACHE_HOME counts as unset."""
+    """The session's exchange folder: `exchange/<session>` in the cache folder."""
     check_session(session)
-    base = os.environ.get("XDG_CACHE_HOME", "")
-    if not os.path.isabs(base):
-        base = os.path.join(os.path.expanduser("~"), ".cache")
-    return os.path.join(base, "gigasculpt", "exchange", session)
+    return os.path.join(cache_dir(), "exchange", session)
 
 
 def side(session, name):

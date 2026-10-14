@@ -12,11 +12,11 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use gs_core::projection::{Landing, Projection, Side as Toward, Surface, carry, landings};
 use gs_core::{AttrDef, Levels, MeshStore, NodeId, Settings, Vec3};
 use gs_geo::decimate::{Repairs, mirror, repair, unpaired};
-use gs_geo::quad::{self, Job, PIN, Program, QuadError, Quads, bwrap_in, places};
+use gs_geo::quad::{self, Job, Program, QuadError, Quads, bwrap_in, places};
 use gs_geo::voxel::Kept;
 use gs_protocol::{
     AttrDomain, AttrValues, Attribute, CommandError, Cost, ErrorCode, Kind, Length, PartRef,
-    PlainMesh,
+    PlainMesh, System,
 };
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -285,25 +285,16 @@ impl MeshQuadRemesh {
 }
 
 /// The Quad Remesh program, looked for as decision 0038 section 1 says, or why it is missing
-/// and how to build it.
+/// and how to get it on this system.
 fn program() -> Result<Program, Unavailable> {
     let env = std::env::var_os;
     let exe = std::env::current_exe().ok();
     let beside = exe.as_deref().and_then(Path::parent);
-    let at = places(
-        env("GS_QUADWILD"),
-        beside,
-        env("XDG_CACHE_HOME"),
-        env("HOME"),
-    );
+    let cache = gs_protocol::cache_dir().ok();
+    let at = places(env("GS_QUADWILD"), beside, cache.as_deref());
     Program::find(&at, bwrap_in(env("PATH"))).map_err(|why| {
-        let cache = places(None, None, env("XDG_CACHE_HOME"), env("HOME")).pop();
-        let dir = (cache.as_deref().and_then(Path::parent))
-            .map_or_else(|| "a folder".into(), |d| d.display().to_string());
-        Unavailable::new(format!("the Quad Remesh program is missing ({why})")).fix(format!(
-            "build it with third_party/quadwild/fetch.sh DIR and third_party/quadwild/build.sh \
-             DIR, DIR being {dir}, or set GS_QUADWILD to a program folder built for {PIN}"
-        ))
+        Unavailable::new(format!("the Quad Remesh program is missing ({why})"))
+            .fix(quad::fix(System::HERE, cache.as_deref()))
     })
 }
 

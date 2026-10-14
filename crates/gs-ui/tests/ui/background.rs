@@ -1,10 +1,12 @@
 //! The viewport's background (catalog item `canvas.background`) through gs-ui's render host:
 //! `view.background`'s color fills what no part covers, a gradient of 0 draws it flat, and the
-//! gradient runs from white above to black below, half white at its center.
+//! gradient runs from white above to black below, half white at its center. A transparent
+//! snapshot leaves it out.
 
+use gs_core::columns::{linear_to_srgb, srgb_to_linear};
 use serde_json::{Value, json};
 
-use crate::looks::{run, snapshot};
+use crate::looks::{Shot, run, snapshot};
 use crate::materials::empty;
 
 /// The left column of a sphere seen from the front, 64 pixels square, after `view.background`
@@ -60,4 +62,42 @@ fn a_gradient_runs_white_to_black_down_the_view_half_white_at_its_center() {
     let light = i32::midpoint(58, 255);
     assert!(all_near(&hard[..16], [light; 3], 2), "{:?}", &hard[..16]);
     assert!(all_near(&hard[16..], [29; 3], 2), "{:?}", &hard[16..]);
+}
+
+/// The 8-bit sRGB color of straight-alpha `pixel` laid over `back` in linear light, as the
+/// renderer blends a partly covered pixel.
+fn laid_over(pixel: &[u8], back: [u8; 3]) -> [i32; 3] {
+    let alpha = f32::from(pixel[3]) / 255.0;
+    let linear = |v: u8| srgb_to_linear(f32::from(v) / 255.0);
+    [0, 1, 2].map(|k| {
+        let mixed = alpha * linear(pixel[k]) + (1.0 - alpha) * linear(back[k]);
+        (linear_to_srgb(mixed) * 255.0).round() as i32
+    })
+}
+
+/// `transparent` leaves the background out of a snapshot: where no part is, every channel is 0;
+/// inside the sphere, the opaque snapshot's pixels exactly; along its anti-aliased edge,
+/// pixels partly covered that, laid back over the background, make the opaque snapshot again
+/// within one level (the dither's).
+#[test]
+fn a_transparent_snapshot_leaves_the_background_out() {
+    let mut e = empty();
+    run(&mut e, "primitive.sphere", json!({}));
+    run(&mut e, "view.background", json!({ "color": "#3a6a3a" }));
+    let opaque = snapshot(&mut e, json!({ "view": "front", "size": 64 }));
+    let args = json!({ "view": "front", "size": 64, "transparent": true });
+    let clear = snapshot(&mut e, args);
+    assert_eq!((clear.0, clear.1.len()), (opaque.0, opaque.1.len()));
+    let pixel = |shot: &Shot, x: usize, y: usize| shot.1[(y * 64 + x) * 4..][..4].to_vec();
+    assert_eq!(pixel(&clear, 0, 0), [0; 4], "no part");
+    assert_eq!(pixel(&clear, 32, 32), pixel(&opaque, 32, 32), "the sphere");
+    let edge = (clear.1.chunks(4))
+        .filter(|p| p[3] > 0 && p[3] < 255)
+        .count();
+    assert!(edge > 32, "the edge is partly covered: {edge} pixels");
+    for (c, o) in clear.1.chunks(4).zip(opaque.1.chunks(4)) {
+        let laid = laid_over(c, [58, 106, 58]);
+        let near = (0..3).all(|k| (laid[k] - i32::from(o[k])).abs() <= 1);
+        assert!(near, "{c:?} over the background is {laid:?}, not {o:?}");
+    }
 }

@@ -33,10 +33,16 @@ fn adapter_names_round_trip() {
     );
 }
 
-/// `available` lists exactly the kinds that open, whatever hardware the machine has.
+/// `available` lists exactly the kinds that open, whatever hardware the machine has; with no
+/// kind named, the first adapter wgpu offers opens (the default off Linux).
 #[test]
 fn available_lists_what_opens() {
     let available = AdapterKind::available();
+    assert_eq!(
+        Gpu::open(None).is_ok(),
+        !available.is_empty(),
+        "with no kind named, the first adapter opens"
+    );
     for kind in AdapterKind::ALL {
         let opens = Gpu::open(kind);
         assert_eq!(

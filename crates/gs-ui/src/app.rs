@@ -8,8 +8,8 @@ use std::process::ExitCode;
 use std::time::Duration;
 
 use clap::Parser;
-use gs_engine::EngineConfig;
 use gs_engine::server::{JobWatch, ServeOptions, Server, Window};
+use gs_engine::{EngineConfig, cli};
 use gs_platform::{Input, Platform, Pumped, WindowOptions};
 use gs_protocol::{
     Catalog, CmdResponse, CommandError, Outcome, PROTOCOL_VERSION, Request, RunParams, Step, method,
@@ -39,17 +39,14 @@ const ANIMATING: Duration = Duration::from_millis(4);
 /// Opens the GigaSculpt window. The engine runs in this process, with its socket server
 /// alongside, so `gs` and agents can attach to the live window.
 #[derive(Parser, Debug)]
-#[command(name = "gigasculpt window", version)]
+#[command(name = "gigasculpt window", version, after_help = cli::FOLDERS)]
 pub struct WindowArgs {
     /// Session name: letters, digits, '-' and '_'.
     #[arg(long, default_value = "main")]
     pub session: String,
-    /// Socket to listen on. Default: `$XDG_RUNTIME_DIR/gigasculpt/<session>.sock`.
-    #[arg(long)]
+    #[arg(long, help = cli::SOCKET)]
     pub socket: Option<PathBuf>,
-    /// Command log to write, never pruned. Default: `logs/<session>-<pid>.jsonl` in
-    /// `$XDG_STATE_HOME/gigasculpt`, which survives a reboot.
-    #[arg(long)]
+    #[arg(long, help = cli::LOG)]
     pub log: Option<PathBuf>,
     /// Write the scene hash after every logged call that changes the scene, as `gigasculpt
     /// serve --verify` does, so `gs run` checks a replay line by line. A session recorded to
@@ -57,7 +54,8 @@ pub struct WindowArgs {
     #[arg(long)]
     pub verify: bool,
     /// Folder of the keymap, the layout state and the `layouts` folder of layout files.
-    /// Default: `$XDG_CONFIG_HOME/gigasculpt`.
+    /// Default: `$XDG_CONFIG_HOME/gigasculpt`, else `~/.config/gigasculpt` on Linux,
+    /// `~/Library/Application Support/GigaSculpt` on macOS, `%APPDATA%\GigaSculpt` on Windows.
     #[arg(long)]
     pub config: Option<PathBuf>,
     /// GPU: `lavapipe`, `nvidia` or `radv`. Default: the fastest one that can present.
@@ -103,18 +101,6 @@ pub fn main(args: &[OsString]) -> ExitCode {
             ExitCode::FAILURE
         }
     }
-}
-
-/// The folder the keymap and layout live in.
-fn config_dir(given: Option<PathBuf>) -> Result<PathBuf, String> {
-    if let Some(dir) = given {
-        return Ok(dir);
-    }
-    let base = std::env::var_os("XDG_CONFIG_HOME")
-        .map(PathBuf::from)
-        .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".config")))
-        .ok_or("neither XDG_CONFIG_HOME nor HOME is set")?;
-    Ok(base.join("gigasculpt"))
 }
 
 /// The interface with the keymap, the layout state, the preferences and the layout files in
@@ -192,13 +178,13 @@ pub fn materials(config: &std::path::Path) -> Step {
 
 /// Opens the window and serves the session until the window closes.
 pub fn run(o: &WindowArgs) -> Result<(), String> {
-    // Checked before the window opens, so a bad name never flashes one.
-    gs_protocol::check_session_name(&o.session)?;
+    // Checked before the window opens, so a bad or too long name never flashes one.
+    socket(o)?;
     let kind = match &o.adapter {
         Some(name) => Some(AdapterKind::from_name(name).ok_or(format!("unknown adapter {name}"))?),
         None => None,
     };
-    let config = config_dir(o.config.clone())?;
+    let config = o.config.clone().map_or_else(gs_protocol::config_dir, Ok)?;
     let shell = shell(&config);
     let mut platform = Platform::open(&WindowOptions {
         title: format!("GigaSculpt - {}", o.session),
@@ -231,11 +217,7 @@ pub fn run(o: &WindowArgs) -> Result<(), String> {
 /// `gigasculpt serve` uses (`EngineConfig::with_log`), so a window log replays as a headless
 /// one does.
 pub fn start(o: &WindowArgs, host: &Host) -> Result<Server, String> {
-    gs_protocol::check_session_name(&o.session)?;
-    let socket = match &o.socket {
-        Some(socket) => socket.clone(),
-        None => gs_protocol::socket_path(&o.session)?,
-    };
+    let socket = socket(o)?;
     let config = EngineConfig {
         session: o.session.clone(),
         verify: o.verify,
@@ -257,6 +239,16 @@ pub fn start(o: &WindowArgs, host: &Host) -> Result<Server, String> {
         engine.attach_window(Box::new(host.clone()));
     })
     .map_err(|e| e.to_string())
+}
+
+/// The socket `o` names, else the session's own; a bad session name, or one too long for its
+/// socket, is refused.
+fn socket(o: &WindowArgs) -> Result<PathBuf, String> {
+    gs_protocol::check_session_name(&o.session)?;
+    match &o.socket {
+        Some(socket) => Ok(socket.clone()),
+        None => gs_protocol::socket_path(&o.session),
+    }
 }
 
 /// What the window runs between attaching to the session and its first frame, in [`run`] and in

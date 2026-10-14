@@ -42,7 +42,7 @@ use std::path::Path;
 use std::sync::LazyLock;
 
 use egui::{Key, Modifiers};
-use gs_engine::{KeyBinding, KeymapInfo, UiKeymap, Unavailable, errors};
+use gs_engine::{KeyBinding, KeymapInfo, Slots, UiKeymap, Unavailable, errors};
 use gs_protocol::CommandError;
 use serde::{Deserialize, Serialize};
 
@@ -399,7 +399,8 @@ const VIEW: &[Row] = &[
 ];
 
 /// Sculpting keys for the left hand (`interface.default-bindings-sculpt`): B and two letters
-/// pick a brush (decision 0017 as amended, item 11); S, U and O held while moving set size,
+/// pick a brush (decision 0017 as amended, item 11), every shipped brush its own, its letters
+/// from its name where they are free; S, U and O held while moving set size,
 /// strength and Falloff; [ and ] step the size; L turns stroke smoothing off and on; the
 /// backtick goes back to the previous brush; Shift+X swaps the Main and Secondary colors (decision 0039, section 11: X is Mirror
 /// X and V starts the view sequences), and C picks the color under the pen into the edited
@@ -420,6 +421,15 @@ const SCULPT: &[Row] = &[
     ("B S H", "brush.set", "brush = \"Pull Out\""),
     ("B T D", "brush.set", "brush = \"Trim\""),
     ("B H P", "brush.set", "brush = \"Flat Polish\""),
+    ("B C A", "brush.set", "brush = \"Clay\""),
+    ("B M C", "brush.set", "brush = \"Move Connected\""),
+    ("B P N", "brush.set", "brush = \"Pull Out Along Normal\""),
+    ("B M K", "brush.set", "brush = \"Mask Pen\""),
+    ("B S R", "brush.set", "brush = \"Select Rect\""),
+    ("B U D", "brush.set", "brush = \"UV Density\""),
+    ("B U H", "brush.set", "brush = \"UV Hint\""),
+    ("B P A", "brush.set", "brush = \"Paint\""),
+    ("B P B", "brush.set", "brush = \"Paint Blend\""),
     ("S", "brush.set", "size_px = \"drag\""),
     ("U", "brush.set", "strength = \"drag\""),
     ("O", "brush.set", "falloff = \"drag\""),
@@ -709,12 +719,69 @@ impl Keymap {
     /// written in the file. A slider's arguments (one marked `"drag"`) are also the key's that
     /// turns the same argument off and on (marked `"flip"`): L is the Smoothing slider's. So
     /// are a switch's as a tap runs them, true or false in place of `"flip"`, as the palette
-    /// lists them: Ctrl+H is Show mask's.
+    /// lists them: Ctrl+H is Show mask's. A brush's pick ([`picked`]) takes the key that
+    /// picks that brush ([`Keymap::brush_key`]), whichever of the two commands runs it.
     pub fn key_for_args(&self, command: &str, args: &toml::Table) -> Option<&str> {
+        if let Some(brush) = picked(command, args) {
+            return self.brush_key(brush);
+        }
         let flips = flipped(args);
         (self.bindings.iter())
             .find(|b| b.command == command && [args, &flips].contains(&&b.plain_args()))
             .map(|b| b.key.as_str())
+    }
+
+    /// The key that picks `brush`, whatever its button runs (`brush.set`, or `brush.slot` for a
+    /// Smooth brush): the newest binding of either to that brush alone, so a key the user bound
+    /// to it shows over its built-in one, and none once every key for it is removed.
+    fn brush_key(&self, brush: &str) -> Option<&str> {
+        (self.bindings.iter().rev())
+            .find(|b| picked(&b.command, &b.plain_args()) == Some(brush))
+            .map(|b| b.key.as_str())
+    }
+
+    /// What picks `brush`: its key ([`Keymap::brush_key`]), and the held keys whose slot in
+    /// `slots` holds it, which stroke with it ([`crate::held::holding`]).
+    pub fn brush_keys(&self, brush: &str, slots: &Slots) -> BrushKeys {
+        BrushKeys {
+            key: self.brush_key(brush).map(Into::into),
+            held: crate::held::holding(brush, slots),
+        }
+    }
+}
+
+/// The commands that pick a brush by its name: its key runs `brush.set`, a Smooth brush's
+/// button `brush.slot` (`Directions::brush_controls`).
+const PICKS: [&str; 2] = ["brush.set", "brush.slot"];
+
+/// The brush `command` with `args` picks, if it picks one by name: one of [`PICKS`] given
+/// `brush` and nothing else.
+pub(crate) fn picked<'a>(command: &str, args: &'a toml::Table) -> Option<&'a str> {
+    let brush = args.get("brush").and_then(toml::Value::as_str)?;
+    (PICKS.contains(&command) && args.len() == 1).then_some(brush)
+}
+
+/// What picks a brush ([`Keymap::brush_keys`]): its key, and the held keys whose slot holds it.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct BrushKeys {
+    /// The key bound to it, as the keymap writes it: `B S M`.
+    pub key: Option<String>,
+    /// The modifier keys that stroke with it while held, its slot's: `Shift`, `Ctrl+Shift`.
+    pub held: Option<String>,
+}
+
+/// What a brush nothing picks says.
+pub const NO_KEY: &str = "No key";
+
+impl BrushKeys {
+    /// In one line: `B S M or Shift held`, `B S T`, `Ctrl held`, or [`NO_KEY`].
+    pub fn text(&self) -> String {
+        match (&self.key, &self.held) {
+            (Some(key), Some(held)) => format!("{key} or {held} held"),
+            (Some(key), None) => key.clone(),
+            (None, Some(held)) => format!("{held} held"),
+            (None, None) => NO_KEY.into(),
+        }
     }
 }
 

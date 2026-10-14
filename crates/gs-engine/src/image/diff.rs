@@ -4,7 +4,8 @@ use gs_protocol::{CommandError, ErrorCode, Kind};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use crate::errors::{args_invalid, error, internal};
+use super::picture::{Picture, encode, read};
+use crate::errors::args_invalid;
 use crate::view::deliver;
 use crate::{Command, Ctx, Example, register_command};
 
@@ -53,49 +54,6 @@ pub struct Diff {
 pub struct PixelBox {
     pub min: [u32; 2],
     pub max: [u32; 2],
-}
-
-/// Tightly packed RGBA8 rows, top row first.
-struct Picture {
-    width: u32,
-    height: u32,
-    rgba: Vec<u8>,
-}
-
-/// Reads an 8-bit RGBA PNG file.
-fn read(file: &str) -> Result<Picture, CommandError> {
-    let unreadable = |e: &dyn std::fmt::Display| {
-        error(ErrorCode::Precondition, format!("cannot read {file}: {e}"))
-    };
-    let bytes = std::fs::read(file).map_err(|e| unreadable(&e))?;
-    let mut reader = png::Decoder::new(std::io::Cursor::new(bytes))
-        .read_info()
-        .map_err(|e| unreadable(&e))?;
-    let mut rgba = vec![0; reader.output_buffer_size().unwrap_or(0)];
-    let info = reader.next_frame(&mut rgba).map_err(|e| unreadable(&e))?;
-    if (info.color_type, info.bit_depth) != (png::ColorType::Rgba, png::BitDepth::Eight) {
-        let found = format!("{:?} {:?}, not 8-bit RGBA", info.bit_depth, info.color_type);
-        return Err(unreadable(&found));
-    }
-    rgba.truncate(info.buffer_size());
-    Ok(Picture {
-        width: info.width,
-        height: info.height,
-        rgba,
-    })
-}
-
-/// `picture` as an 8-bit RGBA PNG.
-fn encode(picture: &Picture) -> Result<Vec<u8>, CommandError> {
-    let failed = |e: png::EncodingError| internal(&format!("encoding the difference image: {e}"));
-    let mut out = Vec::new();
-    let mut encoder = png::Encoder::new(&mut out, picture.width, picture.height);
-    encoder.set_color(png::ColorType::Rgba);
-    encoder.set_depth(png::BitDepth::Eight);
-    let mut writer = encoder.write_header().map_err(failed)?;
-    writer.write_image_data(&picture.rgba).map_err(failed)?;
-    writer.finish().map_err(failed)?;
-    Ok(out)
 }
 
 impl Command for ImageDiff {

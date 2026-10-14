@@ -38,11 +38,14 @@ jobs:
       - name: Build
         run: cargo build --release --locked -p gigasculpt -p gs
 
+      # With a desktop file and its icon, for the app menu (the release notes say where they go).
       - name: Package
         run: |
           name="gigasculpt-${GITHUB_REF_NAME}-linux-x86_64"
           mkdir -p "dist/$name"
           cp target/release/gigasculpt target/release/gs LICENSE README.md "dist/$name/"
+          cp .github/linux/gigasculpt.desktop "dist/$name/"
+          cp assets/brand/icon-256.png "dist/$name/gigasculpt.png"
           tar -C dist -czf "dist/$name.tar.gz" "$name"
 
       - uses: actions/upload-artifact@v4
@@ -97,12 +100,13 @@ jobs:
         run: cargo build --release --locked -p gigasculpt -p gs --target x86_64-apple-darwin
 
       # One universal program of each, in GigaSculpt.app/Contents/MacOS, where gs finds the
-      # app beside itself.
+      # app beside itself; the icon in Contents/Resources, named by Info.plist.
       - name: Package
         run: |
           version="${GITHUB_REF_NAME#v}"
           app="dist/dmg/GigaSculpt.app"
-          mkdir -p "$app/Contents/MacOS"
+          mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
+          cp assets/brand/icon.icns "$app/Contents/Resources/GigaSculpt.icns"
           for bin in gigasculpt gs; do
             lipo -create -output "$app/Contents/MacOS/$bin" \
               "target/aarch64-apple-darwin/release/$bin" "target/x86_64-apple-darwin/release/$bin"
@@ -110,6 +114,9 @@ jobs:
           cp .github/macos/Info.plist "$app/Contents/Info.plist"
           plutil -replace CFBundleShortVersionString -string "$version" "$app/Contents/Info.plist"
           plutil -replace CFBundleVersion -string "$version" "$app/Contents/Info.plist"
+          # An ad-hoc signature over the whole bundle: Apple silicon refuses an unsigned one as
+          # damaged, while an ad-hoc signed one gets Privacy & Security's Open Anyway.
+          codesign --force --deep --sign - "$app"
           cp LICENSE README.md dist/dmg/
           ln -s /Applications dist/dmg/Applications
           hdiutil create -volname GigaSculpt -srcfolder dist/dmg -format UDZO \

@@ -74,7 +74,7 @@ pub use glue::{MousePen, PenRouter, events, key, layer, split_pen};
 pub use held::Held;
 pub use host::Host;
 pub use icons::{Entry as IconEntry, ICONS, entries as icon_entries, mask as icon_mask};
-pub use keymap::{Binding, Chord, Keymap, Press, Pressed};
+pub use keymap::{Binding, BrushKeys, Chord, Keymap, Press, Pressed};
 pub use layout::{Layout, LayoutFile};
 pub use matcaps::MatCaps;
 pub use navigate::{Navigator, Row};

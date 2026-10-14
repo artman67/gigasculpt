@@ -11,12 +11,15 @@ publish.workspace = true
 gs-core.workspace = true
 gs-par.workspace = true
 gs-protocol.workspace = true
-# Scene files (decision 0016): chunk hashes, the JSON manifest, zstd, and the free-space check.
+# Scene files (decision 0016): chunk hashes, the JSON manifest and zstd.
 blake3.workspace = true
 serde.workspace = true
 # float_roundtrip: a Part's properties come back bit for bit (decision 0016, section 5).
 serde_json = { workspace = true, features = ["float_roundtrip"] }
 zstd = { version = "0.13.3", default-features = false }
+
+# Scene files' free-space check, which only Unix makes.
+[target.'cfg(unix)'.dependencies]
 rustix = { version = "1.1.5", features = ["fs"] }
 
 [dev-dependencies]

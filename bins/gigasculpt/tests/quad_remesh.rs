@@ -1,6 +1,7 @@
 //! Decision 0038, section 1: an engine whose `GS_QUADWILD` names a folder without the Quad
-//! Remesh program refuses `mesh.quad_remesh` with the reason and the fix, and changes nothing.
-//! A process of its own, since the engine reads the variable from its environment.
+//! Remesh program refuses `mesh.quad_remesh` with the reason and the fix, which names the cache
+//! folder, and changes nothing. A process of its own, since the engine reads the variables from
+//! its environment.
 
 use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
@@ -41,12 +42,13 @@ fn a_missing_program_refuses_with_the_reason_and_the_fix() {
     let dir = base.join(format!("gigasculpt-quad-{}", std::process::id()));
     let empty = dir.join("no-program");
     std::fs::create_dir_all(&empty).unwrap_or_else(|e| panic!("{e}"));
-    let socket = dir.join("quad.sock");
+    let (socket, cache) = (dir.join("quad.sock"), dir.join("cache"));
     let child = Command::new(env!("CARGO_BIN_EXE_gigasculpt"))
         .args(["serve", "--headless", "--session", "quad", "--socket"])
         .arg(&socket)
         .env("GS_QUADWILD", &empty)
         .env("XDG_STATE_HOME", dir.join("state"))
+        .env("XDG_CACHE_HOME", &cache)
         .spawn()
         .unwrap_or_else(|e| panic!("cannot start the engine: {e}"));
     let mut engine = Engine(child, dir);
@@ -72,14 +74,25 @@ fn a_missing_program_refuses_with_the_reason_and_the_fix() {
         .unwrap_or_else(|e| panic!("{e}"));
     let error = &refused["error"];
     assert_eq!(error["code"], json!("E_PRECONDITION"), "{refused}");
-    let (message, hint) = (error["message"].to_string(), error["hint"].to_string());
+    let (message, hint) = (error["message"].to_string(), error["hint"].as_str());
     assert!(
         message.contains("Quad Remesh program is missing") && message.contains("no stamp"),
         "the reason: {message}"
     );
+    let hint = hint.unwrap_or_default();
+    let folder = cache
+        .join("gigasculpt")
+        .join("quadwild")
+        .display()
+        .to_string();
+    let how = if cfg!(target_os = "linux") {
+        "build.sh"
+    } else {
+        "not shipped"
+    };
     assert!(
-        hint.contains("fetch.sh") && hint.contains("build.sh") && hint.contains("GS_QUADWILD"),
-        "the fix: {hint}"
+        hint.contains(&folder) && hint.contains(how) && hint.contains("GS_QUADWILD"),
+        "the fix names {folder} and {how:?}: {hint}"
     );
     assert_eq!(hash(), before, "nothing changed");
 }

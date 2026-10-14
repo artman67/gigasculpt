@@ -43,6 +43,7 @@ mod hold;
 mod icons;
 mod isolate;
 mod keymap;
+mod keys_page;
 mod library;
 mod look;
 #[path = "../common/looks.rs"]

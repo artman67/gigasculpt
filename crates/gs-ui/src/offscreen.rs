@@ -62,23 +62,31 @@ impl RenderHost for Host {
     }
 }
 
+/// The adapter a headless session renders on when none is named: lavapipe on Linux, which draws
+/// the same bytes every run (the golden pictures depend on it); elsewhere none, so the first
+/// adapter wgpu offers.
+const DEFAULT: Option<AdapterKind> = if cfg!(target_os = "linux") {
+    Some(AdapterKind::Lavapipe)
+} else {
+    None
+};
+
 /// A headless session's renderer. It opens its device at the first look, so a session that
 /// never looks never pays for one.
 pub struct Offscreen {
-    kind: AdapterKind,
+    kind: Option<AdapterKind>,
     device: Option<Renderer>,
     matcaps: MatCaps,
     lighting: Lighting,
 }
 
 impl Offscreen {
-    /// Renders on `adapter` (`lavapipe`, `nvidia` or `radv`; default lavapipe, which draws the
-    /// same bytes every run).
+    /// Renders on `adapter` (`lavapipe`, `nvidia` or `radv`), else on [`DEFAULT`].
     pub fn new(adapter: Option<&str>) -> Result<Self, String> {
+        let unknown = |name| format!("unknown adapter {name}: use lavapipe, nvidia or radv");
         let kind = match adapter {
-            Some(name) => AdapterKind::from_name(name)
-                .ok_or_else(|| format!("unknown adapter {name}: use lavapipe, nvidia or radv"))?,
-            None => AdapterKind::default(),
+            Some(name) => Some(AdapterKind::from_name(name).ok_or_else(|| unknown(name))?),
+            None => DEFAULT,
         };
         Ok(Self {
             kind,
@@ -103,7 +111,10 @@ impl RenderHost for Offscreen {
         if self.device.is_none() {
             match Renderer::new(self.kind) {
                 Ok(renderer) => self.device = Some(renderer),
-                Err(e) => return Some(Err(format!("cannot open {}: {e}", self.kind.name()))),
+                Err(e) => {
+                    let kind = self.kind.map_or("an adapter", AdapterKind::name);
+                    return Some(Err(format!("cannot open {kind}: {e}")));
+                }
             }
         }
         let renderer = self.device.as_ref()?;
@@ -139,7 +150,7 @@ impl RenderHost for Offscreen {
     fn subsurface_runs(&mut self, display: &DisplaySettings) -> Option<bool> {
         let integrated = match &self.device {
             Some(renderer) => renderer.gpu().integrated(),
-            None => self.kind.integrated()?,
+            None => AdapterKind::integrated(self.kind)?,
         };
         Some(subsurface(display).mode.runs(integrated))
     }

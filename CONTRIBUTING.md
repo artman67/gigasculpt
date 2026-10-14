@@ -77,11 +77,27 @@ are reviewed sooner. For a bigger feature, open an issue first so we can agree o
 
 Open an issue with the bug template. Please include:
 
-- the version (`gigasculpt --version`), your system and your graphics card;
+- the version (`gigasculpt --version`, or `gs --version` on Windows, where the app prints
+  nothing to a terminal), your system, your graphics card and your tablet;
 - what you did, what you expected and what happened;
-- the session's command log if you can: the window writes every command to
-  `logs/` under `$XDG_STATE_HOME/gigasculpt` (usually `~/.local/state/gigasculpt/logs/`), and
-  `gs run` replays it into a fresh session, which is often all we need to see the bug.
+- the session's command log if you can. Every session writes its commands to
+  `logs/<session>-<pid>.jsonl` in GigaSculpt's state folder, and `gs run` replays it into a fresh
+  session, which is often all we need to see the bug:
+
+  | System | Logs folder |
+  |---|---|
+  | Linux | `~/.local/state/gigasculpt/logs` (or `$XDG_STATE_HOME/gigasculpt/logs`) |
+  | macOS | `~/Library/Application Support/GigaSculpt/logs` |
+  | Windows | `%LOCALAPPDATA%\GigaSculpt\logs` |
+
+- the bug bundle, if a command crashed: GigaSculpt writes a `.gsrepro` folder beside the log and
+  its error message says where. `gs repro check` replays one and `gs repro minimize` shrinks it.
+
+Your settings and keys are in the config folder (`~/.config/gigasculpt` on Linux,
+`~/Library/Application Support/GigaSculpt` on macOS, `%APPDATA%\GigaSculpt` on Windows); a bug
+that depends on them may need `preferences.toml` or `keymap.toml` too.
+[Troubleshooting](docs/troubleshooting.md) has more, and
+[Files](docs/files.md#where-gigasculpt-keeps-its-files) lists every folder.
 
 ## License
 

@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=GigaSculpt
+GenericName=Digital Sculpting
+Comment=Sculpt with pen and mouse
+Exec=gigasculpt
+Icon=gigasculpt
+Terminal=false
+Categories=Graphics;3DGraphics;
+StartupWMClass=gigasculpt

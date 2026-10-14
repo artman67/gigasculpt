@@ -19,17 +19,10 @@ const NAMES: [&str; 2] = ["to-blender", "from-blender"];
 /// Why Read from Blender is held back.
 const NOTHING_NEW: &str = "Nothing new from Blender";
 
-/// The cache folder the add-on uses: `$XDG_CACHE_HOME`, or `~/.cache` when the variable is
-/// unset or not absolute. `None` with neither.
-fn cache() -> Option<PathBuf> {
-    let set = std::env::var_os("XDG_CACHE_HOME").map(PathBuf::from);
-    let home = || std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".cache"));
-    set.filter(|p| p.is_absolute()).or_else(home)
-}
-
 /// The exchange folders, and what the window has counted as read from `from-blender`.
 pub struct Exchange {
-    /// The cache folder they are under.
+    /// GigaSculpt's cache folder they are under, which the add-on finds the same way on each
+    /// system; `None` when there is none.
     cache: Option<PathBuf>,
     /// Whether the window has looked at `from-blender` yet.
     looked: bool,
@@ -38,10 +31,10 @@ pub struct Exchange {
 }
 
 impl Default for Exchange {
-    /// The folders under the cache folder the add-on uses.
+    /// The folders under GigaSculpt's cache folder (`gs_protocol::cache_dir`).
     fn default() -> Self {
         Self {
-            cache: cache(),
+            cache: gs_protocol::cache_dir().ok(),
             looked: false,
             seen: None,
         }
@@ -57,11 +50,11 @@ impl Exchange {
         }
     }
 
-    /// The session's exchange folder `name`: `<cache>/gigasculpt/exchange/<session>/<name>`, as
-    /// the add-on finds it. `None` before the window knows its session.
+    /// The session's exchange folder `name`: `<cache>/exchange/<session>/<name>`, as the add-on
+    /// finds it. `None` before the window knows its session.
     pub fn folder(&self, session: &str, name: &str) -> Option<PathBuf> {
         let cache = self.cache.as_ref().filter(|_| !session.is_empty())?;
-        Some(cache.join("gigasculpt/exchange").join(session).join(name))
+        Some(cache.join("exchange").join(session).join(name))
     }
 
     /// Gives the exchange commands in `steps` that name their folder by name the session's

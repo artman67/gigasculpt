@@ -13,6 +13,7 @@ use gs_protocol::Step;
 use super::sliders::setting;
 use super::{Now, controls_of};
 use crate::direction::Control;
+use crate::keymap::picked;
 use crate::record::{Recorder, Role, Widget};
 use crate::theme::theme;
 use crate::{descriptions, icons, recent};
@@ -167,13 +168,15 @@ pub fn options_mark(ui: &egui::Ui, rect: egui::Rect, lit: bool) {
         .add(Shape::convex_polygon(points, color, Stroke::NONE));
 }
 
-/// `shown` saying `hint` on hover, as `ui.describe` says for the widget recorded last (its own).
+/// `shown` saying `hint` on hover, as `ui.describe` says for the widget recorded last (its own):
+/// in its description when it has one (a brush's, a Library tile's), else as egui's hover text.
 pub fn hover(shown: egui::Response, hint: Option<&str>, rec: &mut Recorder) -> egui::Response {
     let Some(hint) = hint else {
         return shown;
     };
     rec.hint(hint);
-    shown.on_hover_text(hint)
+    let ctx = shown.ctx.clone();
+    descriptions::said(&ctx, shown, hint)
 }
 
 /// The button a control that runs a command draws, with its short label when `short`; `None`
@@ -267,12 +270,14 @@ pub fn pressed_as(
         (None, false) => (None, None),
     };
     let shown = faced(ui, (face, label), colored, (held.is_none(), lit));
+    let brush = brush_tip(&step, now, held.or(idle));
+    // A brush's box says why itself, so only one box shows.
     let shown = match (held, idle) {
-        (Some(why), _) => shown.on_disabled_hover_text(why),
-        (None, Some(why)) => shown.on_hover_text(why),
-        (None, None) => shown,
+        (Some(why), _) if brush.is_none() => shown.on_disabled_hover_text(why),
+        (None, Some(why)) if brush.is_none() => shown.on_hover_text(why),
+        _ => shown,
     };
-    descriptions::note(ui, &shown, &step, key);
+    descriptions::note_brush(ui, &shown, &step, key, brush);
     let widget = Widget::runs(label, Role::Button, step, key);
     let widget = match shows {
         Some(shows) => widget.toggle(shows, lit),
@@ -285,6 +290,19 @@ pub fn pressed_as(
     };
     rec.widget(widget, shown.rect);
     shown
+}
+
+/// What the box over a button that runs `step` says when it picks a brush by name (`brush.set`,
+/// or a Smooth brush's `brush.slot`): the brush, the keys that pick it in `now`'s keymap and
+/// slots, and `why` it cannot run now.
+fn brush_tip(step: &Step, now: &Now, why: Option<&str>) -> Option<descriptions::Brush> {
+    let args: toml::Table = serde_json::from_value(step.args.clone()).ok()?;
+    let name = picked(&step.command, &args)?;
+    Some(descriptions::Brush {
+        keys: now.keymap.brush_keys(name, &now.brush.slots),
+        name: name.into(),
+        why: why.map(Into::into),
+    })
 }
 
 /// Adds a button showing `face` for `label`: its text and icon in `ink` (the theme's text

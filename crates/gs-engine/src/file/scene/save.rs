@@ -172,11 +172,11 @@ register_command!(FileSave, "Save scene");
 
 /// Save a numbered copy of the scene in its autosave folder, at once, in the background.
 ///
-/// The folder is `$XDG_STATE_HOME/gigasculpt/autosave/<scene name>-<scene id>/`; the newest
-/// copies are kept (10 by default) and older ones removed. Autosave writes the same copies on
-/// its own (decision 0016). The copy records where it sits in the command log, so after a
-/// crash `file.recover` can bring the scene back to the last command. A session with autosave
-/// off has no autosave folder.
+/// The folder is `autosave/<scene name>-<scene id>/` in the state folder, which `gigasculpt
+/// serve --help` names on each system; the newest copies are kept (10 by default) and older
+/// ones removed. Autosave writes the same copies on its own (decision 0016). The copy records
+/// where it sits in the command log, so after a crash `file.recover` can bring the scene back
+/// to the last command. A session with autosave off has no autosave folder.
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct FileQuickSave {

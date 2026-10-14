@@ -522,7 +522,7 @@ fn the_log_replays_refining_strokes_at_any_thread_count() {
 #[test]
 fn smooth_at_strength_0_changes_only_the_density() {
     let zero = json!({ "strength": 0.0, "settings": { "stroke": { "spacing": 0.025 } } });
-    // At Smooth's own merge (0.45, STATUS item 122), for Draw and the refine as for Smooth.
+    // At Smooth's own merge (0.45), for Draw and the refine as for Smooth.
     let constant = |size: f32| json!({ "mode": "constant", "size": size, "merge": 0.45 });
     let run = |brush: &str| {
         let mut s = sphere_session(None);

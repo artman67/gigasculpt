@@ -11,9 +11,9 @@ use crate::{Command, Ctx, Example, Unavailable, register_command};
 /// Render the scene offscreen as one PNG, from a camera of its own or through a view.
 ///
 /// No view moves: `"main"` looks from exactly where the window looks. Works the same in a
-/// headless session. Edges are anti-aliased unless `antialias` is false. Returns the PNG as
-/// base64, or writes it to `path`. For several views in one picture, use
-/// `view.contact_sheet`.
+/// headless session. Edges are anti-aliased unless `antialias` is false. With `transparent`,
+/// the background is left out. Returns the PNG as base64, or writes it to `path`. For several
+/// views in one picture, use `view.contact_sheet`.
 #[derive(Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ViewSnapshot {
@@ -34,6 +34,12 @@ pub struct ViewSnapshot {
     /// `active_outline`, `face_groups` and `density`, given beside the other arguments.
     #[serde(flatten)]
     pub draws: Draws,
+    /// Leave the background out: where no part is, the PNG is transparent, and along the
+    /// parts' anti-aliased edges partly so, to lay the picture over another (an app icon's,
+    /// say). It is drawn twice, over black and over white, so it takes twice as long. Left
+    /// out: false.
+    #[serde(default)]
+    pub transparent: bool,
     /// Write the PNG to this file instead of returning it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[schemars(length(min = 1))]
@@ -79,6 +85,7 @@ impl Command for ViewSnapshot {
             size: Size::Square(512),
             shading: Some(Shading::Clay),
             draws: Draws::default(),
+            transparent: false,
             path: None,
         };
         vec![
@@ -105,6 +112,7 @@ impl Command for ViewSnapshot {
             columns: 1,
             shading: self.shading,
             draws: self.draws,
+            transparent: self.transparent,
             path: self.path,
         };
         look(cx, settings)

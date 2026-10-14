@@ -28,6 +28,9 @@ MSVC compiler and the Windows SDK), and CMake (Visual Studio's own, or from cmak
 **macOS:** the Xcode command line tools (`xcode-select --install`) and CMake (for example
 `brew install cmake`).
 
+GigaSculpt is made and tested on Linux. The Windows and macOS builds are new and less tested, so
+please [report](troubleshooting.md#reporting-a-bug) what goes wrong there.
+
 ## Build and run
 
 ```
@@ -37,7 +40,8 @@ cargo build --release --locked
 This makes two programs in `target/release/`:
 
 - `gigasculpt`, the app. With no arguments it opens the window; `gigasculpt serve --headless`
-  runs a session with no window.
+  runs a session with no window. A release build on Windows prints nothing in a terminal; use
+  `gs` there.
 - `gs`, the command-line client and MCP server (see [Scripts and agents](scripting.md)). It
   looks for `gigasculpt` beside itself, so keep the two together.
 
@@ -73,10 +77,11 @@ checks; `-E 'not test(/(^|::)tier2::/)'` leaves them out.
 
 Mesh > Quad Remesh runs a separate program built from pinned open-source code (listed with its
 exact versions in `third_party/quadwild/sources.lock`). It is not part of the release downloads
-yet, and for now it builds and runs on Linux only, inside bubblewrap with no network. Without it,
-Quad Remesh says the program is missing, and the rest of the app works as usual.
+yet, and for now it builds and runs on Linux only. Without it, Quad Remesh says the program is
+missing and where it looks, and the rest of the app works as usual.
 
-You need git, CMake, Ninja, a C++ compiler and bubblewrap (`bwrap`). Then, from the repository:
+You need git, CMake, Ninja, a C++ compiler and bubblewrap (`bwrap`), which runs the build and the
+program with no network. Then, from the repository:
 
 ```
 pin=$(awk '$1 == "pin" { print $2 }' third_party/quadwild/sources.lock)
@@ -87,7 +92,8 @@ third_party/quadwild/build.sh "$dir"
 
 `fetch.sh` downloads the pinned sources and checks every file against the lock; `build.sh`
 builds them with the network off and writes the program to `$dir/program`, where GigaSculpt
-looks for it. GigaSculpt also finds it in a `quadwild` folder beside the `gigasculpt` program,
-or in the folder `GS_QUADWILD` names. The helper's own licenses are copied beside it.
+looks for it (with `$XDG_CACHE_HOME` set, under `$XDG_CACHE_HOME/gigasculpt` instead of
+`~/.cache/gigasculpt`). GigaSculpt also finds it in a `quadwild` folder beside the `gigasculpt`
+program, or in the folder `GS_QUADWILD` names. The helper's own licenses are copied beside it.
 
 The Quad Remesh tests need the helper too; without it they fail and say how to build it.

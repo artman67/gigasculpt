@@ -1,4 +1,4 @@
-//! Symmetry: the one home of mirroring (CLAUDE.md). A dab is repeated once per pass: mirrored
+//! Symmetry: the one home of mirroring. A dab is repeated once per pass: mirrored
 //! across any of the X, Y and Z planes through the part's origin, and rotated around one axis
 //! for radial symmetry. Every pass reads the same surface and their deltas are summed in one
 //! kernel step, so a symmetric stroke on a symmetric mesh stays symmetric up to rounding.

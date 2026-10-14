@@ -54,17 +54,13 @@ impl AdapterKind {
         }
     }
 
-    /// Whether the adapter [`Gpu::open`] opens for this kind is an integrated GPU, read once a
-    /// process without opening a device; `None` when none is installed.
-    pub fn integrated(self) -> Option<bool> {
-        static SEEN: [OnceLock<Option<bool>>; AdapterKind::ALL.len()] =
-            [const { OnceLock::new() }; AdapterKind::ALL.len()];
-        *SEEN[self as usize].get_or_init(|| {
-            let mut found = adapters().1.into_iter().map(|a| a.get_info());
-            found
-                .find(|info| self.matches(info))
-                .map(|info| integrated(&info))
-        })
+    /// Whether the adapter [`Gpu::open`] opens for `kind` is an integrated GPU, read once a
+    /// process without opening a device; `None` when there is none.
+    pub fn integrated(kind: Option<AdapterKind>) -> Option<bool> {
+        const N: usize = AdapterKind::ALL.len() + 1;
+        static SEEN: [OnceLock<Option<bool>>; N] = [const { OnceLock::new() }; N];
+        let at = kind.map_or(N - 1, |k| k as usize);
+        *SEEN[at].get_or_init(|| first(kind).map(|a| integrated(&a.get_info())))
     }
 
     /// The kinds installed on this machine.
@@ -128,15 +124,20 @@ pub(crate) fn adapters() -> (wgpu::Instance, Vec<wgpu::Adapter>) {
     (instance, adapters)
 }
 
+/// The first adapter of `kind`, or with no kind the first adapter wgpu offers.
+fn first(kind: Option<AdapterKind>) -> Option<wgpu::Adapter> {
+    let mut all = adapters().1.into_iter();
+    all.find(|a| kind.is_none_or(|k| k.matches(&a.get_info())))
+}
+
 impl Gpu {
-    /// Opens a device on the first adapter of `kind`, with every optional feature it has.
-    pub fn open(kind: AdapterKind) -> Result<Gpu, RenderError> {
-        let adapter = adapters()
-            .1
-            .into_iter()
-            .find(|a| kind.matches(&a.get_info()))
-            .ok_or_else(|| RenderError::NoAdapter(kind.name().to_owned()))?;
-        Gpu::on(&adapter)
+    /// Opens a device on the first adapter of `kind`, with every optional feature it has. With
+    /// no kind, on the first adapter wgpu offers: Metal on macOS; on Windows Vulkan where a
+    /// driver has it, else DirectX 12.
+    pub fn open(kind: impl Into<Option<AdapterKind>>) -> Result<Gpu, RenderError> {
+        let kind = kind.into();
+        let wanted = kind.map_or("wgpu offers none", AdapterKind::name);
+        Gpu::on(&first(kind).ok_or_else(|| RenderError::NoAdapter(wanted.into()))?)
     }
 
     /// Opens a device on `adapter`, with every optional feature it has.

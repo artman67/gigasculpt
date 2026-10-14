@@ -132,6 +132,20 @@ pub fn slot(m: Modifiers) -> Option<Slot> {
     }
 }
 
+/// The keys whose slot in `slots` holds `brush`, as [`Held`] writes them (`Shift`, `Ctrl`,
+/// `Ctrl+Shift`): held, they stroke with it. `None` while no slot holds it.
+pub fn holding(brush: &str, slots: &Slots) -> Option<String> {
+    let calls = [
+        Modifiers::SHIFT,
+        Modifiers::CTRL,
+        Modifiers::SHIFT | Modifiers::CTRL,
+    ];
+    (calls.into_iter())
+        .filter_map(|m| Held::of(m, None, None, slots))
+        .find(|h| h.brush.as_deref() == Some(brush))
+        .map(|h| h.keys)
+}
+
 /// The keys a slot is called with, Shift one bit and Ctrl the other: a slot's keys are within
 /// another's when no key of the first is missing from the second.
 fn bits(slot: Option<Slot>) -> u8 {

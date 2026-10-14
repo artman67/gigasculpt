@@ -27,7 +27,7 @@ use gs_protocol::PlainMesh;
 
 pub use check::Shape;
 pub use prep::MOST_TRIANGLES;
-pub use run::{Job, LIMIT_TICKS, Program, bwrap_in, places};
+pub use run::{Job, LIMIT_TICKS, Program, bwrap_in, fix, places};
 
 use files::Obj;
 use run::{Runner, io};

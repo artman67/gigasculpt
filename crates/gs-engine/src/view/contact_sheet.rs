@@ -101,6 +101,7 @@ impl Command for ViewContactSheet {
             columns,
             shading: self.shading,
             draws: self.draws,
+            transparent: false,
             path: self.path,
         };
         look(cx, settings)

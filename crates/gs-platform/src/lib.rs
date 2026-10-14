@@ -7,6 +7,7 @@
 //! without a window.
 
 mod clock;
+mod icon;
 mod input;
 mod pen;
 mod surface;
@@ -15,6 +16,7 @@ mod window;
 pub mod xvfb;
 
 pub use clock::Clock;
+pub use icon::Icon;
 pub use input::{Button, EventMapper, Input, Modifiers, pen_event};
 pub use pen::{PenChange, PenEvent, PenTracker};
 pub use surface::SurfaceHandle;

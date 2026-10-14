@@ -18,3 +18,10 @@
 pub use std::os::unix::net::{UnixListener, UnixStream};
 #[cfg(windows)]
 pub use uds_windows::{UnixListener, UnixStream};
+
+use crate::paths::System;
+
+/// The longest socket path on `system`, in bytes: its `sun_path` less the closing NUL.
+pub(crate) fn longest_path(system: System) -> usize {
+    if system == System::MacOs { 103 } else { 107 }
+}

@@ -194,7 +194,7 @@ fn a_job_renders_through_the_session_renderer() {
 
 #[test]
 fn a_part_keeps_its_cell_size_through_jobs() {
-    // STATUS item 20: a remesh over the socket ran on a copy that forgot the kept cell size.
+    // A past bug: a remesh over the socket ran on a copy that forgot the kept cell size.
     let s = Session::start("kept");
     let mut a = s.client();
     let mut local = gs_testkit::Session::with(config("kept"), Role::Agent);

@@ -10,18 +10,15 @@ import json
 import os
 import socket
 
-from .folder import ExchangeError, check_session
+from .folder import ExchangeError, check_session, session_dir
 
 PROTOCOL = 1
 
 
 def socket_path(session):
-    """The socket of session `session`: `$XDG_RUNTIME_DIR/gigasculpt/<session>.sock`."""
+    """The socket of session `session`: `<session>.sock` in the session folder."""
     check_session(session)
-    runtime = os.environ.get("XDG_RUNTIME_DIR")
-    if not runtime:
-        raise ExchangeError("XDG_RUNTIME_DIR is not set, so there is no GigaSculpt session to find")
-    return os.path.join(runtime, "gigasculpt", f"{session}.sock")
+    return os.path.join(session_dir(), f"{session}.sock")
 
 
 class Client:

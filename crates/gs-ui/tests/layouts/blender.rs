@@ -63,7 +63,7 @@ fn send_and_read_use_the_sessions_exchange_folders_and_read_waits_for_something_
     assert_eq!(button(&mut ui, "Send")["enabled"], true);
     press(&mut ui, "Send");
     let session = ui.host.lock().shell.status.session.clone();
-    let exchange = cache.join("gigasculpt/exchange").join(&session);
+    let exchange = cache.join("exchange").join(&session);
     let to = exchange.join("to-blender");
     assert!(to.join("manifest.json").is_file(), "{}", to.display());
 

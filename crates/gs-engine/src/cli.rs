@@ -21,9 +21,30 @@ struct Cli {
     command: Option<Sub>,
 }
 
+/// Where the session and state folders are on each system (`gs_protocol::session_dir_in` and
+/// `state_dir_in`), shown after the options of `serve` and of the window.
+pub const FOLDERS: &str = "\
+Folders (sessions hold sockets; state holds logs and autosaves):
+  Linux    sessions: $XDG_RUNTIME_DIR/gigasculpt
+           state: $XDG_STATE_HOME/gigasculpt, else ~/.local/state/gigasculpt
+  macOS    state: ~/Library/Application Support/GigaSculpt; sessions: its sessions folder
+  Windows  state: %LOCALAPPDATA%\\GigaSculpt; sessions: its sessions folder
+  A set $XDG_RUNTIME_DIR or $XDG_STATE_HOME wins on every system.";
+
+/// The `--socket` help of `serve` and of the window.
+pub const SOCKET: &str =
+    "Socket to listen on. Default: `<session>.sock` in the session folder (see Folders below)";
+
+/// The `--log` help of `serve` and of the window, which keep their logs by the same rules
+/// (`EngineConfig::with_log`).
+pub const LOG: &str = "Command log to write, never pruned. Default: `logs/<session>-<pid>.jsonl` \
+    in the state folder, which survives a reboot; the oldest closed logs there are pruned. An \
+    older log at the path is kept under a numbered name";
+
 #[derive(Subcommand)]
 enum Sub {
     /// Run a session engine that clients (gs, MCP, tests) connect to over a Unix socket.
+    #[command(after_help = FOLDERS)]
     Serve(ServeArgs),
 }
 
@@ -41,13 +62,9 @@ struct ServeArgs {
     /// Undo history budget in MiB. The newest step is always kept.
     #[arg(long, default_value_t = 2048)]
     history_mib: u64,
-    /// Socket to listen on. Default: `$XDG_RUNTIME_DIR/gigasculpt/<session>.sock`.
-    #[arg(long)]
+    #[arg(long, help = SOCKET)]
     socket: Option<PathBuf>,
-    /// Command log to write, never pruned. Default: `logs/<session>-<pid>.jsonl` in
-    /// `$XDG_STATE_HOME/gigasculpt`, which survives a reboot; the oldest closed logs there are
-    /// pruned. An older log at the path is kept under a numbered name.
-    #[arg(long)]
+    #[arg(long, help = LOG)]
     log: Option<PathBuf>,
     /// Write the scene hash after every logged call, so `gs run` can name the first call that
     /// replays differently.
@@ -60,14 +77,15 @@ struct ServeArgs {
     /// The longest request line accepted, in MiB.
     #[arg(long, default_value_t = 256)]
     max_line_mib: usize,
-    /// The device offscreen looks render on: lavapipe (the default, which draws the same
-    /// bytes every run), nvidia or radv. Opened at the first look.
+    /// The device offscreen looks render on: lavapipe, nvidia or radv. Default: lavapipe on
+    /// Linux, which draws the same bytes every run; elsewhere the first adapter wgpu offers.
+    /// Opened at the first look.
     #[arg(long)]
     adapter: Option<String>,
-    /// Turn autosave and crash recovery on: a copy of the scene goes to
-    /// `$XDG_STATE_HOME/gigasculpt/autosave/` 10 minutes after the last save and after 2
-    /// minutes without a call, and `file.recovery` offers crashed sessions' work back. Off by
-    /// default here, so agents' throwaway sessions leave nothing behind; the window has it on.
+    /// Turn autosave and crash recovery on: a copy of the scene goes to `autosave/` in the
+    /// state folder 10 minutes after the last save and after 2 minutes without a call, and
+    /// `file.recovery` offers crashed sessions' work back. Off by default here, so agents'
+    /// throwaway sessions leave nothing behind; the window has it on.
     #[arg(long)]
     autosave: bool,
 }
@@ -106,11 +124,12 @@ pub fn main_with(args: impl IntoIterator<Item = OsString>, renderer: MakeRendere
 
 fn run_serve(args: ServeArgs, renderer: MakeRenderer) -> Result<(), String> {
     gs_protocol::check_session_name(&args.session)?;
-    let render = renderer(args.adapter.as_deref())?;
+    // Before the GPU opens, so a name too long for its socket is refused at once.
     let socket = match args.socket {
         Some(socket) => socket,
         None => gs_protocol::socket_path(&args.session)?,
     };
+    let render = renderer(args.adapter.as_deref())?;
     let config = EngineConfig {
         session: args.session,
         seed: args.seed,

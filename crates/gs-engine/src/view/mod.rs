@@ -10,6 +10,7 @@
 mod commands;
 mod contact_sheet;
 mod frame;
+mod matte;
 mod reference;
 mod secondary;
 mod snapshot;
@@ -187,6 +188,8 @@ struct Look {
     /// `None`: the session's (`view.display`).
     shading: Option<Shading>,
     draws: Draws,
+    /// Leave the background out (`matte`).
+    transparent: bool,
     path: Option<String>,
 }
 
@@ -274,7 +277,11 @@ fn look(cx: &mut Ctx, look: Look) -> Result<ImageOutput, CommandError> {
         ..RenderRequest::new(cameras, look.tile, places)
     };
     let parts: Vec<&MeshStore> = shown.iter().map(|(_, part)| part.store()).collect();
-    let picture = render(cx, &parts, &request)?;
+    let picture = if look.transparent {
+        matte::transparent(cx, &parts, request)?
+    } else {
+        render(cx, &parts, &request)?
+    };
     let (path, png_base64) = deliver(&picture.png, look.path)?;
     Ok(ImageOutput {
         width: picture.width,

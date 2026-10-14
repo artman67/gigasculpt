@@ -323,7 +323,7 @@ fn a_part_keeps_its_cell_size_for_the_next_remesh() {
     s.ok("history.undo", json!({}));
     s.ok("history.undo", json!({}));
     assert_eq!(voxel_size(&mut s, json!({})), first, "undone");
-    // So does a checkpoint (STATUS item 20: restore rebuilt parts from meshes and forgot it).
+    // So does a checkpoint (a past bug: restore rebuilt parts from meshes and forgot it).
     s.ok("history.checkpoint", json!({ "name": "kept" }));
     voxel_size(&mut s, json!({ "voxel_size": 0.2 }));
     s.ok("history.restore", json!({ "name": "kept" }));

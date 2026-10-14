@@ -1,6 +1,7 @@
 //! Finding the program and running its two steps (decision 0038, sections 1 and 2): a program
 //! folder counts only with the right stamp; each step runs as a child process, inside
-//! bubblewrap when it is installed, with the environment cleared, its output to a log in the
+//! bubblewrap when it is installed, with the environment cleared but for what Windows needs to
+//! start a program ([`KEPT`]), its output to a log in the
 //! job folder, and checked every 20 ms for cancel and the time limit. A step ended by a signal
 //! is refused, after one more run when the signal was SIGKILL (amended 2026-10-13).
 
@@ -10,6 +11,8 @@ use std::fs::{self, File};
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitStatus, Stdio};
 use std::time::Duration;
+
+use gs_protocol::System;
 
 use super::{PIN, QuadError};
 
@@ -22,6 +25,10 @@ pub const LIMIT_TICKS: u32 = 600 * 50;
 const PROGRAMS: [&str; 2] = ["quadwild", "quad_from_patches"];
 /// The step 2 settings the run copies, relative to the program folder.
 pub(crate) const MAIN_CONFIG: &str = "config/main_config/flow_noalign_lemon.txt";
+/// The variables a step keeps when its environment is cleared. Windows needs `SystemRoot` to
+/// start a program at all: without it the loader cannot find side-by-side assemblies and
+/// Winsock fails (Python's `subprocess` documentation says so too). Linux and macOS need none.
+const KEPT: &[&str] = if cfg!(windows) { &["SystemRoot"] } else { &[] };
 /// The one signal a step is run again after.
 pub(crate) const SIGKILL: i32 = 9;
 /// Linux's names for signals 1 to 15.
@@ -88,25 +95,41 @@ impl Program {
     }
 }
 
-/// Where the program is looked for, given the environment (decision 0038, section 1): only
-/// `set` (`GS_QUADWILD`) when it is set; else `quadwild/` in `beside` (the running binary's
-/// folder), then `cache/gigasculpt/quadwild/PIN/program`, the cache being `cache_home`
-/// (`XDG_CACHE_HOME`, when absolute) or `home/.cache`.
-pub fn places(
-    set: Option<OsString>,
-    beside: Option<&Path>,
-    cache_home: Option<OsString>,
-    home: Option<OsString>,
-) -> Vec<PathBuf> {
+/// Where the program is looked for (decision 0038, section 1): only `set` (`GS_QUADWILD`) when
+/// it is set; else `quadwild/` in `beside` (the running binary's folder), then
+/// `quadwild/PIN/program` in `cache` (`gs_protocol::cache_dir`).
+pub fn places(set: Option<OsString>, beside: Option<&Path>, cache: Option<&Path>) -> Vec<PathBuf> {
     if let Some(dir) = set {
         return vec![PathBuf::from(dir)];
     }
-    let cache = (cache_home.map(PathBuf::from).filter(|d| d.is_absolute()))
-        .or_else(|| home.map(|h| PathBuf::from(h).join(".cache")));
-    let cached = cache.map(|c| c.join("gigasculpt/quadwild").join(PIN).join("program"));
+    let cached = cache.map(|c| pinned(c).join("program"));
     (beside.map(|b| b.join("quadwild")).into_iter())
         .chain(cached)
         .collect()
+}
+
+/// The folder for this pin's build in the cache folder `cache`.
+fn pinned(cache: &Path) -> PathBuf {
+    cache.join("quadwild").join(PIN)
+}
+
+/// How to get the program when it is missing on `system`, `cache` being the cache folder: on
+/// Linux, the scripts that build it there; elsewhere it is not shipped yet.
+pub fn fix(system: System, cache: Option<&Path>) -> String {
+    let dir = cache.map(pinned);
+    if system == System::Linux {
+        let dir = dir.map_or_else(|| "a folder".into(), |d| d.display().to_string());
+        return format!(
+            "build it with third_party/quadwild/fetch.sh DIR and third_party/quadwild/build.sh \
+             DIR, DIR being {dir}, or set GS_QUADWILD to a program folder built for {PIN}"
+        );
+    }
+    let put = dir.map(|d| format!(", or put that folder at {}", d.join("program").display()));
+    format!(
+        "the program is not shipped for this system yet: set GS_QUADWILD to a program folder \
+         built for {PIN}{}",
+        put.unwrap_or_default()
+    )
 }
 
 /// `bwrap` in one of the folders of `path` (`PATH`), if it is installed. Bubblewrap is Linux's
@@ -254,7 +277,12 @@ impl Runner<'_> {
             c.current_dir(self.job);
             c
         };
-        command.args(args).env_clear().stdin(Stdio::null());
+        let kept = KEPT.iter().filter_map(|&k| Some((k, std::env::var_os(k)?)));
+        command
+            .args(args)
+            .env_clear()
+            .envs(kept)
+            .stdin(Stdio::null());
         let mut child = (command.stdout(out).stderr(err).spawn())
             .map_err(|e| QuadError::Io(format!("could not start {exe}: {e}")))?;
         loop {

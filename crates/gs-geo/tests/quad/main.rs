@@ -7,10 +7,10 @@
 #[cfg(unix)]
 mod stand_in;
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
-use gs_geo::quad::{Job, PIN, Program, Quads, Settings, bwrap_in, places, remesh};
-use gs_protocol::{AttrDomain, AttrValues, Attribute, PlainMesh};
+use gs_geo::quad::{Job, PIN, Program, Quads, Settings, bwrap_in, fix, places, remesh};
+use gs_protocol::{AttrDomain, AttrValues, Attribute, PlainMesh, System};
 use gs_testkit::fixtures;
 use gs_testkit::validate::{Expect, validate};
 
@@ -24,7 +24,11 @@ fn job(name: &str) -> Job {
 /// The program, found as the engine finds it; missing, the test fails naming the fix.
 fn program() -> Program {
     let env = std::env::var_os;
-    let at = places(env("GS_QUADWILD"), None, env("XDG_CACHE_HOME"), env("HOME"));
+    let at = places(
+        env("GS_QUADWILD"),
+        None,
+        gs_protocol::cache_dir().ok().as_deref(),
+    );
     Program::find(&at, bwrap_in(env("PATH"))).unwrap_or_else(|why| {
         panic!(
             "the Quad Remesh program is missing ({why}); build it with \
@@ -58,6 +62,38 @@ fn the_pin_is_the_one_the_lock_names() {
         Some(PIN),
         "gs_geo::quad::PIN and the lock's pin"
     );
+}
+
+/// Decision 0038, section 1, on each system: only `GS_QUADWILD` when it is set, else beside the
+/// binary and then the cache folder. Missing, Linux is told how to build it there, macOS and
+/// Windows that it is not shipped for them yet; each fix names that folder.
+#[test]
+fn the_program_is_looked_for_and_its_fix_named_on_each_system() {
+    let (cache, beside) = (PathBuf::from("/c/gigasculpt"), Path::new("/b"));
+    let pinned = cache.join("quadwild").join(PIN);
+    assert_eq!(
+        places(Some("/q".into()), Some(beside), Some(&cache)),
+        [PathBuf::from("/q")],
+        "GS_QUADWILD alone"
+    );
+    assert_eq!(
+        places(None, Some(beside), Some(&cache)),
+        [beside.join("quadwild"), pinned.join("program")],
+        "beside the binary, then the cache folder"
+    );
+    for system in [System::Linux, System::MacOs, System::Windows] {
+        let fix = fix(system, Some(&cache));
+        let linux = system == System::Linux;
+        assert!(
+            fix.contains(&pinned.display().to_string()) && fix.contains("GS_QUADWILD"),
+            "{system:?}: the folder and the variable: {fix}"
+        );
+        assert_eq!(
+            (fix.contains("build.sh"), fix.contains("not shipped")),
+            (linux, !linux),
+            "{system:?}: the scripts on Linux, not shipped elsewhere: {fix}"
+        );
+    }
 }
 
 #[test]
