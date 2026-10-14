@@ -43,11 +43,11 @@ pub struct MeshDecimate {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub part: Option<PartRef>,
     /// Faces to keep, 0.01 to 100, as a percentage of the part's shown faces (a quad counts
-    /// as one).
+    /// as one). Left out with `faces` left out too: 50, half of them.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[schemars(range(min = 0.01, max = 100))]
+    #[schemars(range(min = 0.01, max = 100), extend("default" = 50))]
     pub percent: Option<f32>,
-    /// Faces to keep, as a count. Wins when `percent` is given too. One of the two is needed.
+    /// Faces to keep, as a count. Wins when `percent` is given too.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[schemars(range(min = 1))]
     pub faces: Option<u64>,
@@ -153,6 +153,10 @@ impl Command for MeshDecimate {
         ]
     }
 
+    fn check(&self, cx: &Ctx) -> Result<(), Unavailable> {
+        crate::level::check_one_level(cx, self.part.as_ref(), "decimate", true)
+    }
+
     fn run(self, cx: &mut Ctx) -> Result<Decimated, CommandError> {
         let part = pinned(self.part.clone())?;
         cx.doc.single_level_or_frozen(&part, "decimate")?;
@@ -213,17 +217,14 @@ impl Command for MeshDecimate {
 register_command!(MeshDecimate, "Decimate");
 
 impl MeshDecimate {
-    /// The shown faces to keep, refusing a target the part cannot go down to.
+    /// The shown faces to keep, refusing a target the part cannot go down to. With neither
+    /// `faces` nor `percent`, half of them: the window's Decimate runs as it opens (review 0009,
+    /// R7), its slider showing the schema's default, 50.
     fn target(&self, part: &str, shown: usize) -> Result<usize, CommandError> {
-        let wanted = match (self.faces, self.percent) {
-            (Some(n), _) => usize::try_from(n).unwrap_or(usize::MAX),
-            (None, Some(p)) => ((shown as f64 * f64::from(p) / 100.0).round() as usize).max(1),
-            (None, None) => {
-                return Err(errors::args_invalid(
-                    "/percent",
-                    "give percent or faces: how many faces to keep",
-                ));
-            }
+        let percent = self.percent.unwrap_or(50.0);
+        let wanted = match self.faces {
+            Some(n) => usize::try_from(n).unwrap_or(usize::MAX),
+            None => ((shown as f64 * f64::from(percent) / 100.0).round() as usize).max(1),
         };
         let refuse = |message: String, fix| errors::unavailable(Unavailable::new(message).fix(fix));
         if shown <= 3 {

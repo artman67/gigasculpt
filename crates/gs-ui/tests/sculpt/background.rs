@@ -143,7 +143,12 @@ fn frame(w: &mut Window, s: PenSample) {
 /// A drag of the tip from `from` to `to` (a click when they are the same) with Ctrl held, one
 /// frame per sample, then lifted.
 fn ctrl_drag(w: &mut Window, from: [f32; 2], to: [f32; 2]) {
-    w.input(&[], CTRL);
+    drag(w, CTRL, from, to);
+}
+
+/// A drag from `from` to `to` with `held` held, over several frames.
+fn drag(w: &mut Window, held: Modifiers, from: [f32; 2], to: [f32; 2]) {
+    w.input(&[], held);
     frame(w, pen_at(0, from[0], from[1], 0.0));
     for k in 0..5u8 {
         let f = f32::from(k) / 4.0;
@@ -281,6 +286,25 @@ fn a_ctrl_gesture_in_an_empty_scene_runs_nothing_and_says_why() {
         let ran = names_since(&w, start);
         assert!(ran.is_empty(), "nothing runs: {ran:?}");
         let said = problem(&w);
-        assert!(said.contains("the scene has no parts"), "{to:?}: {said}");
+        assert!(said.contains("scene has no parts"), "{to:?}: {said}");
     }
+}
+
+/// The gesture's problem is said as a person's sentence, a capital first, as every problem on
+/// the status line is (`Status::says`), and the next stroke that lands clears it.
+#[test]
+fn a_gestures_problem_reads_as_a_sentence_and_the_next_stroke_clears_it() {
+    let mut w = Window::new(Some(log_path("background-said")));
+    let rect = w.view_rect();
+    let [x, y] = region::middle(rect.map(f64::from)).map(|v| v as f32);
+    ctrl_drag(&mut w, [x, y], [x + 80.0, y]);
+    let said = problem(&w);
+    assert!(said.starts_with("The scene has no parts"), "{said}");
+    let sphere = json!({ "subdivisions": 4 });
+    w.call_as(gs_protocol::Role::Agent, "primitive.sphere", sphere);
+    assert_eq!(problem(&w), said, "an agent's call leaves it");
+    let before = w.hash();
+    drag(&mut w, Modifiers::default(), [x, y], [x + 20.0, y]);
+    assert_ne!(w.hash(), before, "the stroke landed");
+    assert_eq!(problem(&w), "", "and cleared the line");
 }

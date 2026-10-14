@@ -119,9 +119,7 @@ fn pin_new(doc: &DocTxn, map: &mut Map<String, Value>, base: &str) -> Result<(),
             Err(errors::unavailable(reason))
         }
         Some(Value::String(name)) if doc.contains(name) => {
-            let reason = Unavailable::new(format!("a part named '{name}' already exists"))
-                .fix("choose another name, or leave it out to get a free one");
-            Err(errors::unavailable(reason))
+            Err(errors::unavailable(crate::part::taken(name)))
         }
         Some(Value::Null) | None => {
             map.insert("name".into(), doc.free_name(base).into());

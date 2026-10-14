@@ -8,7 +8,7 @@ gives you four ways to get them, and three ways to rebuild a mesh that has gone 
 | Live Detail | Scene tray > Detail | Add triangles only where you sculpt, as you sculpt. |
 | Detail levels | Scene tray > Detail | Divide the whole part, and step between coarse and fine versions of it. |
 | Voxel Remesh | Mesh menu | Rebuild the part as an even mesh, joining overlaps and closing holes. |
-| Quad Remesh | Mesh menu | Rebuild the part as clean quads in flowing rows (Linux only for now). |
+| Quad Remesh | Mesh menu | Rebuild the part as clean quads in flowing rows. |
 | Decimate | Mesh menu | Lower the face count while keeping the shape. |
 | Project Detail | Mesh menu | Copy the surface detail of one part onto another. |
 
@@ -61,7 +61,8 @@ In the Detail section of the scene tray:
 - **‹** and **›** (Lower level and Higher level) step down and up.
 - **Subdivide** adds a level on top, smoothed, and goes to it.
 - **`···`** (Level operations) holds:
-  - **Go to level…**: jump to a level by number;
+  - **Go to level**: a button for each of the part's levels, numbered from 1, the one you are on
+    lit; click one to jump to it;
   - **Delete lower** and **Delete higher**: keep this level as the lowest or the highest;
   - **Freeze** and **Unfreeze**: set the levels aside so the base can be remeshed, then rebuild
     them over the new base (see below);
@@ -125,8 +126,8 @@ clean mesh to animate or to export. The form asks for:
   symmetric. The part must be symmetric already.
 - **Detail**: keep the sculpted detail as levels above the quads.
 
-Quad Remesh runs a separate helper program that is not part of the downloads yet and builds and
-runs on Linux only for now. Without it, Quad Remesh says the program is missing and where it
+Quad Remesh runs a separate helper program that comes with every download, on Linux, Windows
+and macOS. Without it, Quad Remesh says the program is missing and where it
 looks. [Building from source](building.md#quad-remeshs-helper-program) says how to build it.
 
 ## Decimate

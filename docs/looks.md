@@ -89,7 +89,7 @@ The `···` beside the material's title holds:
 | Undo, Redo | Steps through the material changes only; the sculpt never changes. |
 | Reset | Puts a shipped look's settings back. Its name stays. |
 | Copy | Makes a copy of the look that you can change, rename and delete, leaving the shipped one as it is. |
-| Rename | Gives the look a new name and title. |
+| Rename | Gives the look a new title, the name shown for it. |
 | Delete | Deletes a look of your own. Shipped looks stay. |
 
 Your changes, copies and the selected look are saved in the scene file. Look files of your own
@@ -143,8 +143,10 @@ Its bar has:
 - **Align** shows the same side the 3D view shows from then on, sized and placed to match the
   sculpt. Turn it to match first, with Turn off.
 - **Frame** fits the reference in its view, and **Wire** shows its edges.
-- Its own **Look**, then **Next**, which makes the next open reference the one the bar acts on,
-  and **Close**, which closes it. The sculpt does not change.
+- Its own **Look**, followed by the name of the look the reference draws with: the 3D view's
+  until you pick another. Tap either to pick a MatCap for it, or **Same as the view**.
+- **Next**, which makes the next open reference the one the bar acts on, and **Close**, which
+  closes it. The sculpt does not change.
 
 ## Painting
 

@@ -32,18 +32,33 @@ pub(super) fn word_label(name: &str, word: &str, axis: &str) -> String {
     }
 }
 
-/// What a question's first button says: for `discard_changes`, Discard changes and what its
-/// description says it does (Open even though ...: Discard changes and open); else the
-/// switch's own name.
-pub(super) fn yes(name: &str, about: &str) -> String {
-    match about.split_once(" even though") {
-        Some((verb, _)) if name == "discard_changes" => {
-            let mut chars = verb.chars();
-            let first = chars.next().map(|c| c.to_lowercase().to_string());
-            let rest = chars.as_str();
-            format!("Discard changes and {}{rest}", first.unwrap_or_default())
-        }
+/// What a question's first button says: Replace for `overwrite`, Save for `upgrade`; else the
+/// switch's own name. (Unsaved changes have their own question, `palette::unsaved`.)
+pub(super) fn yes(name: &str) -> String {
+    match name {
+        "overwrite" => "Replace".into(),
+        "upgrade" => "Save".into(),
         _ => friendly(name),
+    }
+}
+
+/// A question's line: its own words about `file` ([`own_line`]), else the switch's
+/// description `about`.
+pub(super) fn line(name: &str, about: &str, file: Option<&str>) -> String {
+    own_line(name, file).unwrap_or_else(|| about.into())
+}
+
+/// What a question asks of `file`, the file it is about, in words that say why it asks, for
+/// `overwrite` and `upgrade` (review 0009, B2 and B3); none for the others.
+pub(in crate::palette) fn own_line(name: &str, file: Option<&str>) -> Option<String> {
+    let file = file.and_then(|f| std::path::Path::new(f).file_name()?.to_str());
+    match (name, file?) {
+        ("overwrite", file) => Some(format!("{file} exists. Replace it?")),
+        ("upgrade", file) => Some(format!(
+            "{file} was saved in an older format. Save it in the new one? Older versions of \
+             GigaSculpt cannot open it then."
+        )),
+        _ => None,
     }
 }
 

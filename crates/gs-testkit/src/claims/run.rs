@@ -153,20 +153,37 @@ impl Harness {
     /// that state, so its claims are checked on every run and not by luck. A setup call that
     /// fails, or answers that it changed nothing, fails the run as a harness error, and so
     /// does a run in which it never ran (review 0008, T1). A command names its setup in the
-    /// catalog instead, for [`Harness::check_catalog`].
+    /// catalog instead, for [`Harness::check_share`].
     #[must_use]
     pub fn starting_with(mut self, first: &[Step]) -> Self {
         self.first.extend_from_slice(first);
         self
     }
 
-    /// [`Harness::run_until_checked`] on every edit command in the catalog, held to the claims
-    /// it declares, then [`Harness::check_setup_of`] on each command that names a setup.
-    pub fn check_catalog(catalog: &Catalog) -> Result<Tally, String> {
-        let all = Self::new(catalog)?;
-        let mut tally = all.run_until_checked()?;
-        for command in all.setups.keys() {
-            tally.merge(all.check_setup_of(command)?);
+    /// Share `k` of `shares` of the edit commands random plans call, dealt in catalog order as
+    /// cards are: every `shares`-th command from the `k`-th. Share 0 of 1 is every one.
+    pub fn share(&self, k: usize, shares: usize) -> Vec<String> {
+        (self.pool.iter().skip(k).step_by(shares.max(1)))
+            .map(|c| c.name.clone())
+            .collect()
+    }
+
+    /// [`Harness::run_until_checked`] on share `k` of `shares` of the edit commands (see
+    /// [`Harness::share`]), each held to the claims it declares, then
+    /// [`Harness::check_setup_of`] on each of them that names a setup. The shares together call
+    /// every command and check every claim, each share in a test of its own, so nextest runs
+    /// them side by side; a plan calls the commands of one share. Call it on the harness of the
+    /// whole catalog ([`Harness::new`]): a setup's run takes the commands its setup calls from
+    /// there, in whichever share they are.
+    pub fn check_share(&self, k: usize, shares: usize) -> Result<Tally, String> {
+        if k >= shares {
+            return Err(format!("there is no share {k} of {shares}"));
+        }
+        let names = self.share(k, shares);
+        let mine: Vec<&str> = names.iter().map(String::as_str).collect();
+        let mut tally = self.clone().only(&mine).run_until_checked()?;
+        for command in self.setups.keys().filter(|c| mine.contains(&c.as_str())) {
+            tally.merge(self.check_setup_of(command)?);
         }
         Ok(tally)
     }

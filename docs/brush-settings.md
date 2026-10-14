@@ -123,7 +123,8 @@ The `···` beside the brush's name holds:
 - **Load brush…** reads a brush file back. The file names the shipped brush it is based on;
   that brush becomes the one you use, with the file's settings.
 - **Reset to defaults** puts every setting of this brush back as it ships.
-- **Copy settings to…** gives another brush every setting you changed on this one.
+- **Copy settings to**: a button for each other brush; click one to give it every setting you
+  changed on this one. You keep sculpting with this brush.
 
 A brush file is a text file. It is always a version of one of the 24 shipped brushes and keeps
 that brush's name, family and sculpting method, so loading it changes that brush rather than

@@ -13,10 +13,10 @@ use crate::rig::{Ui, folder, key};
 
 /// An open form: its command, the arguments it has, and each field it asks with the text it
 /// starts with.
-type Asked = (String, Value, Vec<(String, String)>);
+pub(crate) type Asked = (String, Value, Vec<(String, String)>);
 
 /// The palette's form, if one is open.
-fn form(ui: &Ui) -> Option<Asked> {
+pub(crate) fn form(ui: &Ui) -> Option<Asked> {
     let studio = ui.host.lock();
     let form = studio.shell.palette.form.as_ref()?;
     let step = &form.step;
@@ -24,21 +24,22 @@ fn form(ui: &Ui) -> Option<Asked> {
 }
 
 /// Presses File's item `label` in the header, opening File first.
-fn press(ui: &mut Ui, label: &str) {
+pub(crate) fn press(ui: &mut Ui, label: &str) {
     open(ui, "File");
     ui.press(&format!("menu > {label}"));
 }
 
 /// The save actions File lists, in order: each item's label, what it runs and with which
-/// arguments, and its key. Ctrl+Shift+T saves the active Part; the Part's Save next has no key,
-/// as Ctrl+Alt+S is the scene's.
+/// arguments, and its key. Ctrl+Shift+S is Save scene as, the key desktop software teaches;
+/// Ctrl+Shift+T saves the active Part; the Part's Save next has no key, as Ctrl+Alt+S is the
+/// scene's.
 fn saves() -> [(&'static str, &'static str, Value, Value); 7] {
     let part = json!({ "parts": ["@active"] });
     let save_as = json!({ "form": "file.save", "ask": ["path"] });
     let save_part = json!({ "form": "file.save", "args": part.clone(), "ask": ["path"] });
     [
         ("Save", "file.save", json!({}), json!("Ctrl+S")),
-        ("Save as…", "ui.palette", save_as, Value::Null),
+        ("Save as…", "ui.palette", save_as, json!("Ctrl+Shift+S")),
         (
             "Save next",
             "file.save_next",
@@ -143,6 +144,8 @@ fn the_first_save_asks_a_name_and_the_next_writes_the_same_file_without_asking()
     let asked = form(&ui).expect("a first Save opens the form");
     let fields = [("path".to_string(), String::new())];
     assert_eq!((asked.0.as_str(), &asked.2[..]), ("file.save", &fields[..]));
+    let problem = ui.host.lock().shell.status.problem.clone();
+    assert_eq!(problem, None, "asking where is not a failure");
     assert!(
         files(&dir).is_empty(),
         "nothing is written before a name is given"
@@ -168,8 +171,23 @@ fn the_first_save_asks_a_name_and_the_next_writes_the_same_file_without_asking()
     );
 }
 
-/// Catalog `interface.scene-files`: "Open asks before discarding unsaved changes", with the
-/// form New's button opens; the scene stays as it was until the question is answered.
+/// The unsaved question's line and buttons, as the palette shows them (decision 0016, section
+/// 17, amended 2026-10-13).
+pub(crate) fn question(before: &str, scene: &str) -> Vec<String> {
+    let line = format!("Save the changes to {scene} before {before}?");
+    vec![line, "Save".into(), "Don't save".into(), "Cancel".into()]
+}
+
+/// What the status line says is wrong, if anything.
+pub(crate) fn problem(ui: &Ui) -> Option<String> {
+    ui.host.lock().shell.status.problem.clone()
+}
+
+/// Catalog `interface.scene-files`: "Open asks before discarding unsaved changes": before it
+/// asks for the file, Open asks Save, Don't save or Cancel (review 0009, C8), and the scene
+/// stays as it was until the question is answered. Don't save then asks for the file in the
+/// scene's folder, and opens it letting the changes go. With no changes, Open asks only for
+/// the file.
 #[test]
 fn open_with_unsaved_changes_asks_before_it_drops_them() {
     let mut ui = Ui::new();
@@ -179,44 +197,84 @@ fn open_with_unsaved_changes_asks_before_it_drops_them() {
     ui.ok("file.save", json!({ "path": path }));
     ui.ok("primitive.cube", json!({ "subdivisions": 4 }));
     press(&mut ui, "Open…");
-    let (command, _, fields) = form(&ui).expect("Open asks for the file");
+    let before = "opening another scene";
+    assert_eq!(ui.labels("palette"), question(before, "one.gss"));
+    assert!(form(&ui).is_none(), "nothing to type yet");
+    assert_eq!(problem(&ui), None, "asking is not a failure");
+    assert_eq!(parts(&mut ui), 2, "nothing is dropped while it asks");
+    ui.press("palette > Don't save");
+    let (command, args, fields) = form(&ui).expect("then Open asks for the file");
     assert_eq!(command, "file.open");
+    assert_eq!(args, json!({ "discard_changes": true }), "letting them go");
     let start = format!("{}{}", dir.display(), std::path::MAIN_SEPARATOR);
+    let fields: Vec<_> = fields.into_iter().filter(|f| f.0 == "path").collect();
     assert_eq!(
         fields,
         [("path".to_string(), start)],
         "in the scene's folder"
     );
     answer(&mut ui, "one.gss");
-    let asked = form(&ui).expect("unsaved changes: Open asks before it drops them");
-    let path = path.display().to_string();
-    assert_eq!(asked.0, "file.open");
-    assert_eq!(
-        asked.1,
-        json!({ "path": path }),
-        "the form keeps the file asked for"
-    );
-    assert_eq!(asked.2, [("discard_changes".to_string(), String::new())]);
-    assert_eq!(parts(&mut ui), 2, "nothing is dropped while it asks");
-    let problem = ui
-        .host
-        .lock()
-        .shell
-        .status
-        .problem
-        .clone()
-        .unwrap_or_default();
-    assert!(
-        problem.contains("unsaved"),
-        "the status line says why: {problem}"
-    );
-    ui.press("palette > Discard changes and open");
     assert!(form(&ui).is_none());
     assert_eq!(parts(&mut ui), 1, "opened once answered");
     // With no changes, Open asks only for the file.
     press(&mut ui, "Open…");
+    assert!(form(&ui).is_some(), "nothing to drop: it asks for the file");
     answer(&mut ui, "one.gss");
-    assert!(form(&ui).is_none(), "nothing to drop: it opens at once");
+    assert!(form(&ui).is_none(), "and opens it");
+}
+
+/// Save first, then Open: Save on the unsaved question writes the scene's own file, then Open
+/// asks for the file and opens it; Cancel and Escape each leave the scene as it was, with
+/// nothing saved (review 0009, C8).
+#[test]
+fn the_unsaved_question_saves_first_or_cancels() {
+    let mut ui = Ui::new();
+    let dir = folder("open-saves-first");
+    let (one, two) = (dir.join("one.gss"), dir.join("two.gss"));
+    ui.ok("primitive.sphere", json!({ "subdivisions": 8 }));
+    ui.ok("file.save", json!({ "path": two }));
+    ui.ok("file.save", json!({ "path": one }));
+    ui.ok("primitive.cube", json!({ "subdivisions": 4 }));
+    // Saves are not logged: the scene's unsaved changes and the file's backup say one ran.
+    let unsaved = |ui: &mut Ui| ui.state()["file.unsaved"] == true;
+    let backup = dir.join("one.backup.gss");
+    press(&mut ui, "Open…");
+    ui.press("palette > Cancel");
+    assert!(ui.labels("palette").is_empty(), "Cancel shuts the question");
+    press(&mut ui, "Open…");
+    ui.tap("Escape", Modifiers::default());
+    assert!(ui.labels("palette").is_empty(), "and so does Escape");
+    let ran = (unsaved(&mut ui), backup.exists(), parts(&mut ui));
+    assert_eq!(ran, (true, false, 2), "nothing ran");
+    press(&mut ui, "Open…");
+    ui.press("palette > Save");
+    assert!(
+        !unsaved(&mut ui) && backup.exists(),
+        "saved first: {:?}",
+        problem(&ui)
+    );
+    let (command, args, _) = form(&ui).expect("then Open asks for the file");
+    assert_eq!((command.as_str(), args), ("file.open", json!({})));
+    answer(&mut ui, "two.gss");
+    assert_eq!(parts(&mut ui), 1, "two.gss opened: {:?}", problem(&ui));
+    ui.ok("file.open", json!({ "path": one }));
+    assert_eq!(parts(&mut ui), 2, "one.gss kept the cube");
+}
+
+/// New picked from the palette's list with unsaved changes asks first, and comes first among
+/// the recent picks after, whatever the answer, as any pick does.
+#[test]
+fn new_picked_from_the_list_asks_first_and_is_kept_with_the_recent_picks() {
+    let mut ui = Ui::new();
+    ui.ok("primitive.sphere", json!({ "subdivisions": 8 }));
+    ui.ok("ui.palette", json!({ "query": "file.new" }));
+    ui.tap("Enter", Modifiers::default());
+    let asks = question("starting a new scene", "this scene");
+    assert_eq!(ui.labels("palette"), asks, "{:?}", problem(&ui));
+    ui.press("palette > Cancel");
+    assert_eq!(parts(&mut ui), 1, "nothing ran");
+    let rows = ui.ok("ui.palette", json!({ "query": "" }))["rows"].clone();
+    assert_eq!(rows[0]["command"]["command"], "file.new", "{}", rows[0]);
 }
 
 /// Catalog `interface.scene-files`: "after loading from folder A and importing from folder B,
@@ -306,15 +364,23 @@ fn with_open_last_on_a_relaunch_reopens_the_last_scene() {
         "the last scene first"
     );
     ui.press("submenu > head");
-    let asked = form(&ui).expect("unsaved changes: Open last asks");
-    let open_last = ("file.open", json!({ "recent": 1 }));
+    let before = "opening another scene";
     assert_eq!(
-        (asked.0.as_str(), asked.1),
-        open_last,
-        "the step it asks for"
+        ui.labels("palette"),
+        question(before, "head.gss"),
+        "Open last asks"
     );
-    let field = [("discard_changes".to_string(), String::new())];
-    assert_eq!(asked.2, field, "whether to drop the changes");
+    let no = ui
+        .widgets("palette")
+        .into_iter()
+        .find(|w| w["label"] == "Don't save");
+    let open_last =
+        json!({ "command": "file.open", "args": { "recent": 1, "discard_changes": true } });
+    assert_eq!(
+        no.map(|w| w["command"].clone()),
+        Some(open_last),
+        "the step it asks about"
+    );
     ui.ok("ui.palette", json!({ "open": false }));
     stop(ui);
     std::fs::remove_file(&scene).unwrap_or_else(|e| panic!("{e}"));
@@ -399,10 +465,10 @@ fn recent_lists_the_scenes_by_name_newest_first_and_a_pick_opens_one() {
     ui.press("submenu > head_study");
     assert_eq!(recent_rows(&mut ui), [], "a pick shuts the list");
     assert_eq!(shown_menu(&mut ui), None, "and File");
-    let asked = form(&ui).expect("unsaved changes: the pick asks first");
-    let step = ("file.open", json!({ "recent": 3 }));
-    assert_eq!((asked.0.as_str(), asked.1), step, "the pick's one step");
-    ui.press("palette > Discard changes and open");
+    let asked = ui.labels("palette");
+    let asks = question("opening another scene", "hand_pose.gss");
+    assert_eq!(asked, asks, "unsaved changes: it asks first");
+    ui.press("palette > Don't save");
     assert_eq!(opens(&mut ui), before + 1, "opened through one file.open");
     let head = dir.join("head_study.gss").display().to_string();
     assert_eq!(ui.state()["file.path"], json!(head));

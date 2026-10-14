@@ -257,26 +257,33 @@ fn triangles(mesh: &PlainMesh) -> u64 {
 }
 
 /// Writes a file with `write`: straight into a new file, or, to replace one, into a file
-/// beside it that then takes its place, so a failed export never leaves half a file.
+/// beside it that then takes its place, so a failed export never leaves half a file. A folder
+/// that is not there, or a folder given for the file, is refused first, in words a person
+/// reads (`brush.save` and `curve.save` write through here too).
 pub(crate) fn save(
     path: &str,
     overwrite: bool,
     write: impl Fn(&mut File) -> io::Result<()>,
 ) -> Result<(), CommandError> {
-    let failed =
-        |e: &io::Error| error(ErrorCode::Precondition, format!("cannot write {path}: {e}"));
-    if Path::new(path).is_dir() {
-        return Err(error(
+    let failed = |e: &io::Error| {
+        error(
             ErrorCode::Precondition,
-            format!("{path} is a folder"),
-        ));
-    }
+            format!("cannot write \"{path}\": {e}"),
+        )
+    };
+    super::has_folder(Path::new(path))?;
+    super::not_a_folder(Path::new(path))?;
     if !overwrite {
         let created = OpenOptions::new().write(true).create_new(true).open(path);
         let mut file = created.map_err(|e| match e.kind() {
+            // Naming `overwrite`, so the window asks to replace it (review 0009, B2).
             io::ErrorKind::AlreadyExists => CommandError {
+                path: Some("/overwrite".into()),
                 hint: Some("pass overwrite: true to replace it".into()),
-                ..error(ErrorCode::Precondition, format!("a file exists at {path}"))
+                ..error(
+                    ErrorCode::Precondition,
+                    format!("a file exists at \"{path}\""),
+                )
             },
             _ => failed(&e),
         })?;

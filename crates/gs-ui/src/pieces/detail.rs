@@ -3,7 +3,7 @@
 //! frozen, `none` in an empty scene), with no label so that `‹ 2 of 3 › Subdivide ···` fits one
 //! row, then the set's controls with no group: Subdivide, the level's `···`, and Live with its
 //! settings. An arrow at its end, and Delete lower or higher there, would change nothing, so the
-//! window holds them back with the engine's words ([`ends`]).
+//! window holds them back with why ([`ends`]).
 
 use egui::RichText;
 use gs_engine::SessionState;
@@ -11,10 +11,28 @@ use gs_protocol::Step;
 use serde_json::{Value, json};
 
 use super::{Fit, Now, control, controls, controls_of, label};
+use crate::direction::Control;
 use crate::record::{Recorder, with_args};
 
 /// The set's group whose arrows step the level.
 const LEVEL: &str = "Level";
+
+/// The level's `···` set (Level operations), which starts with the level buttons ([`levels`]).
+pub(super) const LEVELS: &str = "levels";
+
+/// Each level of the active part as a button that makes it the active one, lit while it is
+/// (`level.set`; review 0009, R6), so no level is typed; none in an empty scene.
+pub(super) fn levels(now: &Now) -> Vec<Control> {
+    let count = now.state.get("parts.levels").and_then(Value::as_u64);
+    (1..=count.unwrap_or(0))
+        .map(|n| Control {
+            hint: Some(format!("Makes level {n} the active one.")),
+            shows: Some("parts.level".into()),
+            on: Some(toml::Value::Integer(i64::try_from(n).unwrap_or(i64::MAX))),
+            ..Control::runs(&n.to_string(), "level.set", &json!({ "level": n }))
+        })
+        .collect()
+}
 
 /// The `Level` group's arrows and readout, then the set's controls with no group, which go on
 /// along the row.
@@ -57,22 +75,17 @@ pub(crate) fn ends(state: &SessionState) -> [(Step, Option<String>); 4] {
     ]
 }
 
-/// Why going `down` (else up) from the active level would change nothing, if it would, in the
-/// engine's words for that no-op (its twin: gs-engine `level/mod.rs` `change`).
+/// Why going `down` (else up) from the active level would change nothing, if it would, in a
+/// person's words: the active part is the one the tray shows, so it is not named (the engine
+/// says the same no-op its own way for agents: gs-engine `level/mod.rs` `change`).
 fn end(state: &SessionState, down: bool) -> Option<String> {
-    let (name, [count, level, frozen]) = (state.active.as_deref()?, state.levels?);
+    let [count, level, frozen] = state.active.as_ref().and(state.levels)?;
     let stuck = if down { level == 1 } else { level == count };
-    if frozen > 0 || !stuck {
-        return None;
-    }
-    let why = if down {
-        "the base is active, there is no level below"
-    } else {
-        "the top is active, there is no level above"
+    let why = match (count, down) {
+        _ if frozen > 0 || !stuck => return None,
+        (1, _) => "This part has only one level",
+        (_, true) => "The lowest level is active: there is none below it",
+        (_, false) => "The highest level is active: there is none above it",
     };
-    Some(if count == 1 {
-        format!("part '{name}' has one level: {why}")
-    } else {
-        format!("part '{name}': {why}")
-    })
+    Some(why.into())
 }

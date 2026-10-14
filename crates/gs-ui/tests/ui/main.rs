@@ -3,6 +3,7 @@
 //! lavapipe.
 
 mod app;
+mod asking;
 mod background;
 mod busy;
 mod canvas;

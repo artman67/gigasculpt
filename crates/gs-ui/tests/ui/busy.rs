@@ -20,15 +20,16 @@ const BIG: u32 = 96;
 
 /// A session server with the window's host attached, as the window starts one, without a
 /// renderer. Stops the session (which cancels its jobs) and removes its socket when dropped.
-struct Rig {
+/// `asking` drives saves and opens through it too.
+pub(crate) struct Rig {
     server: Option<Server>,
-    host: Host,
+    pub(crate) host: Host,
     window: Window,
     socket: PathBuf,
 }
 
 impl Rig {
-    fn start(name: &str) -> Self {
+    pub(crate) fn start(name: &str) -> Self {
         let base = std::env::var_os("XDG_RUNTIME_DIR").map_or_else(|| "/tmp".into(), PathBuf::from);
         let socket = base.join(format!("gs-busy-{}-{name}.sock", std::process::id()));
         let config = EngineConfig {
@@ -70,12 +71,12 @@ impl Rig {
         }
     }
 
-    fn ok(&self, command: &str, args: Value) -> Value {
+    pub(crate) fn ok(&self, command: &str, args: Value) -> Value {
         (self.run(command, args)).unwrap_or_else(|e| panic!("{command}: {e}"))
     }
 
     /// Asks for `command` as a control does, then runs one pass of the window's command path.
-    fn press(&self, command: &str, args: Value) {
+    pub(crate) fn press(&self, command: &str, args: Value) {
         let step = Step {
             command: command.into(),
             args,
@@ -117,7 +118,7 @@ impl Rig {
     }
 
     /// The window's last problem, as its status line says it.
-    fn problem(&self) -> String {
+    pub(crate) fn problem(&self) -> String {
         self.host
             .lock()
             .shell
@@ -127,8 +128,19 @@ impl Rig {
             .unwrap_or_default()
     }
 
+    /// A short pen stroke across the middle of the 3D view, as the window sends one.
+    fn stroke(&self) {
+        let rect = self.ok("ui.describe", json!({}))["viewport"]["rect"].clone();
+        let at = |i: usize| rect[i].as_f64().unwrap_or_default();
+        let [x, y] = [f64::midpoint(at(0), at(2)), f64::midpoint(at(1), at(3))];
+        for (dx, contact) in [(0.0, true), (10.0, true), (20.0, true), (20.0, false)] {
+            let sample = json!({ "x": x + dx, "y": y, "contact": contact, "pressure": 0.5 });
+            self.ok("pen.input", json!({ "samples": [sample] }));
+        }
+    }
+
     /// Runs passes of the window's command path until the bar clears; at most two minutes.
-    fn until_done(&self) {
+    pub(crate) fn until_done(&self) {
         let done = (0..6000).any(|_| {
             self.pass();
             let running = self.job().is_some();
@@ -259,7 +271,7 @@ fn while_it_runs_an_edit_is_refused_with_its_name_and_the_view_still_turns() {
     rig.press("primitive.cube", json!({}));
     let problem = rig.problem();
     assert!(
-        problem.starts_with("E_BUSY: Quad remesh is running"),
+        problem.starts_with("Quad remesh is running"),
         "the edit is refused with the job's name: {problem}"
     );
     let undo = rig.run("history.undo", json!({})).map(|_| ());
@@ -271,11 +283,35 @@ fn while_it_runs_an_edit_is_refused_with_its_name_and_the_view_still_turns() {
     rig.press("boolean.check", json!({}));
     let problem = rig.problem();
     assert!(
-        problem.starts_with("E_BUSY: Quad remesh is running"),
+        problem.starts_with("Quad remesh is running"),
         "and a second long command: {problem}"
     );
     let turn = json!({ "view": "main", "right_deg": 30, "up_deg": 20 });
     rig.ok("view.orbit", turn);
     assert_ne!(camera(), before, "the view turns");
     assert!(!job.ended(), "all while the remesh runs");
+}
+
+/// A pen stroke on the model while the remesh runs sculpts nothing, and the status line says
+/// why in a person's words, with where its Cancel is, as an edit's refusal does. The line
+/// clears once the remesh lands, the person's own step: its reason is gone.
+#[test]
+fn a_stroke_while_it_runs_says_why_in_a_persons_words_until_it_lands() {
+    let (rig, job) = remeshing("busy-stroke");
+    let hash = rig.ok("mesh.hash", json!({}))["hash"].clone();
+    rig.stroke();
+    assert!(!job.ended(), "the stroke came while the remesh ran");
+    assert_eq!(rig.ok("mesh.hash", json!({}))["hash"], hash, "no sculpt");
+    let said = rig.problem();
+    assert!(said.starts_with("Quad remesh is running"), "{said}");
+    assert!(said.contains("Its Cancel is beside its bar"), "{said}");
+    assert!(!said.contains("E_"), "{said}");
+    rig.press("primitive.cube", json!({}));
+    let edit = rig.problem();
+    assert_eq!(edit, said, "a refused edit reads the same");
+    rig.stroke();
+    assert!(!job.ended(), "a second stroke came while it ran");
+    assert_eq!(rig.problem(), said, "and says it again");
+    rig.until_done();
+    assert_eq!(rig.problem(), "", "the remesh landing clears it");
 }

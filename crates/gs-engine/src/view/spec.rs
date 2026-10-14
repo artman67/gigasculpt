@@ -47,6 +47,19 @@ impl NamedView {
     pub fn name(self) -> &'static str {
         self.preset().name()
     }
+
+    /// The view of camera preset `preset`.
+    pub fn of(preset: Preset) -> NamedView {
+        match preset {
+            Preset::Front => NamedView::Front,
+            Preset::Back => NamedView::Back,
+            Preset::Left => NamedView::Left,
+            Preset::Right => NamedView::Right,
+            Preset::Top => NamedView::Top,
+            Preset::Bottom => NamedView::Bottom,
+            Preset::Iso => NamedView::Iso,
+        }
+    }
 }
 
 /// A session view: `main` (the window's), `agent:<client name>` (an agent's own), or the

@@ -15,12 +15,11 @@
 use egui::{Event, Key, Modifiers, Pos2};
 use gs_engine::PanelInfo;
 use gs_protocol::Step;
-use serde_json::{Value, json};
+use serde_json::Value;
 
 use crate::descriptions::{inside, pressed_panel};
 use crate::direction::Controls;
 use crate::keymap::{Chord, Press};
-use crate::record::with_args;
 
 /// The control a Ctrl+Alt press aimed at, if any, and whether that press is still down.
 #[derive(Debug, Default)]
@@ -50,6 +49,16 @@ impl Catch {
     pub fn prompt(&self) -> Option<String> {
         let label = &self.aim.as_ref()?.label;
         Some(format!("Press a key for {label} (Escape cancels)"))
+    }
+
+    /// Whether a control is aimed at, waiting for its key.
+    pub fn aiming(&self) -> bool {
+        self.aim.is_some()
+    }
+
+    /// Escape, given by the window (`shell/escape.rs`): cancels the aim, binding nothing.
+    pub fn escape(&mut self) {
+        self.aim = None;
     }
 
     /// Takes out of `events` (in points, `ppp` pixels each) what aims or binds, by the panels
@@ -95,6 +104,10 @@ impl Catch {
                 self.pressing = false;
                 Taken::Eaten
             }
+            // The window's to give, which cancels the aim (`escape`).
+            Event::Key {
+                key: Key::Escape, ..
+            } => Taken::Passed,
             Event::Key {
                 key,
                 pressed: true,
@@ -102,7 +115,6 @@ impl Catch {
                 modifiers,
                 ..
             } => match self.aim.take() {
-                Some(_) if *key == Key::Escape => Taken::Eaten,
                 Some(aim) => Taken::Bound(aim.bind(&Chord::pressed(*key, *modifiers))),
                 None => Taken::Passed,
             },
@@ -127,11 +139,11 @@ impl Catch {
 impl Aim {
     /// `ui.keymap` binding `chord` to this control's command.
     fn bind(self, chord: &Chord) -> Step {
-        let mut args = json!({ "bind": chord.to_string(), "command": self.command });
-        if self.args.as_object().is_some_and(|a| !a.is_empty()) {
-            args["args"] = self.args;
-        }
-        with_args("ui.keymap", args)
+        let runs = Step {
+            command: self.command,
+            args: self.args,
+        };
+        crate::keymap::binding(&chord.to_string(), &runs)
     }
 }
 

@@ -1,8 +1,10 @@
 # The pinned source of the Quad Remesh engine, quadwild-bimdf (decision 0038). fetch.sh
-# assembles it from these lines and checks them; build.sh builds it.
+# assembles it from these lines, or takes the archive line's copy of it, and checks it;
+# build.sh builds it.
 #
-# pin: the program's version as the engine knows it (gs-geo quad::PIN). A change to any line
-# below, or to build.sh's flags, takes a new pin.
+# pin: the program's version as the engine knows it (gs-geo quad::PIN). A change to a git, tar
+# or tree line, or to build.sh's flags, takes a new pin. The archive line names a copy of the
+# same tree, so it changes without one; a new pin takes a new archive.
 pin e722c7e-1
 #
 # git PATH COMMIT URL: the tree of COMMIT, unpacked at PATH of the source (parents first). Blossom
@@ -27,6 +29,14 @@ git libs/xfield_tracer 2913b67607a2515bdc8019c582939fb32affbaa0 https://github.c
 # top-level CMakeLists would otherwise download during the build (its SHA224 there is
 # 8f4951901a55a1d1987d8199ed0e0b36ff2da26c870a4c3d55694a14).
 tar gmm 5206e732643f6934109028b2f173660f2c2edcb0ee269228d694acca6e22c88a https://download-mirror.savannah.gnu.org/releases/getfem/stable/gmm-5.4.2.tar.gz
+#
+# archive SHA256 URL: the project's own copy of the source these lines assemble (decision
+# 0038, amended 2026-10-14 (Release-prep)), so a build needs none of their homes. fetch.sh
+# tries it first, and takes each line from its home when it cannot be had or is not this
+# tree. A gzip tar of the folder `src` as fetch.sh left it, made with GNU tar so the same tree
+# gives the same bytes: tar --sort=name --mtime=@0 --owner=0 --group=0 --numeric-owner
+# --format=gnu --mode=u+rwX,go=rX --use-compress-program='gzip -n -9' -cf FILE src
+archive f044887e27e094d763086c8411adc85b4ac4ad5470aada70542a7981fe1b4202 https://github.com/artman67/gigasculpt/releases/download/quadwild-e722c7e-1/quadwild-bimdf-e722c7e-1-src.tar.gz
 #
 # tree SHA256: every file of the assembled source, as fetch.sh's digest lists them.
 tree c4645901871e0ca8732cca362d001f078a2596e0ddb320743aa76213d7cd02a7

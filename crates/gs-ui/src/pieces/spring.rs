@@ -6,13 +6,14 @@
 //! calls at once as one plain step, the line a pull to it leaves. The wheel and a
 //! Ctrl+double-click do nothing. It draws as every slider does (`sliders.rs`).
 
-use egui::{Key, Sense};
+use egui::Sense;
 use gs_protocol::Step;
 use serde_json::{Value, json};
 
 use super::Now;
 use super::sliders::{Slider, describe, number, rail};
 use crate::record::{Recorder, Role, Widget, with_args};
+use crate::shell::escape::{To, given};
 use crate::theme::theme;
 
 /// A spring slider: its title, its rail's ends, the unit it shows its value in ("" for none)
@@ -74,7 +75,8 @@ pub(super) fn spring(
             ..Sprung::default()
         };
     }
-    let escape = ui.input(|i| i.key_pressed(Key::Escape));
+    // Escape given to the pen's press (`shell/escape.rs`).
+    let escape = given(ui.ctx(), To::Drag);
     let held = match pull {
         Some(Pull::Open(v)) => v,
         _ => 0.0,

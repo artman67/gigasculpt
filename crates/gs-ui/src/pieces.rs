@@ -497,17 +497,12 @@ fn one_line(shown: &[Control], c: &Control) -> bool {
 pub(crate) fn keep_together(ui: &mut egui::Ui, texts: &[&RichText]) {
     let spacing = ui.spacing().item_spacing.x;
     let padding = 2.0 * ui.spacing().button_padding.x;
-    let width = |t: &RichText| {
-        let text = egui::WidgetText::from(t.clone());
-        let galley = text.into_galley(
-            ui,
-            Some(egui::TextWrapMode::Extend),
-            f32::INFINITY,
-            egui::TextStyle::Button,
-        );
-        galley.size().x + spacing
-    };
-    let need: f32 = texts.iter().map(|t| width(t)).sum::<f32>() + padding;
+    let width = |t: &RichText| crate::text::width(ui, t.clone(), egui::TextStyle::Button) + spacing;
+    keep(ui, texts.iter().map(|t| width(t)).sum::<f32>() + padding);
+}
+
+/// Starts a new row unless `need` points fit on this one, or this row is still empty.
+pub(crate) fn keep(ui: &mut egui::Ui, need: f32) {
     let left = ui.available_size_before_wrap().x;
     if need > left && left < ui.max_rect().width() - 1.0 {
         ui.end_row();

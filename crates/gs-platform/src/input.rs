@@ -1,11 +1,14 @@
 //! SDL events to platform-neutral input. Everything above this crate sees only [`Input`].
 
+use std::path::PathBuf;
+
 use gs_protocol::PenSample;
 use sdl3::event::{Event, WindowEvent};
 use sdl3::keyboard::Mod;
 use sdl3::mouse::{MouseButton, MouseWheelDirection};
 use sdl3::pen::PenAxis;
 
+use crate::dialog::Answer;
 use crate::pen::{PenChange, PenEvent, PenTracker};
 
 /// Keyboard modifiers held down.
@@ -72,8 +75,14 @@ pub enum Input {
     Resized,
     /// The mouse left the window.
     PointerGone,
-    /// The user asked to close the window.
+    /// The user asked to close the window: the window may ask about unsaved changes first.
     Close,
+    /// The system asked the program to quit (a signal, the session ending): it closes at once.
+    Quit,
+    /// A file was dropped on the window, or the system asked the program to open one.
+    Dropped(PathBuf),
+    /// A file dialog answered (see [`crate::Dialogs`]).
+    Dialog(Answer),
 }
 
 /// The pen fields of an SDL pen event, or `None` for every other event and for pen axes no
@@ -261,7 +270,10 @@ fn other_input(event: &Event, density: f64, touching: bool) -> Option<Input> {
         } => key_input(key.name(), false, false, *keymod),
         Event::TextInput { text, .. } => Input::Text(text.clone()),
         Event::Window { win_event, .. } => window_input(win_event)?,
-        Event::Quit { .. } => Input::Close,
+        // Cmd+Q is how a person quits on macOS, and SDL sends it as a quit: it asks first there.
+        Event::Quit { .. } if cfg!(target_os = "macos") => Input::Close,
+        Event::Quit { .. } => Input::Quit,
+        Event::DropFile { filename, .. } => Input::Dropped(filename.into()),
         _ => return None,
     };
     Some(input)

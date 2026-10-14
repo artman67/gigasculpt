@@ -54,6 +54,10 @@ pub struct SessionState {
     pub history: HistoryState,
     /// The scene's own file, as text; `None` before its first save (decision 0016, section 17).
     pub file: Option<String>,
+    /// The scene differs from its file, or has none and was changed: closing, New and Open ask
+    /// first, and the window's title is starred (decision 0016, section 17, amended
+    /// 2026-10-13).
+    pub unsaved: bool,
     /// Autosave's settings (`file.autosave`); `None` with autosave off.
     pub autosave: Option<AutosaveSettings>,
     /// The recent scenes (`file.recent`'s list); `None` with autosave off (section 17, item 7).
@@ -191,6 +195,7 @@ impl SessionState {
         let s = &b.symmetry_settings;
         let r = self.reference.as_ref();
         let reference_look = r.map(|r| r.matcap.as_ref().or(self.look.as_ref()));
+        let reference_matcap = r.map(|r| r.matcap.as_deref().unwrap_or("main"));
         let values = [
             ("brush", json!(b.brush)),
             ("brush.previous", json!(b.previous)),
@@ -239,6 +244,7 @@ impl SessionState {
             ("reference.link.zoom", json!(r.map(|r| r.link.zoom))),
             ("reference.link.pan", json!(r.map(|r| r.link.pan))),
             ("reference.look", json!(reference_look.flatten())),
+            ("reference.matcap", json!(reference_matcap)),
             ("reference.wireframe", json!(r.map(|r| r.wireframe))),
             ("parts.isolated", json!(self.isolated)),
             ("parts.active", json!(self.active)),
@@ -311,6 +317,7 @@ impl SessionState {
             ("history.undos", json!(h.undos)),
             ("history.redos", json!(h.redos)),
             ("file.path", json!(self.file)),
+            ("file.unsaved", json!(self.unsaved)),
             ("file.recent", json!(self.recent)),
             ("file.low_disk", json!(self.low_disk)),
         ]
@@ -459,6 +466,8 @@ pub(crate) struct StateSources<'a> {
     history: Ends,
     palette: &'a crate::MaterialPalette,
     file: &'a FileState,
+    /// The scene differs from its file (`FileState::unsaved`).
+    unsaved: bool,
     autosave: Option<&'a StateFolder>,
     free: &'a FreeSpace,
     render: &'a Shared<dyn RenderHost>,
@@ -468,9 +477,10 @@ pub(crate) struct StateSources<'a> {
 }
 
 impl<'a> StateSources<'a> {
-    /// The engine's own state, between calls.
-    pub(crate) fn of(state: &'a State, config: &'a EngineConfig) -> Self {
+    /// The engine's own state between calls, at revision `rev`.
+    pub(crate) fn of(state: &'a State, config: &'a EngineConfig, rev: u64) -> Self {
         Self {
+            unsaved: state.file.unsaved(rev, state.palette.steps),
             settings: &state.sculpt.settings,
             control: state.control,
             views: &state.views,
@@ -491,6 +501,7 @@ impl<'a> StateSources<'a> {
     /// The state a call sees, as it stands at this step.
     fn of_call(cx: &'a Ctx) -> Self {
         Self {
+            unsaved: cx.file.unsaved(cx.rev, cx.palette.steps),
             settings: &cx.sculpt.settings,
             control: *cx.control,
             views: &*cx.views,
@@ -523,6 +534,7 @@ pub(crate) fn state_of(sources: StateSources) -> SessionState {
         history,
         palette,
         file,
+        unsaved,
         autosave,
         free,
         render,
@@ -575,6 +587,7 @@ pub(crate) fn state_of(sources: StateSources) -> SessionState {
         }),
         history: HistoryState::of(history),
         file: (file.path.as_ref()).map(|p| p.display().to_string()),
+        unsaved,
         autosave: autosave.map(StateFolder::settings),
         recent: autosave.map(|a| crate::file::shown_recent(&a.state_dir)),
         low_disk: crate::file::low_disk(
@@ -633,7 +646,8 @@ pub(crate) fn state_of(sources: StateSources) -> SessionState {
 /// and the one just redone `history.undo`; null after a new step or an open); `history.undos`
 /// and `history.redos` (how many steps there are to undo and to redo, which the History buttons
 /// count); `file.path` (the scene's own file, null before its first save, `file.save`,
-/// `file.open`); `file.recent` (`file.recent`'s files, each with its place, path, name,
+/// `file.open`); `file.unsaved` (true while the scene differs from its file, or has none and was
+/// changed); `file.recent` (`file.recent`'s files, each with its place, path, name,
 /// folder's name and whether it is gone; null with autosave off); `file.low_disk` (null while
 /// there is room, else the folder of the scene's file or autosave's with less free space than
 /// the larger of 1 GiB and twice the scene file's estimate: its `folder`, `free` bytes and that
@@ -652,8 +666,9 @@ pub(crate) fn state_of(sources: StateSources) -> SessionState {
 /// now, as the `transform.apply` calls Accept runs) or `deformer.smooth` (as the `mesh.smooth`
 /// call, `deformer` then `smooth`) (`gizmo.deformer`); `reference` (the Reference View the window shows,
 /// the one opened last or moved to by `reference.next`), `reference.link.rotation`, `.zoom` and `.pan`
-/// (`reference.link`), `reference.look` (the MatCap it draws) and `reference.wireframe`
-/// (`view.look`), all null while no reference is open; `view.shading`, `view.exposure`,
+/// (`reference.link`), `reference.look` (the MatCap it draws), `reference.matcap` (the one
+/// `view.look` gave it: its own MatCap's name, or "main" while it draws the main view's) and
+/// `reference.wireframe` (`view.look`), all null while no reference is open; `view.shading`, `view.exposure`,
 /// `view.transform`, `view.occlusion_strength`, `view.occlusion_radius` (scene units, or
 /// "auto"), `view.floor`, `view.mask` (whether the mask's tint shows), `view.mask_opacity`,
 /// `view.active_outline` (whether the window outlines the active part), `view.face_groups`

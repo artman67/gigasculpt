@@ -59,7 +59,8 @@ impl Command for HistoryCheckpoint {
         }
         Err(
             Unavailable::new(format!("a checkpoint named '{}' already exists", self.name))
-                .fix("pass replace=true to overwrite it, or pick another name"),
+                .fix("pass replace=true to overwrite it, or pick another name")
+                .asks("name"),
         )
     }
 

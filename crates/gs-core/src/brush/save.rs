@@ -88,15 +88,24 @@ fn refused(message: String) -> PresetError {
     PresetError { message }
 }
 
-/// The preset file `text` with `changes` made where it writes them.
+/// The preset file `text` with `changes` made where it writes them. A file whose lines end in
+/// CRLF (written on Windows) is edited as LF text and given back in CRLF, since `toml_edit`
+/// writes every line it touches in LF.
 fn edited(text: &str, changes: &Changes) -> Result<String, PresetError> {
+    let crlf = (text.split_once('\n')).is_some_and(|(line, _)| line.ends_with('\r'));
+    let lf = if crlf {
+        text.replace("\r\n", "\n")
+    } else {
+        text.to_string()
+    };
     let mut doc: DocumentMut =
-        (text.parse()).map_err(|e| refused(format!("brush preset does not parse: {e}")))?;
+        (lf.parse()).map_err(|e| refused(format!("brush preset does not parse: {e}")))?;
     set(doc.as_table_mut(), &changes.set, false);
     for name in &changes.removed {
         remove(doc.as_table_mut(), &name.split('.').collect::<Vec<_>>());
     }
-    Ok(doc.to_string())
+    let out = doc.to_string();
+    Ok(if crlf { out.replace('\n', "\r\n") } else { out })
 }
 
 /// The value at the dotted `path` in `t`, if `t` has it.

@@ -8,7 +8,7 @@ use serde::Serialize;
 use super::{NavSettings, OrbitArg, PivotRule, Views};
 use crate::document::Document;
 use crate::view::secondary::ReferenceInfo;
-use crate::view::spec::ExactCamera;
+use crate::view::spec::{ExactCamera, NamedView};
 
 /// A view, as `view.get` reports it.
 #[derive(Clone, Debug, Serialize, JsonSchema)]
@@ -17,6 +17,11 @@ pub struct ViewInfo {
     pub view: String,
     /// Its camera, exactly; pass it to `view.set` or a look's `view` to get the same camera.
     pub camera: ExactCamera,
+    /// The side it looks from while it looks along an axis view (within a degree, whatever its
+    /// roll): front, back, left, right, top or bottom; absent between them. The window's 3D
+    /// view names the same side in its corner.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub looks_from: Option<NamedView>,
     /// True while no command has set the camera: it is the front view framing every part.
     pub framed: bool,
     /// The image size it is seen at, `[width, height]` in pixels.
@@ -67,6 +72,7 @@ impl Views {
         });
         ViewInfo {
             view: name.to_string(),
+            looks_from: camera.side().map(NamedView::of),
             camera: camera.into(),
             framed: view.camera.is_none(),
             viewport: view.viewport,

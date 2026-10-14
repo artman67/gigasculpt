@@ -79,7 +79,7 @@ fn open(
         return asked;
     }
     let mut asked = Vec::new();
-    let shown = popup(ui, ("header menu", &name), spot, room, |ui| {
+    let shown = popup(ui, area(&name), spot, room, |ui| {
         rec.panel("menu", heading, ui.max_rect());
         asked = items(ui, &controls, now, Some(&mut *menus), rec);
     });
@@ -164,7 +164,7 @@ fn list(
     let mut asked = Vec::new();
     // Between the view's sides and in the window's height: it hangs over the header's rows.
     let room = egui::Rect::from_x_y_ranges(room.x_range(), ui.ctx().content_rect().y_range());
-    let shown = popup(ui, "header menus", toward(fold, now, false), room, |ui| {
+    let shown = popup(ui, list_area(), toward(fold, now, false), room, |ui| {
         rec.panel("menus", fold_of(spec).0, ui.max_rect());
         // Rows read as a menu's: no fill at rest, the hover's fill under the pointer. They
         // touch, so in a 640 by 480 window the ten slide up over the button only a few points.
@@ -206,7 +206,7 @@ fn dropdown(
     let wide = DROPDOWN.min(room.width() - margins.x);
     let mut asked = Vec::new();
     let spot = (egui::pos2(at.x, top), pivot);
-    let shown = popup(ui, ("header menu", name), spot, room, |ui| {
+    let shown = popup(ui, area(name), spot, room, |ui| {
         rec.panel(panel, heading, ui.max_rect());
         ui.set_width(wide);
         asked = scrolled(ui, most, rec, add);
@@ -232,7 +232,7 @@ fn submenu(
     let mut asked = Vec::new();
     let shown = popup(
         ui,
-        ("header submenu", &set),
+        egui::Id::new(("header submenu", &set)),
         toward(at, now, true),
         room,
         |ui| {
@@ -254,17 +254,28 @@ fn submenu(
     asked
 }
 
-/// Draws `add` in a popup's frame with its corner `pivot` at `at`, over everything and inside
-/// `room`. Returns where it showed.
+/// The id of the `Area` the menu or view button's options `name` show in, which the window's
+/// order reads to compare them with what shows beside them (`shell/escape.rs`).
+pub(super) fn area(name: &str) -> egui::Id {
+    egui::Id::new(("header menu", name))
+}
+
+/// The id of the folded menus' list's `Area`, read as [`area`] is.
+pub(super) fn list_area() -> egui::Id {
+    egui::Id::new("header menus")
+}
+
+/// Draws `add` in a popup's frame, the `Area` `id`, with its corner `pivot` at `at`, over
+/// everything and inside `room`. Returns where it showed.
 fn popup(
     ui: &egui::Ui,
-    id: impl std::hash::Hash + std::fmt::Debug,
+    id: egui::Id,
     (at, pivot): (Pos2, Align2),
     room: egui::Rect,
     add: impl FnOnce(&mut egui::Ui),
 ) -> egui::Rect {
     let frame = frame(ui);
-    let area = egui::Area::new(egui::Id::new(id))
+    let area = egui::Area::new(id)
         .order(egui::Order::Foreground)
         .fixed_pos(at)
         .pivot(pivot)

@@ -11,34 +11,23 @@
 use gs_platform::{Input, Modifiers};
 use serde_json::{Value, json};
 
-use crate::pen::widget;
 use crate::region::middle;
 use crate::rig::{Ui, center, held};
 
 pub(crate) const RED: &str = "#ff0000";
 pub(crate) const BLUE: &str = "#0000ff";
 
-/// What `ui.describe` says of the brush tray's widget `label`, scrolled into sight.
-pub(crate) fn seen(ui: &mut Ui, label: &str) -> Value {
-    ui.scroll_to("brush", label);
-    widget(ui, "brush", label)
-}
-
-/// Whether the brush tray shows a widget `label`.
-pub(crate) fn shows(ui: &mut Ui, label: &str) -> bool {
-    ui.scroll_to("brush", label);
-    ui.labels("brush").contains(&label.to_string())
-}
-
 /// Whether the brush tray's widget `label` is lit.
 fn lit(ui: &mut Ui, label: &str) -> bool {
-    seen(ui, label)["selected"] == true
+    ui.seen("brush", label)["selected"] == true
 }
 
 /// The hover text of the brush tray's widget `label`.
 pub(crate) fn hint(ui: &mut Ui, label: &str) -> String {
-    let w = seen(ui, label);
-    w["hint"].as_str().unwrap_or_default().to_string()
+    ui.seen("brush", label)["hint"]
+        .as_str()
+        .unwrap_or_default()
+        .to_string()
 }
 
 /// How many steps History can undo.
@@ -58,7 +47,7 @@ pub(crate) fn colors(ui: &mut Ui) -> (Value, Value) {
 /// Opens the edited color if it is shut, taps its hex field, types `text` and presses `key`
 /// (`Return` or `Escape`).
 pub(crate) fn type_hex(ui: &mut Ui, text: &str, key: &str) {
-    if !shows(ui, "Hex") {
+    if !ui.shows("brush", "Hex") {
         let edited = if lit(ui, "Main") { "Main" } else { "Secondary" };
         ui.press(&format!("brush > {edited}"));
     }
@@ -107,7 +96,7 @@ fn the_section_shows_both_colors_and_a_typed_hex_sets_the_edited_one_with_no_und
 fn swap_by_button_and_by_key_trades_main_and_secondary() {
     let mut ui = Ui::new();
     ui.ok("color.set", json!({ "main": RED, "secondary": BLUE }));
-    let swap = seen(&mut ui, "Swap");
+    let swap = ui.seen("brush", "Swap");
     assert_eq!(swap["command"]["args"], json!({ "swap": true }), "{swap}");
     assert_eq!(swap["key"], "Shift+X", "the button shows its key");
     let sets = ui.logged("color.set").len();
@@ -138,12 +127,12 @@ fn menu(ui: &mut Ui) -> Value {
 fn in_menu(ui: &mut Ui, label: &str) -> Value {
     let [x, y] = center(&menu(ui)["rect"]);
     ui.tap_at(x, y);
-    widget(ui, "brush", label)
+    ui.widget("brush", label)
 }
 
 /// The vertical middle of the brush tray's widget `label`, and its top and foot.
 fn ys(ui: &mut Ui, label: &str) -> [f64; 3] {
-    let r = &widget(ui, "brush", label)["rect"];
+    let r = &ui.widget("brush", label)["rect"];
     let at = |i: usize| r[i].as_f64().unwrap_or_default();
     [center(r)[1], at(1), at(3)]
 }
@@ -172,7 +161,7 @@ fn the_swatches_swap_and_menu_share_a_row_and_a_second_tap_or_a_hold_opens_the_c
     );
     let shut = ["Hex", "Red", "Green", "Blue", "Fill part", "Fill visible"];
     for label in shut {
-        assert!(!shows(&mut ui, label), "{label} waits");
+        assert!(!ui.shows("brush", label), "{label} waits");
     }
     let strength = ys(&mut ui, "Color Strength");
     let gradient = ys(&mut ui, "Gradient");
@@ -192,19 +181,19 @@ fn the_swatches_swap_and_menu_share_a_row_and_a_second_tap_or_a_hold_opens_the_c
     // A tap on Secondary edits it; a second opens it, a third shuts it; a hold on Main opens it.
     ui.press("brush > Secondary");
     assert!(
-        lit(&mut ui, "Secondary") && !shows(&mut ui, "Hex"),
+        lit(&mut ui, "Secondary") && !ui.shows("brush", "Hex"),
         "edited, still shut"
     );
     ui.press("brush > Secondary");
     assert!(
-        shows(&mut ui, "Hex") && shows(&mut ui, "Red"),
+        ui.shows("brush", "Hex") && ui.shows("brush", "Red"),
         "a second tap opens it"
     );
     ui.press("brush > Secondary");
-    assert!(!shows(&mut ui, "Hex"), "a third shuts it");
+    assert!(!ui.shows("brush", "Hex"), "a third shuts it");
     ui.hold("brush > Main");
     assert!(
-        lit(&mut ui, "Main") && shows(&mut ui, "Blue"),
+        lit(&mut ui, "Main") && ui.shows("brush", "Blue"),
         "a hold edits and opens it"
     );
     ui.tap("Escape", Modifiers::default());
@@ -310,20 +299,23 @@ fn the_brush_s_color_switch_and_color_strength_show_while_they_apply() {
     let mut ui = Ui::new();
     ui.ok("brush.set", json!({ "brush": "Draw" }));
     assert!(!lit(&mut ui, "Color"), "Draw paints nothing");
-    assert!(!shows(&mut ui, "Color Strength"), "nor shows its strength");
+    assert!(
+        !ui.shows("brush", "Color Strength"),
+        "nor shows its strength"
+    );
     ui.press("brush > Color");
     assert_eq!(
         ui.state()["brush.settings"]["paint"],
         json!({ "channel": "color" })
     );
-    assert!(lit(&mut ui, "Color") && shows(&mut ui, "Color Strength"));
+    assert!(lit(&mut ui, "Color") && ui.shows("brush", "Color Strength"));
     ui.press("brush > Color");
     assert_eq!(
         ui.state()["brush.settings"].get("paint"),
         None,
         "the preset's own"
     );
-    assert!(!shows(&mut ui, "Color Strength"));
+    assert!(!ui.shows("brush", "Color Strength"));
     // A drag brush refuses a `[paint]` table: the switch shows, its hint says so, and the press
     // changes nothing (decision 0062).
     ui.ok("brush.set", json!({ "brush": "Move" }));
@@ -338,7 +330,7 @@ fn the_brush_s_color_switch_and_color_strength_show_while_they_apply() {
     );
     // The Paint family always paints: no switch, and its strength.
     ui.ok("brush.set", json!({ "brush": "Paint" }));
-    assert!(!shows(&mut ui, "Color") && shows(&mut ui, "Color Strength"));
+    assert!(!ui.shows("brush", "Color") && ui.shows("brush", "Color Strength"));
 }
 
 /// The window's color at the 3D view's middle, as its last frame drew it.

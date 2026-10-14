@@ -6,7 +6,7 @@
 use gs_platform::Modifiers;
 use serde_json::{Value, json};
 
-use crate::rig::{Ui, center, held};
+use crate::rig::{Ui, center, held, labelled};
 
 /// A sphere, a cube and a sphere named head, with the scene tray showing only Parts.
 fn three() -> Ui {
@@ -27,12 +27,10 @@ fn running(ui: &mut Ui, command: &str) -> Vec<Value> {
         .collect()
 }
 
-/// The scene tray's widget labelled `label` that runs `command`.
+/// The scene tray's widget labelled `label` that runs `command` (see [`labelled`]).
 fn widget(ui: &mut Ui, label: &str, command: &str) -> Value {
-    let found = running(ui, command)
-        .into_iter()
-        .find(|w| w["label"] == label);
-    found.unwrap_or_else(|| panic!("no {label} running {command} in the scene tray"))
+    let place = format!("the scene tray's widgets running {command}");
+    labelled(&running(ui, command), label, &place)
 }
 
 /// A tap on the scene tray's widget labelled `label` that runs `command`.
@@ -352,7 +350,7 @@ fn rows_shown_is_in_settings_interface_and_sets_the_list_s_rows() {
     ui.press("menu > Settings");
     ui.press("settings > Interface");
     ui.scroll_to("settings", "Rows shown");
-    let slider = crate::pen::widget(&mut ui, "settings", "Rows shown");
+    let slider = ui.widget("settings", "Rows shown");
     assert_eq!(slider["role"], "slider");
     assert_eq!(slider["command"]["command"], "ui.settings");
     let r = ui.rect("settings > Rows shown");

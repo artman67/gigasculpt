@@ -250,7 +250,7 @@ fn a_gizmo_drag_is_refused_under_radial_and_moves_both_sides_under_mirror_and_pa
     assert_eq!(w.hash(), before, "no drag under Radial");
     assert!(!applied(&w), "{:?}", w.logged());
     let refused = problem(&w).unwrap_or_default();
-    assert!(refused.contains("radial symmetry"), "{refused:?}");
+    assert!(refused.starts_with("Radial symmetry"), "{refused:?}");
 
     // How the +x and the -x end of the sphere move under one drag along the X arrow.
     let ends = |w: &mut Window| {

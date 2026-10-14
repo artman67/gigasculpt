@@ -147,6 +147,54 @@ fn the_users_themes_join_the_list_and_a_shipped_name_is_refused() {
     assert!(said("light is a shipped theme"), "{problems:?}");
     let broken = |p: &&String| p.contains("broken.toml") && p.contains("missing field `colors`");
     assert!(problems.iter().any(|p| broken(&p)), "{problems:?}");
-    assert!(said("faint.toml: text on panel is"), "{problems:?}");
+    assert!(said("faint.toml still loads"), "{problems:?}");
+    assert!(said("make text darker"), "{problems:?}");
     assert_eq!(problems.len(), 3, "{problems:?}");
+}
+
+/// A theme copied from the light or the high-contrast one before their warning color changed
+/// (Refusals-notes (6)) still loads, and the line the window shows at start names its file
+/// once and its warning once, with which way to change it: darker on light surfaces, lighter
+/// on dark ones.
+#[test]
+fn a_theme_with_an_old_warning_loads_and_says_once_which_way_to_change_it() {
+    let dir = std::path::PathBuf::from(env!("CARGO_TARGET_TMPDIR"))
+        .join(format!("old-colors-{}", std::process::id()));
+    std::fs::remove_dir_all(&dir).ok();
+    std::fs::create_dir_all(&dir).unwrap_or_else(|e| panic!("{e}"));
+    let old = [
+        (
+            "old-light.toml",
+            SHIPPED[1].1,
+            "#4f3900",
+            "#735400",
+            "darker",
+        ),
+        (
+            "old-contrast.toml",
+            SHIPPED[2].1,
+            "#ffee55",
+            "#f0d246",
+            "lighter",
+        ),
+    ];
+    for (file, text, now, then, _) in old {
+        let line = |c: &str| format!("warning = \"{c}\"");
+        let copied = text.replacen(&line(now), &line(then), 1);
+        assert_ne!(copied, text, "{file}");
+        std::fs::write(dir.join(file), copied).unwrap_or_else(|e| panic!("{e}"));
+    }
+    let (themes, problems) = Themes::load(&dir);
+    let names: Vec<String> = themes.list().iter().map(|t| t.name.clone()).collect();
+    assert!(names.contains(&"old-light".into()), "{names:?}");
+    assert!(names.contains(&"old-contrast".into()), "{names:?}");
+    assert_eq!(problems.len(), 2, "{problems:?}");
+    for (file, .., way) in old {
+        let said = problems.iter().find(|p| p.contains(file));
+        let said = said.unwrap_or_else(|| panic!("{file}: {problems:?}"));
+        assert_eq!(said.matches(file).count(), 1, "{said}");
+        assert_eq!(said.matches("warning").count(), 1, "{said}");
+        assert!(said.contains(&format!("make warning {way}")), "{said}");
+        assert!(said.contains("still loads"), "{said}");
+    }
 }

@@ -137,6 +137,36 @@ pub(crate) fn check_thawed(
     check(cx, part, |name, found| thawed(name, found, what))
 }
 
+/// The `check` of a command that works on a part with one level (decisions 0014 and 0030):
+/// [`DocTxn::single_level`]'s refusal of the part it names, or with `keeps_frozen`
+/// [`DocTxn::single_level_or_frozen`]'s, made before the step runs so the window grays the
+/// command's controls with why (decision 0025, section 6). Its `run` refuses the same, for a
+/// caller that runs it directly. A part not found is left for `run` to report.
+///
+/// [`DocTxn::single_level`]: crate::document::DocTxn::single_level
+/// [`DocTxn::single_level_or_frozen`]: crate::document::DocTxn::single_level_or_frozen
+pub(crate) fn check_one_level(
+    cx: &Ctx,
+    part: Option<&PartRef>,
+    what: &str,
+    keeps_frozen: bool,
+) -> Result<(), Unavailable> {
+    let name = part.map_or("", |p| p.0.as_str());
+    let refused = if keeps_frozen {
+        cx.doc.single_level_or_frozen(name, what)
+    } else {
+        cx.doc.single_level(name, what)
+    };
+    match refused {
+        Err(e) if e.code == ErrorCode::Precondition => Err(Unavailable {
+            reason: e.message,
+            fix: e.hint,
+            asks: None,
+        }),
+        _ => Ok(()),
+    }
+}
+
 /// Runs `change` on a share of part `name`'s level stack (`None` when it has one level) and,
 /// when it returns `Some`, puts the changed part in place as one undo step and reports it.
 /// `None` leaves the part as it was, with `why` as the no-op reason. A frozen part was refused

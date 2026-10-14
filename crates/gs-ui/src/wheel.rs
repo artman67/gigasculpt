@@ -6,12 +6,12 @@
 //! sends when it comes up) runs the slot pointed at, so a flick picks a brush without waiting.
 //! A letter jumps to the next slot whose label starts with it, which letting go then picks
 //! wherever the pointer is. Clicking a slot picks it too; a right click puts the brush in use
-//! in that slot (`ui.wheel` with `slot` and `brush`); Escape closes it. One level, nothing
-//! nested.
+//! in that slot (`ui.wheel` with `slot` and `brush`); Escape closes it (`shell/escape.rs`). One
+//! level, nothing nested.
 
 use std::f32::consts::TAU;
 
-use egui::{Event, Key, Pos2, Stroke, Vec2};
+use egui::{Event, Pos2, Stroke, Vec2};
 use gs_engine::Hand;
 use gs_protocol::Step;
 use serde_json::json;
@@ -27,6 +27,8 @@ use crate::theme::theme;
 pub const MIDDLE: f32 = 48.0;
 /// A slot's size, in points; a longer label wraps to two lines.
 const SLOT: Vec2 = egui::vec2(104.0, 56.0);
+/// The wheel's egui area, which Escape and Enter order by (`shell/escape.rs`).
+pub(crate) const AREA: &str = "brush wheel";
 
 /// The wheel's state: where it is open, and the slot a letter jumped to.
 #[derive(Clone, Debug, Default)]
@@ -151,13 +153,9 @@ impl Wheel {
         rec: &mut Recorder,
     ) -> Option<Step> {
         let at = self.at?;
-        if ui.input(|i| i.key_pressed(Key::Escape)) {
-            *self = Self::default();
-            return None;
-        }
         let aimed = self.aimed(ui.ctx().pointer_latest_pos(), slots.len());
         let whole = egui::Rect::from_center_size(at, Vec2::splat(2.0 * radius) + SLOT * 2.0);
-        let area = egui::Area::new(egui::Id::new("brush wheel"))
+        let area = egui::Area::new(egui::Id::new(AREA))
             .order(egui::Order::Foreground)
             .fixed_pos(whole.min);
         let picked = area.show(ui.ctx(), |ui| {

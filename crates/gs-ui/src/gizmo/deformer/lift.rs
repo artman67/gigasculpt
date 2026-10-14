@@ -1,31 +1,20 @@
-//! The open deformer's window plumbing (decision 0041, sections 5 and 6): Enter and Escape, the
+//! The open deformer's window plumbing (decision 0041, sections 5 and 6): Enter, the
 //! lift when the pen lets go, and a save the engine refuses while the pen is down, which waits
 //! for the lift while the status line says so.
 
-use egui::Key;
 use gs_engine::StateValues;
 use gs_protocol::{CommandError, ErrorCode, Step};
 
 use crate::pieces::spring::phase;
 
-/// What the open deformer asks this frame of Enter, Escape and the pen (sections 5 and 6),
-/// before anything else takes the keys: while it is `held`, the lift on the first frame the pen
-/// is up; and while one is open, Enter's accept or Escape's cancel, unless the pen is `down` or
-/// something else takes the key first (`busy`: typing, a held slider key, the quick menu, the
-/// brush wheel; or a brush family's buttons, which Escape shuts). Escape also shuts a slider's
-/// fine handle or a menu first, and does only that (amended 2026-10-13 for `DF7c-notes`,
-/// section 3). `held` is `None` while none is open.
-pub fn keys(ui: &egui::Ui, held: Option<bool>, down: bool, busy: bool) -> Vec<Step> {
+/// What the open deformer asks this frame of Enter and the pen (sections 5 and 6), before
+/// anything else takes the keys: while it is `held`, the lift on the first frame the pen is up;
+/// and while one is open, Enter's accept when the window gave it the press (`enter`), last of
+/// all, as Escape's cancel (`shell/escape.rs`). `held` is `None` while none is open.
+pub fn keys(held: Option<bool>, down: bool, enter: bool) -> Vec<Step> {
     let lift = (held == Some(true) && !down).then(|| phase("lift"));
-    let busy = busy || down || crate::family::opened(ui.ctx()).is_some();
-    let shuts = crate::pieces::fine_shown(ui.ctx()) || egui::Popup::is_any_open(ui.ctx());
-    let (enter, escape) = ui.input(|i| (i.key_pressed(Key::Enter), i.key_pressed(Key::Escape)));
-    let key = match (held.is_some() && !busy, enter, escape && !shuts) {
-        (true, true, _) => Some(phase("accept")),
-        (true, false, true) => Some(phase("cancel")),
-        _ => None,
-    };
-    lift.into_iter().chain(key).collect()
+    let accept = (held.is_some() && enter).then(|| phase("accept"));
+    lift.into_iter().chain(accept).collect()
 }
 
 /// Keeps `step`, which the engine refused with `e`, in `waiting` to send again once the pen

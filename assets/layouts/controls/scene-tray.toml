@@ -74,14 +74,14 @@ controls = [
 ]
 
 # Scene tray > Detail > Level operations: the level's `···` lists these, in section 7's order and
-# words. Go to level… opens the palette's form for `level.set`. Delete lower at the base and
-# Delete higher at the top are held back with the engine's words, the rest disabled while the
+# words, under the part's levels as buttons (`level.set`, the active one lit), drawn in code
+# (gs-ui pieces/detail.rs `levels`; the palette still takes `level.set` typed). Delete lower at
+# the base and Delete higher at the top are held back with why, the rest disabled while the
 # engine refuses them; Reconstruct lower can only fail once it runs, on the status line.
 [[set]]
 name = "levels"
 title = "Level operations"
 controls = [
-  { label = "Go to level…", command = "ui.palette", args = { form = "level.set" }, hint = "Jumps to a level by number." },
   { label = "Delete lower", command = "level.delete_lower", hint = "Keeps this level as the lowest; the levels under it go." },
   { label = "Delete higher", command = "level.delete_higher", hint = "Keeps this level as the highest; the levels over it go." },
   { label = "Freeze", command = "level.freeze", hint = "Keeps the higher levels' detail while the base is remeshed or reshaped." },

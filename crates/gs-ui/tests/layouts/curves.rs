@@ -21,15 +21,6 @@ fn pixels(rect: &Value) -> [f64; 4] {
     std::array::from_fn(|i| rect[i].as_f64().unwrap_or_default())
 }
 
-/// The brush tray's widget labelled `label`.
-fn widget(ui: &mut Ui, label: &str) -> Value {
-    let found = ui
-        .widgets("brush")
-        .into_iter()
-        .find(|w| w["label"] == label);
-    found.unwrap_or_else(|| panic!("the brush tray shows {label}"))
-}
-
 /// The pen's brush's settings, as `brush.describe` reports them.
 fn brush(ui: &mut Ui) -> Value {
     let name = ui.state()["brush"].clone();
@@ -283,7 +274,7 @@ fn a_curve_points_reach_lies_within_its_graph() {
 
 /// The Wrap Mode slider the brush's tip shows, as the value its command would set.
 fn wrap_shown(ui: &mut Ui) -> Value {
-    widget(ui, "Wrap Mode")["command"]["args"]["settings"]["tip"]["wrap"].clone()
+    ui.widget("brush", "Wrap Mode")["command"]["args"]["settings"]["tip"]["wrap"].clone()
 }
 
 /// The pen's brush's Wrap Mode: 1 while its tip leaves it out.
@@ -298,7 +289,7 @@ fn wrap_mode_sets_the_tips_wrap_and_follows_a_brush_switch() {
     let mut ui = Ui::new();
     open_curve(&mut ui);
     let r = ui.rect("brush > Wrap Mode");
-    assert_ne!(widget(&mut ui, "Wrap Mode")["cut"], true, "its row fits");
+    assert_ne!(ui.widget("brush", "Wrap Mode")["cut"], true, "its row fits");
     assert_eq!(wrap_shown(&mut ui), json!(1), "off");
     // Dragged from its left end (off) past its right: set once, to 16, when the pen lifts.
     let (y, before) = (middle(r)[1], ui.logged("brush.set").len());

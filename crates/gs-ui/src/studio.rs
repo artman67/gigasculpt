@@ -64,6 +64,9 @@ pub struct Frame {
     pub typing: bool,
     /// egui wants another frame soon (an animation, a blinking cursor).
     pub again: bool,
+    /// The text a field copied or cut this frame, for the window to put on the system
+    /// clipboard.
+    pub copied: Option<String>,
 }
 
 impl Studio {
@@ -154,8 +157,19 @@ impl Studio {
         self.dirty = true;
     }
 
-    /// Mouse, keyboard and window input for the next frame; `held` are the modifiers now.
+    /// The system clipboard's text, for a paste key among `inputs` while a text field has the
+    /// keyboard: `read` reads it only then (the window reads the system's, tests give their
+    /// own). Call before [`Studio::input`] with the same input.
+    pub fn clipboard(&mut self, inputs: &[Input], read: impl FnOnce() -> Option<String>) {
+        if self.ctx.text_edit_focused() && crate::glue::pastes(inputs) {
+            self.input.clipboard = read();
+        }
+    }
+
+    /// Mouse, keyboard and window input for the next frame; `held` are the modifiers now. A
+    /// close, a file dropped and a file dialog's answer go to the shell (`Shell::window_input`).
     pub fn input(&mut self, inputs: &[Input], held: gs_platform::Modifiers) {
+        self.shell.window_input(inputs);
         let inputs = &self.stroke_keys(inputs);
         let held = self.in_effect(inputs, crate::glue::modifiers(held));
         // egui only learns which modifiers are held from this event (navigation needs it). Sent
@@ -167,7 +181,13 @@ impl Studio {
             self.alt_now();
         }
         let ppp = self.ppp();
-        self.input.pending.extend(events(inputs, ppp, held));
+        let mut sent = events(inputs, ppp, held);
+        // In a text field Ctrl+C, X and V copy, cut and paste; elsewhere they stay the keymap's.
+        let clipboard = self.input.clipboard.take();
+        if self.ctx.text_edit_focused() {
+            sent = crate::glue::clipboard(sent, clipboard.as_deref());
+        }
+        self.input.pending.extend(sent);
         self.dirty |= !inputs.is_empty() || changed;
     }
 
@@ -175,6 +195,13 @@ impl Studio {
     /// the engine found on empty canvas navigates, unless it was a Ctrl gesture's.
     pub fn after_call(&mut self, report: &CallReport) {
         self.shell.after_call(report);
+        // A pen stroke's refusal reads as a call's does; its samples are no step.
+        if let Some(e) = report.stroke {
+            self.shell.refused(None, e);
+        }
+        if let Some(path) = report.saved {
+            self.shell.status.wrote(path, self.now_ns as f64 / 1e9);
+        }
         if !self.background_answer(report.on_canvas) {
             self.shell.canvas |= report.on_canvas;
         }
@@ -236,10 +263,12 @@ impl Studio {
             let ns = u64::try_from(d.as_nanos()).unwrap_or(u64::MAX);
             self.now_ns.saturating_add(ns)
         });
+        let copied = crate::glue::copied(&output.platform_output);
         let ui = layer(&self.ctx, output, &mut self.freed);
         let frame = Frame {
             typing: self.ctx.egui_wants_keyboard_input(),
             again,
+            copied,
         };
         self.reframe_reference();
         (ui, frame)
@@ -300,7 +329,7 @@ impl Studio {
         if !self.shell.viewport().is_positive()
             && let Err(problem) = self.settle()
         {
-            self.shell.status.problem = Some(problem);
+            self.shell.status.says(&problem);
         }
         let size = RenderSize {
             width: self.size[0].max(1),
@@ -424,7 +453,7 @@ impl Studio {
     /// to draw is reported in the status bar.
     pub fn describe(&mut self) -> UiDescription {
         if let Err(problem) = self.settle() {
-            self.shell.status.problem = Some(problem);
+            self.shell.status.says(&problem);
         }
         let ppp = self.ppp();
         let rect = self.shell.viewport() * ppp;

@@ -85,14 +85,10 @@ fn a_missing_program_refuses_with_the_reason_and_the_fix() {
         .join("quadwild")
         .display()
         .to_string();
-    let how = if cfg!(target_os = "linux") {
-        "build.sh"
-    } else {
-        "not shipped"
-    };
+    let named = ["download", "build.sh", "GS_QUADWILD", &folder];
     assert!(
-        hint.contains(&folder) && hint.contains(how) && hint.contains("GS_QUADWILD"),
-        "the fix names {folder} and {how:?}: {hint}"
+        named.iter().all(|n| hint.contains(n)),
+        "the fix names the download, the scripts, the variable and {folder}: {hint}"
     );
     assert_eq!(hash(), before, "nothing changed");
 }

@@ -19,7 +19,7 @@ const CUBE: &str = "v -1 -1 -1\\nv 1 -1 -1\\nv 1 1 -1\\nv -1 1 -1\\nv -1 -1 1\\n
 const KILLED_ONCE: &str = "if [ ! -e killed ]; then : > killed; kill -9 $$; fi";
 
 /// Writes `text` to `path`, runnable, making its folder.
-fn put(path: &Path, text: &str) {
+pub(super) fn put(path: &Path, text: &str) {
     let made = (path.parent().map_or(Ok(()), fs::create_dir_all))
         .and_then(|()| fs::write(path, text))
         .and_then(|()| fs::set_permissions(path, fs::Permissions::from_mode(0o755)));

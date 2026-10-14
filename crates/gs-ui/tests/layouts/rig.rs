@@ -45,6 +45,15 @@ impl Ui {
     /// autosave on in the state folder `state`, and what the window runs before its first frame
     /// run by `app::launch`. No frame is drawn yet: [`Ui::settle`] draws the first.
     pub fn launch(config: &std::path::Path, state: &std::path::Path) -> Self {
+        Self::launching(config, state, false)
+    }
+
+    /// As [`Ui::launch`], drawing on lavapipe, so its pixels can be read.
+    pub fn launch_drawn(config: &std::path::Path, state: &std::path::Path) -> Self {
+        Self::launching(config, state, true)
+    }
+
+    fn launching(config: &std::path::Path, state: &std::path::Path, looks: bool) -> Self {
         let engine = EngineConfig {
             autosave: Some(StateFolder::in_folder(state.to_path_buf())),
             ..EngineConfig::default()
@@ -52,8 +61,7 @@ impl Ui {
         let mut session = Session::with(engine, Role::Human);
         let mut shell = gs_ui::app::shell(config);
         shell.catalog = session.engine.catalog().clone();
-        let host = Host::new(Studio::new(shell, None, SIZE, 1.0));
-        session.engine.attach_window(Box::new(host.clone()));
+        let host = Self::host(&mut session, shell, looks);
         gs_ui::app::launch(config, &host, |request| Some(session.request(request)));
         Self { session, host }
     }
@@ -69,6 +77,13 @@ impl Ui {
     fn build(config: EngineConfig, looks: bool, layout: LayoutFile) -> Self {
         let mut session = Session::with(config, Role::Human);
         let shell = Shell::new(session.engine.catalog().clone(), Keymap::default(), layout);
+        let host = Self::host(&mut session, shell, looks);
+        Self { session, host }
+    }
+
+    /// The window drawing `shell`, on lavapipe and the session's renderer with `looks`, attached
+    /// to `session`.
+    fn host(session: &mut Session, shell: Shell, looks: bool) -> Host {
         let render = looks.then(|| {
             let renderer = Renderer::new(AdapterKind::Lavapipe).unwrap_or_else(|e| panic!("{e}"));
             Render::new(renderer, 1).unwrap_or_else(|e| panic!("{e}"))
@@ -78,7 +93,7 @@ impl Ui {
             session.engine.attach_renderer(Box::new(host.clone()));
         }
         session.engine.attach_window(Box::new(host.clone()));
-        Self { session, host }
+        host
     }
 
     /// Runs a command as the human at the window.
@@ -127,6 +142,31 @@ impl Ui {
             .filter(|w| w["role"] != "scroll bar")
             .filter_map(|w| Some(w["label"].as_str()?.to_string()))
             .collect()
+    }
+
+    /// Panel `id`'s widget labelled `label`, as `ui.describe` reports it (see [`labelled`]).
+    pub fn widget(&mut self, id: &str, label: &str) -> Value {
+        labelled(&self.widgets(id), label, id)
+    }
+
+    /// Panel `id`'s widget labelled `label` (see [`Ui::widget`]), scrolled to first
+    /// ([`Ui::scroll_to`]).
+    pub fn seen(&mut self, id: &str, label: &str) -> Value {
+        self.scroll_to(id, label);
+        self.widget(id, label)
+    }
+
+    /// Whether panel `id` shows a widget labelled `label` anywhere down its length, scrolled to
+    /// first ([`Ui::scroll_to`]).
+    pub fn shows(&mut self, id: &str, label: &str) -> bool {
+        self.scroll_to(id, label);
+        self.lists(id, label)
+    }
+
+    /// Whether panel `id` shows a widget labelled `label` where it is scrolled now, without
+    /// scrolling (see [`Ui::shows`]).
+    pub fn lists(&mut self, id: &str, label: &str) -> bool {
+        self.labels(id).iter().any(|l| l == label)
     }
 
     /// Where `name` shows now, in pixels (see [`region`]). A `panel > name` in a panel that
@@ -409,6 +449,16 @@ pub fn listed(d: &Value, id: &str, key: &str) -> Vec<Value> {
     panel
         .and_then(|p| p[key].as_array().cloned())
         .unwrap_or_default()
+}
+
+/// The widget labelled `label` among `widgets`, those of `place`. Panics, naming every label
+/// there, if none is, so a failing test says what it saw.
+pub fn labelled(widgets: &[Value], label: &str, place: &str) -> Value {
+    let found = widgets.iter().find(|w| w["label"] == label).cloned();
+    found.unwrap_or_else(|| {
+        let labels: Vec<&Value> = widgets.iter().map(|w| &w["label"]).collect();
+        panic!("no {label} in {place}: {labels:?}")
+    })
 }
 
 /// Whether a widget labelled `name`, whole (not cut by the panel's edge), or a section with the

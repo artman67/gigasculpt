@@ -6,7 +6,8 @@
 //! its point; Accept keeps it as one step; and the box follows a gizmo turned before the pick.
 //! A lit handle, the deformer's or the gizmo's, puts the brush's rings and lines away and keeps
 //! the lines clear of it; a deformer handle says what it drags; and Escape shuts a slider's fine
-//! handle before it cancels the deformer (amended 2026-10-13 for `DF7c-notes`).
+//! handle before it cancels the deformer (amended 2026-10-13 for `DF7c-notes`). A held key's
+//! line says what the key does to the deformer handle under the pen (UI-words).
 
 use gs_platform::{Input, Modifiers};
 use serde_json::{Value, json};
@@ -45,7 +46,7 @@ fn open(ui: &mut Ui, pick: &str, size: f32) {
 }
 
 /// `gizmo.describe` for the window's camera, and the 3D view's rectangle.
-fn described(ui: &mut Ui) -> (Value, [f64; 4]) {
+pub(crate) fn described(ui: &mut Ui) -> (Value, [f64; 4]) {
     let d = ui.describe();
     let v = &d["viewport"];
     let r: [f64; 4] = std::array::from_fn(|i| v["rect"][i].as_f64().unwrap_or_default());
@@ -440,6 +441,48 @@ fn over_a_lit_gizmo_arrow_too_and_a_held_key_says_its_line_clear_of_it() {
         arrow.outline
     );
     ui.input(&[], Modifiers::default());
+}
+
+/// A held key's line says what the key does to the deformer handle under the pen, which a
+/// press grabs before the gizmo's own: over Smooth bend's angle cone Shift snaps its turn to
+/// the gizmo's step, as the cone's own words say, never a move the gizmo's arrow would snap;
+/// Ctrl copies nothing there. Over a cage's dot, Shift adds it or takes it out and snaps the
+/// move, and Ctrl takes it out, as a press does (`DF7c-notes`, section 4).
+#[test]
+fn over_a_deformer_handle_a_held_key_says_what_it_does_to_that_handle() {
+    let mut ui = Ui::new();
+    open(&mut ui, "Smooth bend", 75.0);
+    let says = |ui: &mut Ui, at: [f64; 2], lines: [(&str, &str); 2]| {
+        ui.pen(at[0], at[1]);
+        for (key, line) in lines {
+            ui.input(&[], held(key));
+            let (cursor, status) = (ui.labels("viewport"), ui.labels("status"));
+            assert!(cursor.iter().any(|l| l == line), "{line}: {cursor:?}");
+            assert!(status.iter().any(|l| l == line), "{line}: {status:?}");
+        }
+        ui.input(&[], Modifiers::default());
+    };
+    let (_, handles) = shown(&mut ui);
+    let cone = find(&handles, "cone_x").middle();
+    let shift = ("Shift", "Shift: Snap turns to 5°");
+    says(
+        &mut ui,
+        cone,
+        [shift, ("Ctrl", "Ctrl: Does nothing to this handle")],
+    );
+    ui.press("brush > Cancel");
+    ui.press("brush > Soft cage");
+    let (_, handles) = shown(&mut ui);
+    let dot = alone(&handles).middle();
+    let shift = (
+        "Shift",
+        "Shift: Add or take out the dot, snap moves to 0.01",
+    );
+    says(
+        &mut ui,
+        dot,
+        [shift, ("Ctrl", "Ctrl: Take the dot out of the selection")],
+    );
 }
 
 /// A lit cone says the row it drags as the tray shows it, then the row's hint and its key,

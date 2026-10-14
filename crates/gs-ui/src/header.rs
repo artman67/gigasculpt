@@ -79,9 +79,6 @@ pub struct Menus {
     list: bool,
     /// Where the button the menus fold into shows, while they are folded: the list opens under it.
     fold: Option<egui::Rect>,
-    /// Where the pen pressed inside what is open, while it has not let go: a slider's pull in a
-    /// dropdown panel (Deform's), which Escape cancels without shutting the panel ([`early`]).
-    held: Option<egui::Pos2>,
 }
 
 impl Menus {
@@ -124,6 +121,16 @@ impl Menus {
     /// Whether a menu, a view button's options or the folded menus' list is open.
     pub fn shows(&self) -> bool {
         self.open.is_some() || self.list
+    }
+
+    /// The egui layer of what shows: the menu or options open, else the folded menus' list, for
+    /// the window's order to compare with the quick menu or the wheel (`shell/escape.rs`).
+    pub(crate) fn layer(&self) -> Option<egui::LayerId> {
+        let id = match &self.open {
+            Some(name) => menu::area(name),
+            None => self.list.then(menu::list_area)?,
+        };
+        Some(egui::LayerId::new(egui::Order::Foreground, id))
     }
 }
 

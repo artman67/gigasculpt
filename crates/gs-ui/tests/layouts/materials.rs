@@ -11,7 +11,6 @@ use gs_platform::Modifiers;
 use serde_json::{Value, json};
 
 use crate::library::lit;
-use crate::pen::widget;
 use crate::region::middle;
 use crate::rig::{Ui, folder};
 
@@ -104,7 +103,7 @@ fn the_materials_tab_pictures_each_material_by_kind_and_show_used_keeps_the_scen
     // The Material section says what the folder refused, and its picture opens the grid.
     ui.open_look();
     ui.scroll_to("look", "1 file not read");
-    let refused = widget(&mut ui, "look", "1 file not read");
+    let refused = ui.widget("look", "1 file not read");
     let hint = refused["hint"].as_str().unwrap_or_default();
     assert!(hint.contains("broken.toml"), "named on hover: {refused}");
     ui.scroll_to("look", "Materials");
@@ -168,7 +167,7 @@ fn the_slot_slider_picks_a_material_by_place_once_at_the_release() {
     ui.ok("primitive.sphere", json!({}));
     ui.open_look();
     ui.scroll_to("look", "Material slot");
-    let slot = widget(&mut ui, "look", "Material slot");
+    let slot = ui.widget("look", "Material slot");
     let rests = json!({ "command": "material.select", "args": { "name": "@0" } });
     assert_eq!(slot["command"], rests, "at the active material's place");
     let r = ui.rect("look > Material slot");
@@ -216,7 +215,7 @@ fn the_materials_actions_are_behind_its_more_button() {
     ui.ok("primitive.sphere", json!({}));
     ui.open_look();
     ui.scroll_to("look", MORE);
-    let more = widget(&mut ui, "look", MORE);
+    let more = ui.widget("look", MORE);
     assert!(more["command"].is_null(), "it only opens the list: {more}");
     assert_eq!(listed(&mut ui), 0, "shut, none of the actions shows");
     ui.press(&format!("look > {MORE}"));
@@ -225,7 +224,7 @@ fn the_materials_actions_are_behind_its_more_button() {
         ACTIONS.len(),
         "open, each by its short label"
     );
-    let copy = widget(&mut ui, "look", "Copy");
+    let copy = ui.widget("look", "Copy");
     assert_eq!(copy["command"]["command"], json!("material.copy"), "{copy}");
     ui.press("look > Copy");
     let list = ui.ok("material.list", json!({}));
@@ -245,7 +244,7 @@ fn copy_rename_and_delete_are_controls_and_delete_is_greyed_on_a_built_in() {
     // A call, so the engine says which of the controls drawn cannot run.
     ui.state();
     ui.settle();
-    let delete = widget(&mut ui, "look", "Delete");
+    let delete = ui.widget("look", "Delete");
     let why = delete["reason"].as_str().unwrap_or_default();
     assert!(
         delete["enabled"] == false && why.contains("built in"),
@@ -260,7 +259,8 @@ fn copy_rename_and_delete_are_controls_and_delete_is_greyed_on_a_built_in() {
     );
     ui.ok("material.select", json!({ "name": "gray-copy" }));
     ui.settle();
-    // Rename asks a name and a title in the command palette's form.
+    // Rename asks only the title, what the window shows, in the command palette's form; the
+    // name commands take stays (review 0009, R9).
     actions(&mut ui);
     ui.press("look > Rename");
     let widgets = ui.widgets("palette");
@@ -268,10 +268,10 @@ fn copy_rename_and_delete_are_controls_and_delete_is_greyed_on_a_built_in() {
         .filter(|w| w["role"] == "text field")
         .map(|w| &w["label"])
         .collect();
-    assert_eq!(fields, [&json!("Name"), &json!("Title")]);
+    assert_eq!(fields, [&json!("Title")]);
     if let Some(form) = ui.host.lock().shell.palette.form.as_mut() {
-        for ((_, text), typed) in form.fields.iter_mut().zip(["ours", "Ours"]) {
-            *text = typed.to_string();
+        for (_, text) in &mut form.fields {
+            "Ours".clone_into(text);
         }
     }
     ui.input(&[], Modifiers::default());
@@ -279,19 +279,19 @@ fn copy_rename_and_delete_are_controls_and_delete_is_greyed_on_a_built_in() {
     let renamed = active(&mut ui);
     assert_eq!(
         (&renamed["name"], &renamed["title"]),
-        (&json!("ours"), &json!("Ours"))
+        (&json!("gray-copy"), &json!("Ours"))
     );
 
     // Delete runs on a user material: the active one goes, and the first becomes active.
     actions(&mut ui);
     ui.state();
     ui.settle();
-    assert_eq!(widget(&mut ui, "look", "Delete")["enabled"], json!(true));
+    assert_eq!(ui.widget("look", "Delete")["enabled"], json!(true));
     ui.press("look > Delete");
     assert_eq!(active(&mut ui)["name"], json!("gray"));
     let list = ui.ok("material.list", json!({}));
     let names = list["looks"].as_array().cloned().unwrap_or_default();
-    assert!(!names.iter().any(|m| m["name"] == "ours"), "deleted");
+    assert!(!names.iter().any(|m| m["name"] == "gray-copy"), "deleted");
 }
 
 #[test]
@@ -301,7 +301,7 @@ fn a_color_pick_and_an_environment_are_one_material_set_each() {
     let before = active(&mut ui)["values"].clone();
     ui.open_look();
     ui.scroll_to("look", "Base color");
-    let button = widget(&mut ui, "look", "Base color");
+    let button = ui.widget("look", "Base color");
     assert_eq!(
         button["command"]["command"],
         json!("material.set"),

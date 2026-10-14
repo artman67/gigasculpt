@@ -95,9 +95,10 @@ fn platform_input_becomes_egui_events_in_points() {
             physical_key: None,
             pressed: true,
             repeat: false,
+            // egui's command is Cmd on macOS, Ctrl elsewhere.
             modifiers: egui::Modifiers {
                 ctrl: true,
-                command: true,
+                command: !cfg!(target_os = "macos"),
                 ..egui::Modifiers::NONE
             },
         },

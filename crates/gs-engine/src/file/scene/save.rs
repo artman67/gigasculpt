@@ -231,6 +231,7 @@ impl Command for FileQuickSave {
         let path = autosave::next_file(&folder, &cx.file.name());
         let doc = cx.doc.document();
         let names = chosen(doc, None)?;
+        let autosave = self.reason != quick();
         let session = session(cx, Some(self.reason), true);
         let target = Target {
             path: &path,
@@ -241,7 +242,7 @@ impl Command for FileQuickSave {
         autosave::prune(&folder, config.keep);
         cx.land(Landing::Saved(Saved {
             path: path.clone(),
-            kind: SaveKind::Quick,
+            kind: SaveKind::Quick { autosave },
             rev: cx.rev,
             palette_steps: cx.palette.steps,
             generation: cx.file.generation,
@@ -286,7 +287,8 @@ fn saved_file(
     }
 }
 
-/// A `.gss` path in a folder that exists, and not a file the save may not replace.
+/// A `.gss` path in a folder that exists, and not a file the save may not replace. A refusal
+/// quotes the path it got, so a stray prefix or space shows.
 fn check_target(path: &Path, own: bool, overwrite: bool) -> Result<(), CommandError> {
     let refuse = |message: String, hint: &str| {
         Err(CommandError {
@@ -300,7 +302,10 @@ fn check_target(path: &Path, own: bool, overwrite: bool) -> Result<(), CommandEr
     if !gss {
         return Err(CommandError {
             hint: Some("scene files end in .gss; file.export writes obj, ply and stl".into()),
-            ..errors::args_invalid("/path", format!("{} does not end in .gss", path.display()))
+            ..errors::args_invalid(
+                "/path",
+                format!("\"{}\" does not end in .gss", path.display()),
+            )
         });
     }
     let folder = path
@@ -309,21 +314,21 @@ fn check_target(path: &Path, own: bool, overwrite: bool) -> Result<(), CommandEr
         .unwrap_or(Path::new("."));
     if !folder.is_dir() {
         return refuse(
-            format!("there is no folder {}", folder.display()),
+            format!("there is no folder \"{}\"", folder.display()),
             "make the folder first",
         );
     }
-    if path.is_dir() {
-        return refuse(
-            format!("{} is a folder", path.display()),
-            "give a file name",
-        );
-    }
+    crate::file::not_a_folder(path)?;
     if path.exists() && !own && !overwrite {
-        return refuse(
-            format!("a file exists at {}", path.display()),
-            "pass overwrite: true to replace it",
-        );
+        // Naming `overwrite`, so the window asks to replace it (review 0009, B2).
+        return Err(CommandError {
+            path: Some("/overwrite".into()),
+            hint: Some("pass overwrite: true to replace it".into()),
+            ..error(
+                ErrorCode::Precondition,
+                format!("a file exists at \"{}\"", path.display()),
+            )
+        });
     }
     Ok(())
 }

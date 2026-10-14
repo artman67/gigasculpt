@@ -1,0 +1,10 @@
+# Text files are checked out with LF line endings on every system, Windows too, so the files
+# the tests and the program read (brush presets, layouts, goldens) are the same bytes everywhere.
+* text=auto eol=lf
+
+*.png binary
+*.gss binary
+*.hdr binary
+*.ttf binary
+*.ico binary
+*.icns binary

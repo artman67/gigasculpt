@@ -16,12 +16,14 @@ use egui::RichText;
 use gs_protocol::{CommandInfo, Step};
 use serde_json::{Value, json};
 
+use super::{dialog, path};
 use crate::pieces::{Face, Now, Press, Reads, label, pressed_as};
 use crate::record::{Recorder, Role, Widget, with_args};
 use crate::theme::theme;
 use fields::argument;
 use kind::Kind;
-use words::{friendly, hint, yes};
+pub(super) use words::own_line;
+use words::{friendly, hint, line, yes};
 
 /// How tall More's arguments show before they scroll.
 const MORE: f32 = 360.0;
@@ -43,8 +45,14 @@ pub struct Form {
     pub open: bool,
     /// Asked by an engine's refusal (decision 0016, section 17), where a boolean is a question.
     pub refused: bool,
+    /// The file a question is about, which its line names (Replace it?).
+    pub file: Option<String>,
     /// A field and why the engine refused its value, shown under it (the adjust panel's).
     pub reason: Option<(String, String)>,
+    /// Enter was pressed while Run waits: why it waits reads in the problem color.
+    nudged: bool,
+    /// What each field asked for started with (a path's folder), by name.
+    starts: BTreeMap<String, String>,
     /// The command's title, which Run reads.
     title: String,
     /// The command's summary, which heads the form.
@@ -125,6 +133,10 @@ impl Form {
             .map(|(n, _)| (n.clone(), arg(n.as_str())))
             .collect();
         let title = spec(&step.command).map_or_else(|| step.command.clone(), |c| c.title.into());
+        let starts = (fields.iter())
+            .filter(|(_, t)| !t.is_empty())
+            .cloned()
+            .collect();
         Form {
             step,
             fields,
@@ -132,7 +144,10 @@ impl Form {
             chosen: BTreeMap::new(),
             open: false,
             refused: false,
+            file: None,
             reason: None,
+            nudged: false,
+            starts,
             title,
             summary: info.summary.clone(),
             args,
@@ -187,9 +202,15 @@ impl Form {
         fields.find(differs).map(|(name, _)| name.clone())
     }
 
-    /// The command's title.
+    /// The command's title, or the row's that opened it ([`Form::retitle`]).
     pub fn title(&self) -> &str {
         &self.title
+    }
+
+    /// Titles it by the row that opened it, which Run then reads: Save Part file, not the
+    /// scene's Save (review 0009, R5).
+    pub fn retitle(&mut self, row: &str) {
+        row.clone_into(&mut self.title);
     }
 
     /// Draws each field by its kind, and under the refused one why. Returns whether a slider
@@ -242,9 +263,10 @@ impl Form {
         })
     }
 
-    /// What `name` is given: its control's choice, else `text` as its kind reads it (text as
-    /// typed, numbers as a list, anything else as JSON where it reads as JSON); `None` while
-    /// nothing is.
+    /// What `name` is given: its control's choice, else `text` as its kind reads it (a file as
+    /// the path typed names, by the `path` module, with the extension the command writes when it
+    /// has none; other text as typed, numbers as a list, anything else as JSON where it reads as
+    /// JSON); `None` while nothing is.
     fn given(&self, name: &str, text: &str) -> Option<Value> {
         if let Some(value) = self.chosen.get(name) {
             return Some(value.clone());
@@ -252,6 +274,11 @@ impl Form {
         let text = text.trim();
         if text.is_empty() {
             return None;
+        }
+        if path::named(name) {
+            let start = self.starts.get(name).map_or("", String::as_str);
+            let typed = path::typed(start, text);
+            return Some(Value::from(dialog::extended(&self.step.command, &typed)));
         }
         let json = |t: &str| serde_json::from_str(t).unwrap_or_else(|_| Value::from(text));
         Some(match self.args.get(name).map(|a| &a.kind) {
@@ -276,11 +303,7 @@ impl Form {
     /// label beside it as Levels' does, the rails lined up (decision 0025, rule 13, amended
     /// 2026-10-13). A label too wide even for half goes above its rail, as rule 12 has it.
     fn rail(&self, ui: &egui::Ui) -> f32 {
-        let wide = |text: String| {
-            let (wrap, style) = (Some(egui::TextWrapMode::Extend), egui::TextStyle::Body);
-            let text = egui::WidgetText::from(text);
-            text.into_galley(ui, wrap, f32::INFINITY, style).size().x
-        };
+        let wide = |text: String| crate::text::width(ui, text, egui::TextStyle::Body);
         let names = self
             .fields
             .iter()
@@ -329,18 +352,36 @@ impl Form {
         all.find(|(n, _)| n == name).map_or("", |(_, t)| t.as_str())
     }
 
-    /// Why Run cannot send the step yet: a required argument that nothing gives.
+    /// Why Run cannot send the step yet: a required argument that nothing gives, or a part
+    /// asked for that none is picked for and the engine would not take the active part for
+    /// (Reference from parts, review 0009, R8).
     fn waits(&self) -> Option<String> {
         let args = self
             .fields
             .iter()
             .filter_map(|(n, _)| Some((n, self.args.get(n)?)));
-        let mut lacking = args.filter(|(n, a)| a.required && self.shows(n).is_none());
+        let mut lacking = args.filter(|(n, a)| self.lacks(n, a));
         let (name, arg) = lacking.next()?;
         Some(match arg.kind {
             Kind::Given => format!("Waits for {}, which a script gives", friendly(name)),
             _ => format!("Waits for {}", friendly(name)),
         })
+    }
+
+    /// Whether Run waits for `name`: nothing gives it and it is required, or it is a part the
+    /// engine does not fill with the active one, given none or an empty list.
+    fn lacks(&self, name: &str, arg: &Arg) -> bool {
+        let part = matches!(arg.kind, Kind::Part(_)) && !arg.active;
+        match self.shows(name) {
+            None => arg.required || part,
+            Some(Value::Array(all)) => part && all.is_empty(),
+            Some(_) => false,
+        }
+    }
+
+    /// Whether it is a question a refusal asked (see `question`), answered once.
+    pub(super) fn is_question(&self) -> bool {
+        self.question().is_some()
     }
 
     /// The boolean a refusal asked for, when that is all the form asks: a question.
@@ -367,7 +408,7 @@ pub(super) fn draw(
     rec: &mut Recorder,
 ) -> Option<Answer> {
     if let Some(name) = form.question() {
-        return question(ui, form, &name, now, rec);
+        return question(ui, form, (&name, enter), now, rec);
     }
     label(ui, RichText::new(&form.summary).weak(), rec);
     let mut set = form.arguments(ui, focus, now, rec);
@@ -380,7 +421,16 @@ pub(super) fn draw(
         let shown = ui.add_enabled(false, egui::Button::new(&form.title));
         let shown = shown.on_disabled_hover_text(&why);
         let widget = Widget::runs(&form.title, Role::Button, step, None);
-        rec.widget(widget.disabled(why), shown.rect);
+        rec.widget(widget.disabled(why.clone()), shown.rect);
+        // Why, written under Run, not only on hover; Enter says it again in the problem color
+        // (review 0009, R3).
+        form.nudged |= enter && !set;
+        let color = if form.nudged {
+            theme(ui.ctx()).colors.problem
+        } else {
+            ui.visuals().weak_text_color()
+        };
+        label(ui, RichText::new(why).small().color(color), rec);
         return None;
     }
     let held = now.applies.and_then(|a| a.why(&step)).is_some();
@@ -424,26 +474,44 @@ fn more(
     set
 }
 
-/// A question an engine's refusal asked: the boolean's description on a line, then a button
-/// that sends it true and Cancel. Enter answers neither.
+/// A question an engine's refusal asked: its line (why the engine asks, in a person's words,
+/// else the boolean's description, or what it says of the file it is about), then a button that
+/// sends it true and Cancel; a scene in an older format offers Save as… between them, which
+/// asks for another file. Enter takes the safe choice, Cancel, which is marked as Enter's
+/// (review 0009, R13).
 fn question(
     ui: &mut egui::Ui,
     form: &Form,
-    name: &str,
+    (name, enter): (&str, bool),
     now: &Now,
     rec: &mut Recorder,
 ) -> Option<Answer> {
     let about = form.args.get(name).map_or("", |a| a.about.as_str());
-    label(ui, RichText::new(about), rec);
-    let yes = yes(name, about);
-    let step = form.with(name, Value::Bool(true));
-    let cancel = with_args("ui.palette", json!({ "open": false }));
-    let mut answer = None;
+    let said = match &form.reason {
+        Some((asked, why)) if asked == name => why.clone(),
+        _ => line(name, about, form.file.as_deref()),
+    };
+    label(ui, RichText::new(said), rec);
+    let yes = yes(name);
+    let mut buttons = vec![(yes, form.with(name, Value::Bool(true)))];
+    if name == "upgrade" {
+        let other = json!({ "form": form.step.command, "ask": ["path"] });
+        buttons.push(("Save as…".into(), with_args("ui.palette", other)));
+    }
+    let cancel = Press {
+        key: Some("Enter"),
+        ..plain("Cancel", with_args("ui.palette", json!({ "open": false })))
+    };
+    let mut answer = enter.then_some(Answer::Cancel);
     ui.horizontal(|ui| {
-        if pressed_as(ui, plain(&yes, step.clone()), Face::Label, now, rec).clicked() {
-            answer = Some(Answer::Run(step));
+        for (at, (label, step)) in buttons.into_iter().enumerate() {
+            // Replace writes over a file: it reads in the warning color (review 0009).
+            let warns = at == 0 && name == "overwrite";
+            if warned(ui, plain(&label, step.clone()), warns, now, rec).clicked() {
+                answer = Some(Answer::Run(step));
+            }
         }
-        if pressed_as(ui, plain("Cancel", cancel), Face::Label, now, rec).clicked() {
+        if pressed_as(ui, cancel, Face::Label, now, rec).clicked() {
             answer = Some(Answer::Cancel);
         }
     });
@@ -451,7 +519,7 @@ fn question(
 }
 
 /// A button that runs `step`, unlit.
-fn plain(label: &str, step: Step) -> Press<'_> {
+pub(super) fn plain(label: &str, step: Step) -> Press<'_> {
     Press {
         label,
         step,
@@ -461,8 +529,27 @@ fn plain(label: &str, step: Step) -> Press<'_> {
     }
 }
 
+/// A question's button, its words in the theme's warning color when `warns`: an answer that
+/// loses something (Replace, Don't save; decision 0025, the warning color).
+pub(super) fn warned(
+    ui: &mut egui::Ui,
+    press: Press<'_>,
+    warns: bool,
+    now: &Now,
+    rec: &mut Recorder,
+) -> egui::Response {
+    let warning = theme(ui.ctx()).colors.warning();
+    let shown = ui.scope(|ui| {
+        if warns {
+            ui.visuals_mut().override_text_color = Some(warning);
+        }
+        pressed_as(ui, press, Face::Label, now, rec)
+    });
+    shown.inner
+}
+
 /// The engine's registration of `command`.
-fn spec(command: &str) -> Option<&'static gs_engine::CommandSpec> {
+pub(super) fn spec(command: &str) -> Option<&'static gs_engine::CommandSpec> {
     gs_engine::registry()
         .into_iter()
         .find(|c| c.name == command)

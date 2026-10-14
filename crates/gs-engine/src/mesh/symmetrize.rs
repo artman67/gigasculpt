@@ -92,6 +92,10 @@ impl Command for MeshSymmetrize {
         ]
     }
 
+    fn check(&self, cx: &Ctx) -> Result<(), Unavailable> {
+        crate::level::check_one_level(cx, self.part.as_ref(), "symmetrize", false)
+    }
+
     fn run(self, cx: &mut Ctx) -> Result<Symmetrized, CommandError> {
         let part = pinned(self.part)?;
         cx.doc.single_level(&part, "symmetrize")?;

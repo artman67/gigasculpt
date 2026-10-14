@@ -30,7 +30,7 @@ adjust panel then sets its form, density and detail levels.
 |---|---|---|
 | | Duplicate | Copies the active part, with its levels, mask and groups, directly below it. |
 | | Mirror copy X, Y, Z | Adds a copy of the active part mirrored across the scene's origin, directly below it. |
-| Order | Rename | Gives the active part a new name. No two parts may share a name. |
+| Order | Rename | Gives the active part a new name. No two parts may share a name: a taken one keeps the form open, with your text, to pick another. |
 | Order | Move up, Move down | Moves the active part one place in the list. |
 | Order | Show all parts | Turns every part's Visible on. |
 | Split | Split into shells | Cuts the part into one part per separate piece. |
@@ -41,13 +41,14 @@ adjust panel then sets its form, density and detail levels.
 | Merge | Merge down | Joins the active part and the one below it into one part. |
 | Merge | Merge visible | Merges every part that shows into one new part; the parts stay as they are. |
 | Merge | Remesh visible | Voxel remeshes every part that shows into one new part of even quads; the parts stay as they are. |
-| Delete | Delete | Deletes the active part. One undo brings it back. |
+| Delete | Delete | Deletes the active part. One undo brings it back. The Delete key does the same. |
 | Delete | Delete others | Deletes every part but the active one, in one undo step. |
 | Delete | Delete hidden | Deletes every part whose Visible is off, never the active part, in one undo step. |
 | Delete | Delete all | Deletes every part, leaving the scene empty, in one undo step. |
 
-Mirror copy, the Split items and Merge down refuse a part with detail levels; see
-[Detail levels](detail.md#detail-levels).
+Mirror copy, the Split items and Merge down refuse a part with detail levels, so they are gray
+on one; hover over an item to see why. See [Detail levels](detail.md#detail-levels). In an empty
+scene the Delete items are gray.
 
 ## Showing one part
 

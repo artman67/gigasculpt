@@ -7,21 +7,20 @@ use serde_json::json;
 
 use super::buttons::{Face, Press, control, pressed_as};
 use super::{Now, all_controls, controls_of, label};
-use crate::descriptions;
 use crate::direction::Control;
 use crate::gizmo::InUse;
 use crate::held::Held;
 use crate::keymap::{Binding, flipped, inline};
 use crate::record::{Recorder, Role, Widget, with_args};
 use crate::values::Value;
+use crate::{descriptions, text};
 
-/// The `keys` set's Bind a key…, and Restore defaults while anything is changed; each change
-/// with its own Restore; then every key, under their title when `titled`, with what it does
-/// beside it, or under it in a room too narrow for that ([`stacked`]): what each held modifier
-/// does, then each binding with what it runs, by the label of the control that runs the same,
-/// under its context's heading (`General keys`, then View, Sculpt, Mask, Geometry and Your
-/// keys).
-/// Returns the command of the button pressed.
+/// The `keys` set's Bind a key…, and Restore defaults while anything is changed; a line saying
+/// Ctrl+Alt + click binds a key too; each change with its own Restore; then every key, under
+/// their title when `titled`, with what it does beside it, or under it in a room too narrow for
+/// that ([`stacked`]): what each held modifier does, then each binding with what it runs, by the
+/// label of the control that runs the same, under its context's heading (`General keys`, then
+/// View, Sculpt, Mask, Geometry and Your keys). Returns the command of the button pressed.
 pub(super) fn keys(ui: &mut egui::Ui, now: &Now, titled: bool, rec: &mut Recorder) -> Option<Step> {
     if titled {
         label(ui, RichText::new("Keys").strong(), rec);
@@ -77,12 +76,8 @@ pub(super) fn keys(ui: &mut egui::Ui, now: &Now, titled: bool, rec: &mut Recorde
 /// widest key or heading, which share the first column, is narrower than that, as in a tray a
 /// narrow window shrinks (decision 0025, rule 12).
 fn stacked(ui: &egui::Ui, firsts: impl Iterator<Item = String>) -> bool {
-    let wide = |first: String| {
-        let text = egui::WidgetText::from(RichText::new(first).strong());
-        let style = egui::TextStyle::Body;
-        let extend = Some(egui::TextWrapMode::Extend);
-        text.into_galley(ui, extend, f32::INFINITY, style).size().x
-    };
+    let wide =
+        |first: String| text::width(ui, RichText::new(first).strong(), egui::TextStyle::Body);
     let first = firsts.map(wide).fold(0.0, f32::max);
     ui.available_width() - first - ui.spacing().item_spacing.x < first
 }
@@ -116,6 +111,8 @@ fn changes(ui: &mut egui::Ui, now: &Now, stacked: bool, rec: &mut Recorder) -> O
                 .or(restore(ui, "Restore defaults", all, now, rec));
         }
     });
+    ui.end_row();
+    label(ui, RichText::new(crate::keys::BY_CLICK).weak().small(), rec);
     ui.end_row();
     if changed.is_empty() {
         return asked;

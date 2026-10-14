@@ -3,14 +3,23 @@
 //! then what the held keys do to a stroke. With `GS_WRITE_DOCS=1` the test writes the page
 //! again; without it, a page that no longer matches the keys fails, naming that command.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use serde_json::json;
 
 use crate::rig::Ui;
 
-/// The page, from the repository's root.
-const PAGE: &str = "publish/public/docs/keys.md";
+/// The page, from the repository's root: under `publish/public/` here, and at `docs/keys.md` in
+/// the public repository, which `publish/export.py` makes by laying that folder over the root.
+fn page_at() -> PathBuf {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let public = if root.join("publish").is_dir() {
+        root.join("publish/public")
+    } else {
+        root
+    };
+    public.join("docs/keys.md")
+}
 
 /// The command that writes the page again.
 const WRITE: &str =
@@ -28,8 +37,10 @@ const GROUPS: [(&str, &str); 5] = [
 /// The page's top, before the groups.
 const TOP: &str = "# Keys
 
-These are the keys GigaSculpt starts with. Your own changes, made in Window > Settings > Keys,
-override them, and that page always lists the keys as they are now.
+These are the keys GigaSculpt starts with. Your own changes override them, and Window >
+Settings > Keys always lists the keys as they are now. To give a command a key, hold Ctrl+Alt
+and click its button, or use Bind a key… on that page (see
+[Changing keys](interface.md#changing-keys)).
 
 Keys joined by `+` are pressed together. Keys separated by spaces are pressed one after
 another: `B S T` is B, then S, then T, and picks the Draw brush. Every brush has a key like
@@ -88,15 +99,14 @@ fn the_keys_page_is_written_from_the_built_in_keys() {
     ui.ok("ui.settings", json!({ "open": true, "page": "Keys" }));
     ui.settle();
     let written = page(&ui.labels("settings"));
-    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../..")
-        .join(PAGE);
+    let path = page_at();
+    let at = path.display();
     if std::env::var_os("GS_WRITE_DOCS").is_some_and(|v| v == "1") {
-        std::fs::write(&path, &written).unwrap_or_else(|e| panic!("{PAGE}: {e}"));
+        std::fs::write(&path, &written).unwrap_or_else(|e| panic!("{at}: {e}"));
     }
     let on_disk = std::fs::read_to_string(&path).unwrap_or_default();
     assert!(
         on_disk == written,
-        "{PAGE} does not match the built-in keys; write it again with: {WRITE}"
+        "{at} does not match the built-in keys; write it again with: {WRITE}"
     );
 }

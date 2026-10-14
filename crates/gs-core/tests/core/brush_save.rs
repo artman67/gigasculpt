@@ -159,3 +159,49 @@ fn an_unknown_field_is_refused_by_name_never_dropped_on_save() {
     let e = e.map(|e| e.message).unwrap_or_default();
     assert!(e.contains("unknown field `spin`"), "{e}");
 }
+
+/// A preset file saved by a Windows editor ends every line in CRLF. It reads as the same brush,
+/// saves back byte for byte, and each edit is the one an LF file gets, in the file's own line
+/// endings: a changed line, an added key and table, a removed table, a named setting.
+#[test]
+fn a_file_with_windows_line_endings_is_read_and_edited_in_its_own_endings() {
+    let crlf = |text: &str| text.replace('\n', "\r\n");
+    let same_edit = |p: &BrushPreset, text: &str, named: &[&str], what: &str| {
+        let lf = ok(p.write_into(text, named));
+        assert_eq!(ok(p.write_into(&crlf(text), named)), crlf(&lf), "{what}");
+    };
+    for s in shipped() {
+        let text = crlf(&s.text);
+        assert_eq!(ok(BrushPreset::from_toml(&text)), s.preset, "{}", s.stem);
+        assert_eq!(ok(s.preset.write_into(&text, &[])), text, "{}", s.stem);
+        let other = if s.preset.strength > 0.5 { 0.25 } else { 0.75 };
+        let strength = patch(&format!("strength = {other}"));
+        let changed = ok(BrushPreset::resolve(&text, &strength));
+        assert_eq!(changed, ok(BrushPreset::resolve(&s.text, &strength)));
+        same_edit(&changed, &s.text, &[], &s.stem);
+    }
+    let clay = preset("clay");
+    let changes = patch(
+        r#"
+        modifier = 30.0
+        tip = { focal = -20.0, alpha = { image = "ring" } }
+        paint = { channel = "color", color_strength = 0.5 }
+        "#,
+    );
+    same_edit(
+        &ok(BrushPreset::resolve(&clay.text, &changes)),
+        &clay.text,
+        &[],
+        "an added key and table",
+    );
+    let mut plain = clay.preset.clone();
+    plain.tip.alpha = None;
+    same_edit(&plain, &clay.text, &[], "a removed table");
+    let draw = preset("draw");
+    same_edit(
+        &draw.preset,
+        &draw.text,
+        &["pressure.size"],
+        "a named setting",
+    );
+}

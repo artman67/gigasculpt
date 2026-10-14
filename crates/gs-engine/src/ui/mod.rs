@@ -270,8 +270,15 @@ pub struct CallReport<'a> {
     /// changes, as `brush.describe` reports it): the window draws its falloff and pressure
     /// curves and its smoothing string. `None` for a session without a window.
     pub preset: Option<BrushPreset>,
-    /// Why the window's last pen stroke was refused, or a job the window started failed.
+    /// What went wrong between calls: a job the window started failed, a gizmo drag was
+    /// refused, the recent list could not be written.
     pub problem: Option<&'a str>,
+    /// Why the window's last pen stroke was refused, whole, so the window says it in a
+    /// person's words by its code (gs-ui `shell/refusals.rs`).
+    pub stroke: Option<&'a CommandError>,
+    /// The file a save wrote in this call, for the window to say for a moment (review 0009,
+    /// R11); not autosave's copy.
+    pub saved: Option<&'a std::path::Path>,
     /// The window's view, `main`, as it is after the call.
     pub main: MainView,
     /// Every open Reference View, by number: the window shows them all (decision 0024).
@@ -579,8 +586,9 @@ pub struct PaletteInfo {
     pub open: bool,
     /// What is typed into it.
     pub query: String,
-    /// What it lists, best match first: command names, then the labels of the layout's
-    /// controls (at most 20 of each).
+    /// What it lists, best match first, as each row reads: the labels of the layout's controls,
+    /// then commands by their titles (those no control lists), then by their names, which lead
+    /// for a query with a dot (at most 20 controls and 20 commands).
     pub matches: Vec<String>,
     /// The same rows in full: what each runs, its key and where it lives.
     pub rows: Vec<PaletteRow>,
@@ -591,7 +599,7 @@ pub struct PaletteInfo {
 /// One row of the palette.
 #[derive(Clone, Debug, Serialize, JsonSchema)]
 pub struct PaletteRow {
-    /// A command's name, or a control's label.
+    /// A control's label, a command's title, or a command's name.
     pub label: String,
     /// What picking it runs.
     pub command: Step,

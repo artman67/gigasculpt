@@ -7,7 +7,8 @@
 //! each of them as well. Its search lists the settings (`listed`) whose words it has, each
 //! opening its page, and Reset puts defaults back once its question is answered. It stays
 //! inside the 3D view: in a window too short for its pieces they scroll (`floats`), and its
-//! foot stays put.
+//! foot stays put. Escape closes it as Close does, or answers Reset's question with Cancel, once
+//! no field in it is typed in and nothing is in front of it (`shell/escape.rs`).
 
 pub mod listed;
 
@@ -24,6 +25,9 @@ use listed::Setting;
 
 /// The window's width, in points.
 const WIDTH: f32 = 400.0;
+/// The egui ids of the window and of Reset's question, which Escape and Enter order by.
+pub(crate) const WINDOW: &str = "settings";
+pub(crate) const RESET: &str = "reset";
 
 /// The settings window between frames, as `ui.settings` leaves it (decision 0052).
 #[derive(Debug, Default)]
@@ -55,6 +59,18 @@ pub fn window(
         asked.extend(question(ui, scope, now, rec));
     }
     asked
+}
+
+/// What Escape asks of the window (review 0009, R14), given by the window
+/// (`shell/escape.rs`) once nothing is in front: Cancel to Reset's question while one waits,
+/// else Close while it is open.
+pub(crate) fn escaped(state: &SettingsWindow) -> Option<Step> {
+    let args = match (&state.asking, state.open) {
+        (Some(_), _) => json!({ "confirm": false }),
+        (None, true) => json!({ "open": false }),
+        (None, false) => return None,
+    };
+    Some(with_args("ui.settings", args))
 }
 
 /// The open window: the search, the page tabs, the page or what the search found, and its foot.
@@ -91,7 +107,7 @@ fn shown(
     let tall = (view.height() - 2.0 * inset).max(0.0);
     let mut asked = Vec::new();
     let shown = egui::Window::new("Settings")
-        .id(egui::Id::new("settings"))
+        .id(egui::Id::new(WINDOW))
         .collapsible(false)
         .resizable(false)
         .min_height(tall)
@@ -221,7 +237,7 @@ fn question(ui: &egui::Ui, scope: &ResetScope, now: &Now, rec: &mut Recorder) ->
     let text = listed::question(scope, &listed::settings(now));
     let mut asked = Vec::new();
     let shown = egui::Window::new("Reset")
-        .id(egui::Id::new("reset"))
+        .id(egui::Id::new(RESET))
         .collapsible(false)
         .resizable(false)
         .order(egui::Order::Foreground)

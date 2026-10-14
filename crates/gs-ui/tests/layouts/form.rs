@@ -18,16 +18,9 @@ fn with_role(ui: &mut Ui, role: &str) -> Vec<Value> {
     widgets.filter(|w| w["role"] == role).collect()
 }
 
-/// The palette's widget labelled `label`.
-fn widget(ui: &mut Ui, label: &str) -> Value {
-    let widgets = ui.widgets("palette");
-    let found = widgets.iter().find(|w| w["label"] == label).cloned();
-    found.unwrap_or_else(|| panic!("no {label} in the form: {widgets:#?}"))
-}
-
 /// The step the form's Run button, labelled with the command's title, sends now.
 fn run_step(ui: &mut Ui, title: &str) -> Value {
-    widget(ui, title)["command"].clone()
+    ui.widget("palette", title)["command"].clone()
 }
 
 /// Whether the palette's form is open.
@@ -43,7 +36,7 @@ fn mirror_and_welds_axis_is_three_buttons_and_run_sends_the_one_chosen() {
     ui.ok("primitive.sphere", json!({ "subdivisions": 4 }));
     ui.ok("ui.palette", json!({ "form": "mesh.symmetrize" }));
     for axis in ["X", "Y", "Z"] {
-        assert_eq!(widget(&mut ui, axis)["role"], "button", "{axis}");
+        assert_eq!(ui.widget("palette", axis)["role"], "button", "{axis}");
     }
     let typed = with_role(&mut ui, "text field");
     assert!(typed.is_empty(), "nothing to type: {typed:?}");
@@ -52,8 +45,8 @@ fn mirror_and_welds_axis_is_three_buttons_and_run_sends_the_one_chosen() {
         ui.logged("mesh.symmetrize").is_empty(),
         "a choice runs nothing"
     );
-    assert_eq!(widget(&mut ui, "Y")["selected"], true, "Y is lit");
-    assert_eq!(widget(&mut ui, "X")["selected"], false);
+    assert_eq!(ui.widget("palette", "Y")["selected"], true, "Y is lit");
+    assert_eq!(ui.widget("palette", "X")["selected"], false);
     let step = json!({ "command": "mesh.symmetrize", "args": { "axis": "y" } });
     assert_eq!(run_step(&mut ui, "Mirror and weld"), step);
     ui.press("palette > Mirror and weld");
@@ -74,11 +67,11 @@ fn side_shows_under_more_with_its_default_lit() {
     assert_eq!(sides.count(), 0, "More is shut at first: {shut:?}");
     ui.press("palette > more");
     assert_eq!(
-        widget(&mut ui, "Keep +Y side")["selected"],
+        ui.widget("palette", "Keep +Y side")["selected"],
         true,
         "the default is lit"
     );
-    assert_eq!(widget(&mut ui, "Keep -Y side")["selected"], false);
+    assert_eq!(ui.widget("palette", "Keep -Y side")["selected"], false);
     ui.press("palette > Keep -Y side");
     let args = json!({ "axis": "y", "side": "negative" });
     assert_eq!(run_step(&mut ui, "Mirror and weld")["args"], args);
@@ -92,19 +85,20 @@ fn a_boolean_argument_is_a_switch() {
     ui.ok("primitive.sphere", json!({ "subdivisions": 4 }));
     let form = json!({ "form": "mesh.quad_remesh", "ask": ["keep_groups"] });
     ui.ok("ui.palette", form);
-    let switch = widget(&mut ui, "Keep groups");
+    let switch = ui.widget("palette", "Keep groups");
     assert_eq!(switch["role"], "toggle", "{switch}");
     assert_eq!(switch["selected"], false, "off, its default");
     ui.press("palette > Keep groups");
-    assert_eq!(widget(&mut ui, "Keep groups")["selected"], true);
+    assert_eq!(ui.widget("palette", "Keep groups")["selected"], true);
     let args = json!({ "keep_groups": true });
     assert_eq!(run_step(&mut ui, "Quad remesh")["args"], args);
 }
 
-/// Open with unsaved changes asks a plain question with two buttons and nothing to type;
-/// "Discard changes and open" opens the file with `discard_changes`.
+/// Open with unsaved changes asks a plain question first, naming the scene, with nothing to
+/// type: Save, Don't save or Cancel; Don't save opens the file with `discard_changes` (review
+/// 0009, C8).
 #[test]
-fn open_with_unsaved_changes_asks_a_two_button_question() {
+fn open_with_unsaved_changes_asks_save_dont_save_or_cancel() {
     let mut ui = Ui::new();
     let path = folder("form-question").join("one.gss");
     ui.ok("primitive.sphere", json!({ "subdivisions": 8 }));
@@ -112,19 +106,16 @@ fn open_with_unsaved_changes_asks_a_two_button_question() {
     ui.ok("primitive.cube", json!({ "subdivisions": 4 }));
     let form = json!({ "form": "file.open", "args": { "path": path } });
     ui.ok("ui.palette", form);
-    ui.press("palette > Open scene");
-    assert!(form_open(&ui), "unsaved changes: Open asks first");
-    let buttons = with_role(&mut ui, "button");
-    let labels: Vec<&str> = buttons.iter().filter_map(|w| w["label"].as_str()).collect();
-    assert_eq!(labels, ["Discard changes and open", "Cancel"]);
+    let line = "Save the changes to one.gss before opening another scene?";
+    assert_eq!(ui.labels("palette"), [line, "Save", "Don't save", "Cancel"]);
     let typed = with_role(&mut ui, "text field");
     assert!(typed.is_empty(), "nothing to type: {typed:?}");
-    let yes = widget(&mut ui, "Discard changes and open")["command"].clone();
+    let no = ui.widget("palette", "Don't save")["command"].clone();
     let path = path.display().to_string();
     let args = json!({ "path": path, "discard_changes": true });
-    assert_eq!(yes, json!({ "command": "file.open", "args": args }));
+    assert_eq!(no, json!({ "command": "file.open", "args": args }));
     assert_eq!(parts(&mut ui), 2, "nothing is dropped while it asks");
-    ui.press("palette > Discard changes and open");
+    ui.press("palette > Don't save");
     assert_eq!(parts(&mut ui), 1, "opened once answered");
     assert!(!form_open(&ui));
 }
@@ -137,7 +128,7 @@ fn a_bounded_number_is_a_slider_held_to_its_bounds() {
     ui.ok("primitive.sphere", json!({ "subdivisions": 4 }));
     let form = json!({ "form": "mesh.voxel_remesh", "ask": ["resolution"] });
     ui.ok("ui.palette", form);
-    assert_eq!(widget(&mut ui, "Resolution")["role"], "slider");
+    assert_eq!(ui.widget("palette", "Resolution")["role"], "slider");
     let none = Modifiers::default();
     for (typed, held) in [("5000", 2048), ("3", 16), ("300", 300)] {
         let r = ui.rect("palette > Resolution");
@@ -164,7 +155,7 @@ fn light_sets_color_is_three_fields_r_g_and_b() {
         "Direction X",
         "Direction Z",
     ] {
-        assert_eq!(widget(&mut ui, label)["role"], "text field", "{label}");
+        assert_eq!(ui.widget("palette", label)["role"], "text field", "{label}");
     }
     let labels = ui.labels("palette");
     assert!(!labels.iter().any(|l| l == "Color X"), "{labels:?}");
@@ -182,7 +173,7 @@ fn a_part_argument_lists_the_scenes_parts_with_the_active_one_lit() {
     );
     let form = json!({ "form": "part.mirror_copy", "ask": ["part"] });
     ui.ok("ui.palette", form);
-    let lit = |ui: &mut Ui, name: &str| widget(ui, name)["selected"].clone();
+    let lit = |ui: &mut Ui, name: &str| ui.widget("palette", name)["selected"].clone();
     assert_eq!(lit(&mut ui, "box"), true, "the new part is active");
     assert_eq!(lit(&mut ui, "head"), false);
     ui.press("palette > head");
@@ -206,7 +197,7 @@ fn saves_path_is_still_a_text_field_in_its_folder() {
         "ui.palette",
         json!({ "form": "file.save", "ask": ["path"] }),
     );
-    let field = widget(&mut ui, "Path");
+    let field = ui.widget("palette", "Path");
     assert_eq!(field["role"], "text field", "{field}");
     let form = ui.host.lock().shell.palette.form.clone();
     let start = format!("{}{}", dir.display(), std::path::MAIN_SEPARATOR);

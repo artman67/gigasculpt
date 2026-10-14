@@ -209,5 +209,5 @@ name = "keys"
 title = "Keys"
 page = "Keys"
 controls = [
-  { label = "Bind a key…", command = "ui.palette", args = { form = "ui.keymap", ask = ["bind", "command", "args"] }, hint = "Asks for a key and a command, then binds the key to run it; your keymap file keeps the change." },
+  { label = "Bind a key…", command = "ui.palette", args = { form = "ui.keymap", ask = ["bind", "command", "args"] }, hint = "Lists what a key can run: pick one, then press the key to give it. Or hold Ctrl+Alt and click a button to give it a key. Your keymap file keeps the change." },
 ]

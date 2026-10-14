@@ -1,15 +1,17 @@
 //! The brush tray's header (decision 0060, section 6): the brush's name, whose tap opens the
 //! brush picker beside the tray (the brush's family first, then the others, each under its
 //! name; a pick is one brush step and shuts it), then the `head` set: the brush's ⋯ with Save
-//! brush…, Load brush…, Reset to defaults and Copy settings to…. Brushes have no pictures yet,
-//! so the name stands alone. It never folds: a tray draws it with no title row. While the Gizmo
-//! tool is on it is the tool's: its name, then the `gizmo-head` set, its ⋯.
+//! brush…, Load brush…, Reset to defaults, then Copy settings to with each other brush as a
+//! button. Brushes have no pictures yet, so the name stands alone. It never folds: a tray draws
+//! it with no title row. While the Gizmo tool is on it is the tool's: its name, then the
+//! `gizmo-head` set, its ⋯.
 
 use egui::{Popup, RichText};
 use gs_protocol::Step;
 use serde_json::json;
 
 use super::{Fit, Now, control, controls, hover, label, options_mark, popover};
+use crate::direction::Control;
 use crate::floats::scrolled;
 use crate::record::{Recorder, Role, Widget};
 use crate::theme::theme;
@@ -45,6 +47,31 @@ pub(super) fn section(ui: &mut egui::Ui, now: &Now, rec: &mut Recorder) -> Optio
         Popup::close_id(ui.ctx(), id);
     }
     controls(ui, HEAD, Fit::Section, false, now, rec).or(picked)
+}
+
+/// The brush's `···` set (Brush file), which ends with the brushes to copy to ([`copies`]).
+pub(super) const FILE: &str = "brush-file";
+
+/// Copy settings to (review 0009, R6): every brush but the pen's as a button that gives it each
+/// setting changed on the pen's brush, the pen keeping its brush (`brush.set` with `for`, the
+/// settings read from `session.state` as it runs), so no brush is typed.
+pub(super) fn copies(now: &Now) -> Vec<Control> {
+    let settings = json!({ "state": "brush.settings" });
+    let others =
+        (now.directions.brush_controls().into_iter()).filter(|b| b.label != now.brush.brush);
+    others
+        .map(|b| Control {
+            hint: Some(format!(
+                "Gives {} every setting changed on this brush.",
+                b.label
+            )),
+            ..Control::runs(
+                &b.label,
+                "brush.set",
+                &json!({ "for": b.label, "settings": settings }),
+            )
+        })
+        .collect()
 }
 
 /// The brushes, the pen's brush's family first, each family under its name. Returns what was

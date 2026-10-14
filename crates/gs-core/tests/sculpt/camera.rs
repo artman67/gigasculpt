@@ -303,6 +303,26 @@ fn each_preset_looks_from_its_named_side_with_up_at_the_top() {
     }
 }
 
+/// The side a camera looks from (decision 0017 as amended 2026-10-13), which the window's
+/// corner and `view.get` name: each axis view's at any roll and up to a degree off it; none a
+/// little more off, nor at iso.
+#[test]
+fn a_camera_names_the_side_it_looks_from_within_a_degree() {
+    for preset in &Preset::ALL[..6] {
+        let camera = Camera::preset(*preset);
+        let (right, _, back) = camera.orientation.axes();
+        let turned = |axis: Vec3, degrees: f32| Camera {
+            orientation: Quat::about(axis, degrees.to_radians()) * camera.orientation,
+            ..camera
+        };
+        assert_eq!(camera.side(), Some(*preset));
+        assert_eq!(turned(back, 70.0).side(), Some(*preset), "rolled");
+        assert_eq!(turned(right, 0.9).side(), Some(*preset), "tipped");
+        assert_eq!(turned(right, 1.1).side(), None, "{preset:?} tipped further");
+    }
+    assert_eq!(Camera::preset(Preset::Iso).side(), None);
+}
+
 #[test]
 fn a_fitted_camera_aims_at_the_middle_of_the_points() {
     let points = [[1.0, 2.0, 3.0], [3.0, -2.0, 5.0], [2.0, 0.0, 4.0]];

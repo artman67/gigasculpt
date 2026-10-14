@@ -98,3 +98,35 @@ fn the_status_line_label_can_be_turned_off() {
         "the cursor only"
     );
 }
+
+/// The keys a stroke holds, a tap turned on or the pen's button stands for give egui's command
+/// key as the platform has it: Cmd on macOS, Ctrl elsewhere. So on a Mac a Ctrl turned on by a
+/// tap (or held for the Mask slot) is never a text field's Cmd, and Cmd held still is.
+#[test]
+fn the_command_key_is_cmd_on_macos_and_ctrl_elsewhere() {
+    use egui::Modifiers as Keys;
+    let ctrl = Keys {
+        ctrl: true,
+        command: true,
+        ..Keys::NONE
+    };
+    let cmd = Keys {
+        mac_cmd: true,
+        ..Keys::NONE
+    };
+    for (mac, keys, command) in [
+        (true, ctrl, false),
+        (true, cmd, true),
+        (false, ctrl, true),
+        (false, cmd, false),
+        (false, Keys::CTRL, true),
+    ] {
+        let given = gs_ui::commanding(keys, mac);
+        assert_eq!(given.command, command, "mac {mac}, {keys:?}");
+        assert_eq!(
+            Keys { command, ..given },
+            Keys { command, ..keys },
+            "the rest as held"
+        );
+    }
+}

@@ -266,8 +266,9 @@ fn encode(at: vec2<i32>, mean: vec4<f32>) -> vec4<f32> {
     return vec4<f32>(clamp(e, vec3<f32>(0.0), vec3<f32>(1.0)), 1.0);
 }
 
-// v rounded to half floats, as the history stores it: a frame then shows exactly what the
-// history holds, so a settled frame (fs_show) repeats the last sample's frame byte for byte.
+// v rounded to half floats, as the history keeps it for the next sample. A settled frame does
+// not show the history through this shader again: drivers need not round alike here and when
+// a pass stores a half float, so it copies the last sample's picture instead (frame.rs).
 fn as_stored(v: vec4<f32>) -> vec4<f32> {
     return vec4<f32>(unpack2x16float(pack2x16float(v.xy)), unpack2x16float(pack2x16float(v.zw)));
 }
@@ -329,10 +330,4 @@ fn as_stored(v: vec4<f32>) -> vec4<f32> {
     }
     mean = as_stored(mean);
     return Out(encode(at, mean), mean);
-}
-
-// Every sample is in: the frame shows the history as it is.
-@fragment fn fs_show(@builtin(position) pos: vec4<f32>) -> @location(0) vec4<f32> {
-    let at = vec2<i32>(floor(pos.xy));
-    return encode(at, textureLoad(history, at, 0));
 }

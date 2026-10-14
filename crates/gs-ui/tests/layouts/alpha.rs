@@ -157,11 +157,6 @@ fn more(ui: &mut Ui) -> Value {
     more.unwrap_or_else(|| panic!("Alpha's ⋯ shows"))
 }
 
-/// Whether the brush tray shows a widget labelled `label`.
-fn shows(ui: &mut Ui, label: &str) -> bool {
-    ui.labels("brush").iter().any(|l| l == label)
-}
-
 /// `alpha.pick` picks any alpha by its number, which the index slider did in the tray.
 #[test]
 fn alpha_pick_picks_any_alpha_by_its_number() {
@@ -191,7 +186,7 @@ fn the_alpha_row_holds_plus_none_and_its_menu_then_turn_and_follow() {
         "Align To Path",
     ];
     for label in gone {
-        assert!(!shows(&mut ui, label), "{label} leaves the tray");
+        assert!(!ui.lists("brush", label), "{label} leaves the tray");
     }
     let widgets = ui.widgets("brush");
     let plus = (widgets.iter()).find(|w| w["label"] == "+");
@@ -251,6 +246,6 @@ fn the_alpha_row_holds_plus_none_and_its_menu_then_turn_and_follow() {
     // The ⋯: Hold turn and Map detail.
     let [x, y] = center(&more(&mut ui)["rect"]);
     ui.tap_at(x, y);
-    assert!(shows(&mut ui, "Hold turn"), "the ⋯ opens");
-    assert!(shows(&mut ui, "Map detail"), "the ⋯ holds Map detail");
+    assert!(ui.lists("brush", "Hold turn"), "the ⋯ opens");
+    assert!(ui.lists("brush", "Map detail"), "the ⋯ holds Map detail");
 }

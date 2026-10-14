@@ -19,14 +19,9 @@ fn panel(ui: &mut Ui) -> Option<Value> {
     crate::header::panel(ui, "adjust")
 }
 
-/// The panel's widget labelled `label`.
-fn widget(ui: &mut Ui, label: &str) -> Value {
-    crate::pen::widget(ui, "adjust", label)
-}
-
 /// What the panel's Resolution slider shows.
 fn resolution(ui: &mut Ui) -> Value {
-    widget(ui, "Resolution")["command"]["args"]["resolution"].clone()
+    ui.widget("adjust", "Resolution")["command"]["args"]["resolution"].clone()
 }
 
 /// The newest undo step's resolution, as the engine's history keeps it.
@@ -100,7 +95,7 @@ fn voxel_remesh_from_the_palette_opens_the_panel_with_its_step() {
     remesh_from_palette(&mut ui, 32);
     let shown = panel(&mut ui).expect("the panel opens");
     assert_eq!(shown["title"], "Voxel remesh");
-    let slider = widget(&mut ui, "Resolution");
+    let slider = ui.widget("adjust", "Resolution");
     assert_eq!(slider["role"], "slider");
     let step = &slider["command"];
     assert_eq!(step["command"], "mesh.voxel_remesh");
@@ -134,7 +129,7 @@ fn the_key_bound_to_voxel_remesh_opens_the_panel_too() {
     assert_eq!(ui.logged("mesh.voxel_remesh").len(), 2, "the key ran it");
     let shown = panel(&mut ui).expect("the panel opens");
     assert_eq!(shown["title"], "Voxel remesh");
-    let step = widget(&mut ui, "Resolution")["command"].clone();
+    let step = ui.widget("adjust", "Resolution")["command"].clone();
     assert_eq!(step["args"]["part"], "ball", "the step's own part");
 }
 
@@ -213,7 +208,7 @@ fn a_spheres_form_row_reads_cube_and_uv() {
     let labels = ui.labels("adjust");
     let has = |label: &str| labels.iter().any(|l| l == label);
     assert!(has("Cube") && has("UV") && !has("Uv"), "{labels:?}");
-    let uv = widget(&mut ui, "UV")["command"]["args"]["form"].clone();
+    let uv = ui.widget("adjust", "UV")["command"]["args"]["form"].clone();
     assert_eq!(uv, "uv", "the word sent");
 }
 
@@ -233,7 +228,7 @@ fn a_spheres_form_and_axis_rows_show_no_quoted_values() {
     assert_eq!(left_out.count(), 0, "{labels:?}");
     let axis = "The world axis through the UV form's poles.";
     assert!(labels.iter().any(|l| l == axis), "{labels:?}");
-    assert_eq!(widget(&mut ui, "Y")["hint"], axis);
+    assert_eq!(ui.widget("adjust", "Y")["hint"], axis);
 }
 
 /// Add sphere's Center, a point, is three number fields side by side, X, Y and Z, not one
@@ -242,7 +237,7 @@ fn a_spheres_form_and_axis_rows_show_no_quoted_values() {
 fn a_spheres_center_is_three_fields_and_a_change_of_y_sends_the_whole_point() {
     let mut ui = Ui::new();
     add(&mut ui, "Sphere");
-    let fields = ["X", "Y", "Z"].map(|axis| widget(&mut ui, &format!("Center {axis}")));
+    let fields = ["X", "Y", "Z"].map(|axis| ui.widget("adjust", &format!("Center {axis}")));
     assert!(
         fields.iter().all(|f| f["role"] == "text field"),
         "{fields:?}"
@@ -269,16 +264,42 @@ fn a_spheres_center_is_three_fields_and_a_change_of_y_sends_the_whole_point() {
     assert_eq!(center, [0.0, 0.5, 0.0], "{list}");
 }
 
+/// Enter goes to the one thing in front (decision 0025, section 5, amended 2026-10-14,
+/// UI-last): Enter in the brush's Hex field sets the color, and a value typed into the panel
+/// but not entered stays unsent, the step as it was.
+#[test]
+fn an_enter_in_another_field_leaves_the_typed_value_unsent() {
+    let mut ui = Ui::new();
+    add(&mut ui, "Sphere");
+    let r = ui.rect("adjust > Center Y");
+    ui.tap_at(r[2] - 4.0, middle(r)[1]);
+    let none = Modifiers::default();
+    for _ in 0..3 {
+        ui.tap("Backspace", none);
+    }
+    ui.input(&[Input::Text("0.5".into())], none);
+    assert_eq!(ui.logged("primitive.sphere").len(), 1, "typed, not sent");
+    crate::paint::type_hex(&mut ui, "3366CC", "Return");
+    assert_eq!(ui.state()["color.main"], json!("#3366cc"), "the field's");
+    assert_eq!(ui.logged("primitive.sphere").len(), 1, "not made again");
+    let list = ui.ok("history.list", json!({ "limit": 1 }));
+    let center = &list["steps"][0]["args"]["center"];
+    assert!(
+        center.is_null() || *center == json!([0.0, 0.0, 0.0]),
+        "{list}"
+    );
+}
+
 /// Every slider of the form has its label beside its rail, whatever the label's length: Add
 /// sphere's Subdivisions, the longer label, sits on one row as Levels does.
 #[test]
 fn a_spheres_subdivisions_and_levels_labels_sit_on_their_sliders_rows() {
     let mut ui = Ui::new();
     add(&mut ui, "Sphere");
-    let button = rect(&widget(&mut ui, "Cube"));
+    let button = rect(&ui.widget("adjust", "Cube"));
     let one_row = 1.5 * (button[3] - button[1]);
     for name in ["Subdivisions", "Levels"] {
-        let r = rect(&widget(&mut ui, name));
+        let r = rect(&ui.widget("adjust", name));
         assert!(r[3] - r[1] < one_row, "{name} on one row: {r:?}");
     }
 }
@@ -327,7 +348,7 @@ fn a_refused_change_puts_the_old_step_back_and_says_why_under_its_field() {
     let says = |w: &&Value| w["label"].as_str().is_some_and(|l| l.contains("2048"));
     // The last that says it: Resolution's hint, above, says 2048 too.
     let reason = widgets.iter().rev().find(says).expect("the reason shows");
-    let field = widget(&mut ui, "Voxel size");
+    let field = ui.widget("adjust", "Voxel size");
     assert!(rect(reason)[1] >= rect(&field)[3], "under its field");
     assert_eq!(problem(&mut ui), None, "the status line is left alone");
 }
@@ -425,7 +446,7 @@ fn the_close_the_fold_and_the_view_line_say_what_they_do() {
     assert!(panel(&mut ui).is_some(), "the panel opens");
     let line = "Uses the view as it was when it ran";
     for label in ["Close", "Assign face group", line] {
-        let hint = widget(&mut ui, label)["hint"].clone();
+        let hint = ui.widget("adjust", label)["hint"].clone();
         let hint = hint.as_str().unwrap_or_default();
         assert!(hint.len() > 20, "{label} says what it does: {hint:?}");
     }

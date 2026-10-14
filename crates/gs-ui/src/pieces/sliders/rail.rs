@@ -1,9 +1,10 @@
 //! How every slider is drawn ([`rail`]): its rail with its title and value fitted to its row,
 //! and the ways it sets its value (a drag, a typed value, the fine handle, the wheel).
 
-use egui::{CursorIcon, Key, Modifiers, PointerButton, Sense, TextEdit, TextWrapMode};
+use egui::{CursorIcon, PointerButton, Sense, TextEdit, TextWrapMode};
 
 use super::{Moved, Slider};
+use crate::shell::escape::{To, given};
 
 /// The typing field's width, in points: room for "10000".
 const FIELD: f32 = 64.0;
@@ -131,12 +132,7 @@ fn beside(ui: &egui::Ui, s: &Slider) -> Option<f32> {
         format!("{}  {low}", s.title),
         format!("{}  {high}", s.title),
     ];
-    let wide = |text: String| {
-        let text = egui::WidgetText::from(text);
-        let style = egui::TextStyle::Body;
-        let galley = text.into_galley(ui, Some(TextWrapMode::Extend), f32::INFINITY, style);
-        galley.size().x
-    };
+    let wide = |text: String| crate::text::width(ui, text, egui::TextStyle::Body);
     let label = labels.map(wide).into_iter().fold(0.0, f32::max);
     let room = ui.available_width() - label - ui.spacing().item_spacing.x;
     let width = ui.spacing().slider_width;
@@ -307,16 +303,16 @@ fn paint(ui: &egui::Ui, response: &egui::Response, range: egui::Rangef, place: f
 }
 
 /// Whether a slider's fine handle is open (since a double-click on the slider). A press off the
-/// slider and the handle, Escape, or a frame without the slider shuts it.
+/// slider and the handle, Escape given to it or to the typing field it opened with
+/// (`shell/escape.rs`), or a frame without the slider shuts it.
 fn fine_open(ui: &egui::Ui, id: egui::Id) -> bool {
     let Some(fine) = ui.data(|d| d.get_temp::<Fine>(id)) else {
         return false;
     };
     let off = |p: egui::Pos2| !fine.area.contains(p);
-    let shut = ui.input(|i| {
-        let pressed = i.pointer.any_pressed() && i.pointer.press_origin().is_some_and(off);
-        pressed || i.key_pressed(Key::Escape)
-    });
+    let pressed =
+        ui.input(|i| i.pointer.any_pressed() && i.pointer.press_origin().is_some_and(off));
+    let shut = pressed || given(ui.ctx(), To::Fine) || given(ui.ctx(), To::Field);
     if shut || fine.pass + 1 < ui.ctx().cumulative_pass_nr() {
         ui.data_mut(|d| d.remove::<Fine>(id));
         return false;
@@ -328,7 +324,8 @@ fn fine_open(ui: &egui::Ui, id: egui::Id) -> bool {
 const FINE_SHOWN: &str = "fine handle shown";
 
 /// Whether a slider's fine handle showed in this pass or the last, so Escape shuts it before
-/// it does anything else (decision 0041, amended 2026-10-13 for `DF7c-notes`, section 3).
+/// it does anything else (decision 0041, amended 2026-10-13 for `DF7c-notes`, section 3; the
+/// `Fine` row of `shell/escape.rs`).
 pub(crate) fn fine_shown(ctx: &egui::Context) -> bool {
     let pass = ctx.data(|d| d.get_temp::<u64>(egui::Id::new(FINE_SHOWN)));
     pass.is_some_and(|p| p + 1 >= ctx.cumulative_pass_nr())
@@ -369,8 +366,9 @@ fn double_click(ui: &egui::Ui, s: &Slider, area: egui::Rect) -> bool {
 
 /// The field a value is typed in, open with `text` typed so far: what it sets, once, when Enter
 /// or a press elsewhere closes it, with where it is drawn. Escape closes it setting nothing, and
-/// is used up, so the options or menu the slider is in stay open. An empty field shows the value
-/// faintly; a typed value is in the units the slider shows, with them or without.
+/// only it, so the options or menu the slider is in stay open (the `Field` row of
+/// `shell/escape.rs`). An empty field shows the value faintly; a typed value is in the units the
+/// slider shows, with them or without.
 fn type_in(ui: &mut egui::Ui, s: &Slider, mut text: String) -> (egui::Rect, Option<f32>) {
     ui.label(s.title);
     let field = TextEdit::singleline(&mut text)
@@ -388,11 +386,7 @@ fn type_in(ui: &mut egui::Ui, s: &Slider, mut text: String) -> (egui::Rect, Opti
     }
     // Closed, or left without focus where it was not drawn (its menu shut).
     ui.data_mut(|d| d.remove::<String>(s.id));
-    if !field.lost_focus()
-        || ui
-            .ctx()
-            .input_mut(|i| i.consume_key(Modifiers::NONE, Key::Escape))
-    {
+    if !field.lost_focus() || given(ui.ctx(), To::Field) {
         return (field.rect, None);
     }
     let number = text

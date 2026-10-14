@@ -213,13 +213,24 @@ impl SlotKeys {
     /// the press holds a line instead (`stroke.freehand`), so it calls no slot here.
     pub fn stroking(&self, m: Modifiers) -> Modifiers {
         let b = bits(self.sent);
-        let ctrl = b & 2 != 0;
-        Modifiers {
+        let keys = Modifiers {
             shift: b & 1 != 0,
-            ctrl,
-            command: ctrl,
+            ctrl: b & 2 != 0,
             ..m
-        }
+        };
+        commanding(keys, MAC)
+    }
+}
+
+/// This build runs on macOS, where egui's command key is Cmd.
+const MAC: bool = cfg!(target_os = "macos");
+
+/// `m` with egui's command key as the platform has it, `mac` saying whether that is macOS: Cmd
+/// (`mac_cmd`) there, Ctrl elsewhere, as gs-ui `glue.rs` `modifiers` reads the platform's keys.
+pub fn commanding(m: Modifiers, mac: bool) -> Modifiers {
+    Modifiers {
+        command: if mac { m.mac_cmd } else { m.ctrl },
+        ..m
     }
 }
 
@@ -303,13 +314,13 @@ impl Sticky {
     pub fn held(&self) -> Modifiers {
         let on = |i: usize| self.latched[i] || self.pen[i] || self.eraser[i];
         let k = self.keys;
-        Modifiers {
+        let keys = Modifiers {
             shift: k.shift || on(0),
             ctrl: k.ctrl || on(1),
             alt: k.alt || on(2),
-            command: k.command || on(1),
-            mac_cmd: k.mac_cmd,
-        }
+            ..k
+        };
+        commanding(keys, MAC)
     }
 }
 

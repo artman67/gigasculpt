@@ -51,7 +51,7 @@ fn send_and_read_use_the_sessions_exchange_folders_and_read_waits_for_something_
     ui.host.lock().shell.exchange = Exchange::at(cache.clone());
     let send = button(&mut ui, "Send");
     assert_eq!(send["enabled"], false, "{send}");
-    assert_eq!(send["reason"], "the scene has no parts to send", "{send}");
+    assert_eq!(send["reason"], "The scene has no parts to send", "{send}");
     let read = button(&mut ui, "Read");
     assert_eq!(
         (&read["enabled"], &read["reason"]),

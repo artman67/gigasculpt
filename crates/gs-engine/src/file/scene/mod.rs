@@ -63,6 +63,9 @@ pub(crate) struct FileState {
     /// The Part file saved last in this session, which Save Next for Parts counts from
     /// (section 17, item 8).
     pub parts_path: Option<PathBuf>,
+    /// The file a save just wrote, until the window is told (`CallReport::saved`, review 0009,
+    /// R11); never autosave's copy.
+    pub wrote: Option<PathBuf>,
 }
 
 impl FileState {
@@ -99,8 +102,8 @@ pub(crate) enum SaveKind {
     Scene,
     /// Some Parts, as a Part file: the scene keeps its own file.
     Parts,
-    /// A copy in the autosave folder.
-    Quick,
+    /// A copy in the autosave folder: a quick save's, or autosave's own.
+    Quick { autosave: bool },
 }
 
 pub(crate) struct Saved {
@@ -210,6 +213,9 @@ impl Engine {
             return;
         }
         file.id = Some(s.id);
+        if !matches!(s.kind, SaveKind::Quick { autosave: true }) {
+            file.wrote = Some(s.path.clone());
+        }
         let covered = match s.kind {
             SaveKind::Scene => {
                 file.path = Some(s.path.clone());
@@ -222,7 +228,7 @@ impl Engine {
                 file.parts_path = Some(s.path.clone());
                 None
             }
-            SaveKind::Quick => Some((s.rev, s.palette_steps)),
+            SaveKind::Quick { .. } => Some((s.rev, s.palette_steps)),
         };
         self.autosave.saved(now, covered);
         self.mark_session();
@@ -280,7 +286,7 @@ impl Engine {
         self.mark_session();
         if let Some(marker) = o.forget {
             self.autosave.recovered();
-            std::fs::remove_file(marker).ok();
+            recover::forget(&marker);
         }
         if let Some(path) = &o.recent {
             self.remember(path);

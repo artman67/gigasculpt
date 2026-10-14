@@ -1,7 +1,9 @@
 # Keys
 
-These are the keys GigaSculpt starts with. Your own changes, made in Window > Settings > Keys,
-override them, and that page always lists the keys as they are now.
+These are the keys GigaSculpt starts with. Your own changes override them, and Window >
+Settings > Keys always lists the keys as they are now. To give a command a key, hold Ctrl+Alt
+and click its button, or use Bind a key… on that page (see
+[Changing keys](interface.md#changing-keys)).
 
 Keys joined by `+` are pressed together. Keys separated by spaces are pressed one after
 another: `B S T` is B, then S, then T, and picks the Draw brush. Every brush has a key like
@@ -14,11 +16,13 @@ This page is written from the program's built-in keys.
 | Key | What it does |
 |---|---|
 | `Space` | Search commands |
+| `Ctrl+Q` | Quit |
 | `Shift+Space` | Quick menu |
 | `Ctrl+Z` | Undo |
 | `Ctrl+Shift+Z` | Redo |
 | `Ctrl+Y` | Redo |
 | `Ctrl+S` | Save |
+| `Ctrl+Shift+S` | Save scene as |
 | `Ctrl+O` | Open scene |
 | `Ctrl+Shift+T` | Save Part file |
 | `Ctrl+N` | New scene |
@@ -107,7 +111,7 @@ This page is written from the program's built-in keys.
 | `Alt+M` | Clear mask |
 | `Ctrl+W` | Group masked faces and clear mask |
 | `Ctrl+Shift+X` | Grow visible area |
-| `Ctrl+Shift+S` | Shrink visible area |
+| `Ctrl+Shift+C` | Shrink visible area |
 | `Ctrl+Shift+A` | Show whole shells |
 | `Ctrl+Shift+Q` | Show whole groups |
 
@@ -121,6 +125,8 @@ This page is written from the program's built-in keys.
 | `Ctrl+R` | Voxel Remesh |
 | `Backslash` | Live Detail |
 | `Ctrl+Shift+D` | Duplicate |
+| `Delete` | Delete |
+| `Backspace` | Delete |
 
 ## Held while you stroke
 

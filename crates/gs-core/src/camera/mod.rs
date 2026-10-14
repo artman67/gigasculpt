@@ -107,6 +107,11 @@ impl Preset {
 /// Elevation of the cube diagonal, atan(1 / sqrt 2), written out to avoid a platform atan.
 const ISO_ELEVATION: f32 = 0.615_479_7;
 
+/// The cosine of one degree, written out to avoid a platform cos: how far from an axis view
+/// [`Camera::side`] still names it. The toggle, a snap and the figure leave a view on it to a
+/// rounding; a turn a person can see leaves it.
+const SIDE_COS: f32 = 0.999_847_7;
+
 /// The frame a focal length is measured on, in millimetres: 36 wide and 24 high, a full-frame
 /// camera's.
 pub const FRAME_MM: [f32; 2] = [36.0, 24.0];
@@ -239,6 +244,16 @@ impl Camera {
     pub fn eye(&self) -> [f32; 3] {
         let (_, _, forward) = self.axes();
         (Vec3::from_array(self.target) - forward * self.distance).to_array()
+    }
+
+    /// The axis view (front, back, left, right, top or bottom) this camera looks along, if its
+    /// view direction is within a degree of one, whatever its roll; `None` between them, iso
+    /// included. The window's corner and `view.get` both name the view from it, so they agree
+    /// (decision 0017 as amended 2026-10-13).
+    pub fn side(&self) -> Option<Preset> {
+        let back = self.orientation.axes().2;
+        let along = |p: &Preset| p.orientation().axes().2.dot(back) >= SIDE_COS;
+        Preset::ALL[..6].iter().copied().find(along)
     }
 
     /// Moves the target and distance so every point is inside the frame with a 5% border,

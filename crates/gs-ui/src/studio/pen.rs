@@ -175,8 +175,8 @@ impl Studio {
         };
         let took = (shell.gizmo).sample(s, over_view, &seen, reads, &shell.parts);
         shell.canvas |= took.canvas;
-        if took.problem.is_some() {
-            shell.status.problem = took.problem;
+        if let Some(problem) = &took.problem {
+            shell.status.says(problem);
         }
         for step in took.steps {
             shell.queue(step);

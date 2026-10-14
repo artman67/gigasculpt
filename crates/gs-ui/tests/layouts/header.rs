@@ -133,8 +133,8 @@ pub(crate) fn drag(ui: &mut Ui, x: f64, y: f64) {
 }
 
 /// Section 2's Opening: a tap on File opens its menu under it, File lit while it is open; a
-/// pick runs (New… opens the palette's form for `file.new`, as the tray's New did) and shuts
-/// the menu; while one menu is open the pointer over another title opens that one.
+/// pick runs (New… on a scene with nothing to lose starts a new one at once) and shuts the
+/// menu; while one menu is open the pointer over another title opens that one.
 #[test]
 fn a_menu_opens_on_a_tap_runs_an_item_and_closes() {
     let mut ui = Ui::new();
@@ -161,20 +161,9 @@ fn a_menu_opens_on_a_tap_runs_an_item_and_closes() {
     );
     ui.press("menu > New…");
     assert_eq!(shown_menu(&mut ui), None, "a pick shuts the menu");
-    let form = ui
-        .host
-        .lock()
-        .shell
-        .palette
-        .form
-        .as_ref()
-        .map(|f| f.step.command.clone());
-    assert_eq!(
-        form.as_deref(),
-        Some("file.new"),
-        "New… opens the form first"
-    );
-    ui.ok("ui.palette", json!({ "open": false }));
+    let asked = ui.host.lock().shell.palette.form.is_some();
+    assert!(!asked, "nothing to lose: New… asks nothing");
+    assert_eq!(ui.logged("file.new").len(), 1, "and runs");
     with_header(&mut ui, &["file", "tone"], &[]);
     ui.press("header > File");
     let [x, y] = middle(ui.rect("header > Tone"));
@@ -196,6 +185,7 @@ fn each_items_key_shows_at_its_right() {
         ("New…", "Ctrl+N"),
         ("Open…", "Ctrl+O"),
         ("Save", "Ctrl+S"),
+        ("Save as…", "Ctrl+Shift+S"),
         ("Save next", "Ctrl+Alt+S"),
         ("Quick save", "9"),
         ("Revert…", "Ctrl+Alt+R"),
@@ -218,14 +208,7 @@ fn each_items_key_shows_at_its_right() {
             "{label}'s {key} shows at its row's right, {at:?}: {widgets:?}"
         );
     }
-    for label in [
-        "Open recent",
-        "Save as…",
-        "Import…",
-        "Export…",
-        "Send",
-        "Read",
-    ] {
+    for label in ["Open recent", "Import…", "Export…", "Send", "Read"] {
         assert_eq!(
             item(&mut ui, label)["key"],
             Value::Null,
@@ -263,7 +246,7 @@ fn a_disabled_item_is_gray_and_its_hint_says_why() {
     let mut ui = Ui::new();
     open(&mut ui, "File");
     let send = item(&mut ui, "Send");
-    let why = json!("the scene has no parts to send");
+    let why = json!("The scene has no parts to send");
     assert_eq!(send["command"]["command"], "exchange.write", "{send}");
     assert_eq!(
         (&send["enabled"], &send["reason"], &send["hint"]),
@@ -693,23 +676,34 @@ fn reference_bar(ui: &mut Ui) -> Shown {
     bar
 }
 
-/// The Reference View's bar, in its order.
+/// The Reference View's bar's controls, in their order.
 pub(crate) const REFERENCE_BAR: [&str; 10] = [
     "Follow", "Turn", "Zoom", "Slide", "Align", "Frame", "Wire", "Look", "Next", "Close",
 ];
 
+/// The Reference View's bar as the rig shows it: its controls, and after Look the look the
+/// reference draws with, by its name, as no looks are loaded.
+fn reference_bar_words() -> Vec<&'static str> {
+    let mut words = REFERENCE_BAR.to_vec();
+    words.insert(8, "gray");
+    words
+}
+
 /// Amended for H5, item 7: the docked Reference View's bar is one row in the header's style,
 /// Follow and its three, Align, then Frame, Wire, Look, Next and Close each an icon alone, no
-/// wider than tall.
+/// wider than tall. Since UI-keys Look's words follow it, and a reference docked at the layout's
+/// 560 points wraps them to a second row (`header_fit.rs`), so this one is wider.
 #[test]
 fn the_reference_views_bar_is_one_row_in_the_headers_order_with_icons() {
     let mut ui = Ui::new();
+    ui.host.lock().shell.directions.list[0].reference.width = 640.0;
     ui.ok("primitive.sphere", json!({}));
     ui.ok("reference.open", json!({ "scene": true }));
     ui.settle();
     let bar = reference_bar(&mut ui);
-    assert_eq!(labels(&bar), REFERENCE_BAR, "{bar:?}");
-    for (label, r) in &bar[5..] {
+    assert_eq!(labels(&bar), reference_bar_words(), "{bar:?}");
+    let icons = (bar.iter()).filter(|(label, _)| REFERENCE_BAR[5..].contains(&label.as_str()));
+    for (label, r) in icons {
         assert!(
             r[2] - r[0] <= r[3] - r[1] + 2.0,
             "{label} is an icon alone: {r:?}"
@@ -733,5 +727,5 @@ fn the_floating_reference_window_holds_its_bar_on_one_row() {
     ui.settle();
     ui.settle();
     let bar = reference_bar(&mut ui);
-    assert_eq!(labels(&bar), REFERENCE_BAR, "{bar:?}");
+    assert_eq!(labels(&bar), reference_bar_words(), "{bar:?}");
 }

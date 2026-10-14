@@ -16,8 +16,8 @@ use serde_json::json;
 use crate::rig::Window;
 
 /// The 3D view's pixels, as presented, its size, and where the corner figure and the Zoom and
-/// Pan buttons draw over it while they show (in a wide enough view), a little grown, in its own
-/// pixels.
+/// Pan buttons draw over it while they show (in a wide enough view), and the view's name, a
+/// little grown, in its own pixels.
 struct Picture {
     rgba: Vec<u8>,
     width: i64,
@@ -41,7 +41,8 @@ impl Picture {
         };
         let overlays = panels
             .iter()
-            .filter(|p| p["id"] == "figure" || p["id"] == "pads");
+            .flat_map(|p| std::iter::once(p).chain(p["sections"].as_array().into_iter().flatten()))
+            .filter(|p| ["figure", "pads", "view_name"].contains(&p["id"].as_str().unwrap_or("")));
         let (rgba, width) = (w.view_pixels(), r[2] - r[0]);
         Picture {
             over: overlays.map(grown).collect(),

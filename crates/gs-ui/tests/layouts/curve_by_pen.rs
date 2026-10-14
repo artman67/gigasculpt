@@ -45,15 +45,15 @@ fn reopen(ui: &mut Ui) {
     }
 }
 
-/// What `ui.describe` says of the brush tray's widget `label`, scrolled to; null where it does
-/// not show.
+/// What `ui.describe` says of the brush tray's widget `label`, the Edit shape popover opened
+/// again first and the widget scrolled to ([`Ui::shows`]); null where it does not show.
 fn seen(ui: &mut Ui, label: &str) -> Value {
     reopen(ui);
-    ui.scroll_to("brush", label);
-    let all = ui.widgets("brush");
-    all.into_iter()
-        .find(|w| w["label"] == label)
-        .unwrap_or_default()
+    if ui.shows("brush", label) {
+        ui.widget("brush", label)
+    } else {
+        Value::Null
+    }
 }
 
 /// This session's change to the pen's brush's tip, as `session.state` says.

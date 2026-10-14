@@ -1,13 +1,13 @@
 //! What the 3D view draws over the model besides the cursor: the pivot dot while the view turns,
-//! the brush's symmetry planes on the active part ([`ActivePart`]), and a select outline being
-//! dragged with each place symmetry repeats it.
+//! the brush's symmetry planes on the active part ([`ActivePart`]), a select outline being
+//! dragged with each place symmetry repeats it, and the view's name in its corner.
 
 use egui::{Color32, Stroke};
-use gs_core::camera::Projection;
+use gs_core::camera::{Camera, Preset, Projection};
 use gs_core::stroke::rectangle;
 use gs_core::transform::Similarity;
 use gs_core::{Aabb, NodeId, Vec3};
-use gs_engine::{BrushState, PartReport};
+use gs_engine::{BrushState, Hand, PartReport};
 
 use super::Ring;
 use super::cursor::MIRROR_FADE;
@@ -57,6 +57,49 @@ pub(super) fn draw_pivot(ui: &egui::Ui, cx: &Context) {
 
 /// The pivot dot's radius in points.
 const PIVOT_DOT: f32 = 4.0;
+
+/// The view's name (decision 0017 as amended 2026-10-13; review 0009, C5): the side `camera`
+/// looks from while it looks along an axis view ([`Camera::side`], which `view.get`'s
+/// `looks_from` reads too), then its projection, as "Front · Perspective"; between them the
+/// projection alone. A quiet pill in the 3D view `rect`'s top corner away from the pen `hand`,
+/// where neither the corner figure, its Zoom and Pan buttons nor the settings window sit, in
+/// the theme's dim text on its backdrop, so it reads on any canvas color. It is not a control,
+/// and the pen sculpts through it: a section of the view's (`view_name`), not a panel, which
+/// would take the pen.
+pub(super) fn draw_name(
+    ui: &egui::Ui,
+    (rect, hand): (egui::Rect, Hand),
+    camera: &Camera,
+    rec: &mut Recorder,
+) {
+    let projection = match camera.projection {
+        Projection::Perspective => "Perspective",
+        Projection::Orthographic => "Orthographic",
+    };
+    let text = match camera.side().map(Preset::name) {
+        Some(side) => {
+            let (first, rest) = side.split_at(1);
+            format!("{}{rest} · {projection}", first.to_ascii_uppercase())
+        }
+        None => projection.to_string(),
+    };
+    let t = theme(ui.ctx());
+    let font = egui::FontId::proportional(t.sizes.small);
+    let galley = (ui.painter()).layout_no_wrap(text.clone(), font, t.colors.text_dim);
+    let pad = egui::vec2(t.spacing.margin, t.spacing.margin / 2.0);
+    let size = galley.size() + 2.0 * pad;
+    let inset = t.spacing.margin;
+    let min = match hand {
+        Hand::Right => rect.left_top() + egui::vec2(inset, inset),
+        Hand::Left => rect.right_top() + egui::vec2(-inset - size.x, inset),
+    };
+    let pill = egui::Rect::from_min_size(min, size);
+    let painter = ui.painter_at(rect);
+    painter.rect_filled(pill, size.y / 2.0, t.colors.backdrop);
+    painter.galley(pill.min + pad, galley, t.colors.text_dim);
+    rec.section("view_name", "View name", false, false, pill);
+    rec.widget(Widget::plain(text, Role::Label), pill);
+}
 
 /// The brush's symmetry on the active part (decision 0044, section 8): each Mirror or Parallel
 /// plane on, as the rectangle where it crosses the part's box, through the part's origin in its

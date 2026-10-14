@@ -12,7 +12,7 @@
 //! shuts it and runs nothing. Which family is open, and each family's face, live in egui's
 //! memory for the window's life, as a button's options do.
 
-use egui::{Align2, Id, Key, Rect, RichText};
+use egui::{Align2, Id, Rect, RichText};
 use gs_protocol::Step;
 
 use crate::direction::{Control, title};
@@ -22,6 +22,9 @@ use crate::pieces::{
 };
 use crate::record::Recorder;
 use crate::theme::theme;
+
+/// The open family's egui area, which Escape and Enter order by (`shell/escape.rs`).
+pub(crate) const AREA: &str = "brush family window";
 
 /// The open family: its name, the pointer's x where it opened, in points, and its face on the
 /// shelf, which it opens below and a press on which is the face's to answer.
@@ -41,7 +44,8 @@ pub(crate) fn opened(ctx: &egui::Context) -> Option<Open> {
     ctx.data(|d| d.get_temp(kept()))
 }
 
-fn shut(ctx: &egui::Context) {
+/// Shuts the open family; Escape too, given by the window (`shell/escape.rs`).
+pub(crate) fn shut(ctx: &egui::Context) {
     ctx.data_mut(|d| d.remove::<Open>(kept()));
 }
 
@@ -58,19 +62,10 @@ fn families(brushes: &[Control]) -> Vec<(&str, Vec<&Control>)> {
     out
 }
 
-/// `text`'s width as a button's label, in points.
-pub(crate) fn width(ui: &egui::Ui, text: &str) -> f32 {
-    let text = egui::WidgetText::from(text);
-    let wrap = Some(egui::TextWrapMode::Extend);
-    let galley = text.into_galley(ui, wrap, f32::INFINITY, egui::TextStyle::Button);
-    galley.size().x
-}
-
 /// The widest of `members`' labels, with a button's padding.
 fn widest(ui: &egui::Ui, members: &[&Control]) -> (f32, String) {
-    let widths = members
-        .iter()
-        .map(|c| (width(ui, &c.label), c.label.clone()));
+    let width = |label: &str| crate::text::width(ui, label, egui::TextStyle::Button);
+    let widths = members.iter().map(|c| (width(&c.label), c.label.clone()));
     let (wide, name) = widths.fold((0.0, String::new()), |a, b| if b.0 > a.0 { b } else { a });
     (wide + 2.0 * ui.spacing().button_padding.x, name)
 }
@@ -163,8 +158,8 @@ fn button(
 
 /// Draws the open family, if one is, its top edge just below its face's row at the pointer's x
 /// where it opened, kept inside the window and scrolling in the room below; call after the 3D
-/// view and the quick menu, so it lies over them. Shuts it on a pick, Escape or a press outside
-/// it other than on its face. Returns what was picked.
+/// view and the quick menu, so it lies over them. Shuts it on a pick or a press outside it other
+/// than on its face. Returns what was picked.
 pub fn window(ui: &egui::Ui, now: &Now, rec: &mut Recorder) -> Option<Step> {
     let open = opened(ui.ctx())?;
     let brushes = now.directions.brush_controls();
@@ -181,7 +176,7 @@ pub fn window(ui: &egui::Ui, now: &Now, rec: &mut Recorder) -> Option<Step> {
     let room = ui.ctx().content_rect().shrink(t.spacing.margin);
     let (wide, _) = widest(ui, &members);
     let top = open.face.bottom() + ui.spacing().item_spacing.y;
-    let area = egui::Area::new(Id::new("brush family window"))
+    let area = egui::Area::new(Id::new(AREA))
         .order(egui::Order::Foreground)
         .pivot(Align2::LEFT_TOP)
         .fixed_pos(egui::pos2(open.x, top))
@@ -212,7 +207,7 @@ pub fn window(ui: &egui::Ui, now: &Now, rec: &mut Recorder) -> Option<Step> {
     let shuts = ui.input(|i| {
         let origin = i.pointer.press_origin();
         let outside = origin.is_some_and(|p| !rect.contains(p) && !open.face.contains(p));
-        (i.pointer.any_pressed() && outside) || i.key_pressed(Key::Escape)
+        i.pointer.any_pressed() && outside
     });
     if shown.inner.is_some() || shuts {
         shut(ui.ctx());

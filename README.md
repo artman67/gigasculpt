@@ -44,7 +44,7 @@ Download the file for your system from the [Releases](../../releases) page:
 
 Keep `gigasculpt` and `gs` in the same folder: `gs` finds the app beside itself. GigaSculpt needs
 a graphics driver with Vulkan on Linux (Mesa or your card maker's), DirectX 12 or Vulkan on
-Windows, and Metal on macOS. The Linux build needs glibc 2.39 or newer.
+Windows, and Metal on macOS. The Linux build needs glibc 2.35 or newer.
 
 The builds are not signed yet, so Windows and macOS warn the first time you open GigaSculpt;
 [Troubleshooting](docs/troubleshooting.md#first-start-on-windows-and-macos) says what to do. To

@@ -214,7 +214,8 @@ impl Engine {
     /// Ends the drag in progress, if there is one, and commits it as the `transform.apply` call
     /// that replays it: one log line and one undo step, of the points or of the part's
     /// properties. A Ctrl drag's copy is added for good by the `part.duplicate` call that
-    /// replays it, run as the drag's client.
+    /// replays it, run as the drag's client. A refusal is kept whole for the window to say in a
+    /// person's words, as a pen stroke's is (decision 0025, section 2, amended 2026-10-14).
     pub(crate) fn end_drag(&mut self) {
         let Some(drag) = self.state.gizmos.drag.take() else {
             return;
@@ -237,7 +238,7 @@ impl Engine {
                 batch: false,
             };
             if let Outcome::Error(e) = self.run_now(&drag.origin, &call).outcome {
-                self.state.sculpt.problem = Some(e.message);
+                self.state.sculpt.refused = Some(e);
             }
             return;
         }
@@ -255,7 +256,7 @@ impl Engine {
                 batch: false,
             };
             if let Outcome::Error(e) = self.run_now(&origin, &call).outcome {
-                self.state.sculpt.problem = Some(e.message);
+                self.state.sculpt.refused = Some(e);
             }
             return;
         }
@@ -273,7 +274,7 @@ impl Engine {
             props: (!drag.points).then_some(drag.start),
         };
         if let Err(e) = self.commit_in_place(&drag.origin, adopted) {
-            self.state.sculpt.problem = Some(e.message);
+            self.state.sculpt.refused = Some(e);
         }
     }
 

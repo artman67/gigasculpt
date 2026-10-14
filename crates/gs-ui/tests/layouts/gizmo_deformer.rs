@@ -73,11 +73,6 @@ fn bent(ui: &mut Ui) {
     assert_eq!(op(ui)["bend"]["degrees"], json!(90.0), "{}", ui.state());
 }
 
-/// Whether the panel `id` shows a widget labelled `label`.
-pub(crate) fn shows(ui: &mut Ui, id: &str, label: &str) -> bool {
-    ui.labels(id).iter().any(|l| l == label)
-}
-
 const THREE: [&str; 3] = ["Accept", "Cancel", "Reset"];
 
 #[test]
@@ -86,7 +81,7 @@ fn smooth_bend_opens_one_bend_at_no_change_on_the_gizmo_part_and_lights() {
     gizmo(&mut ui);
     let (hash, before) = (ui.session.hash(), undos(&mut ui));
     for label in THREE {
-        assert!(!shows(&mut ui, "brush", label), "no {label} before a pick");
+        assert!(!ui.lists("brush", label), "no {label} before a pick");
     }
     ui.press("brush > Smooth bend");
 
@@ -112,7 +107,7 @@ fn smooth_bend_opens_one_bend_at_no_change_on_the_gizmo_part_and_lights() {
     };
     assert!(lit("Smooth bend") && !lit("Twist"), "{widgets:?}");
     for label in THREE.into_iter().chain(["Angle", "Axis X", "Toward Y"]) {
-        assert!(shows(&mut ui, "brush", label), "{label} while open");
+        assert!(ui.lists("brush", label), "{label} while open");
     }
 }
 
@@ -197,7 +192,7 @@ fn accept_keeps_one_step_named_bend_and_the_rows_go() {
     assert_eq!(state["history.undo"], "Bend");
     assert_eq!(undos(&mut ui), before + 1);
     for label in THREE.into_iter().chain(["Angle"]) {
-        assert!(!shows(&mut ui, "brush", label), "{label} goes");
+        assert!(!ui.lists("brush", label), "{label} goes");
     }
 }
 
@@ -256,7 +251,7 @@ fn the_quick_menus_accept_cancel_and_reset_do_as_the_trays() {
     };
     quick(&mut ui, true);
     for label in THREE {
-        assert!(!shows(&mut ui, "quick", label), "no {label} with none open");
+        assert!(!ui.lists("quick", label), "no {label} with none open");
     }
     quick(&mut ui, false);
     let hash = ui.session.hash();
@@ -325,7 +320,7 @@ fn ctrl_s_during_a_deform_pull_saves_once_the_pen_lifts() {
     ui.tap("S", held("Ctrl"));
     ui.input(&[], Modifiers::default());
     let words = "Saves when the pen lifts";
-    assert!(shows(&mut ui, "status", words), "{:?}", ui.labels("status"));
+    assert!(ui.lists("status", words), "{:?}", ui.labels("status"));
     assert_eq!(std::fs::read(&path).ok(), Some(saved.clone()), "not yet");
     ui.touch(x + 40.0, y, false);
     assert_eq!(ui.state()["history.undo"], "Bend", "the pull landed");
@@ -334,11 +329,7 @@ fn ctrl_s_during_a_deform_pull_saves_once_the_pen_lifts() {
         Some(saved),
         "saved after the lift"
     );
-    assert!(
-        !shows(&mut ui, "status", words),
-        "{:?}",
-        ui.labels("status")
-    );
+    assert!(!ui.lists("status", words), "{:?}", ui.labels("status"));
 }
 
 #[test]
@@ -348,13 +339,9 @@ fn the_status_line_says_autosave_waits_while_a_deformer_is_open() {
     ui.settle();
     gizmo(&mut ui);
     let words = "Autosave waits for the open deformer";
-    assert!(!shows(&mut ui, "status", words), "none open");
+    assert!(!ui.lists("status", words), "none open");
     ui.press("brush > Smooth bend");
-    assert!(shows(&mut ui, "status", words), "{:?}", ui.labels("status"));
+    assert!(ui.lists("status", words), "{:?}", ui.labels("status"));
     ui.press("brush > Accept");
-    assert!(
-        !shows(&mut ui, "status", words),
-        "{:?}",
-        ui.labels("status")
-    );
+    assert!(!ui.lists("status", words), "{:?}", ui.labels("status"));
 }

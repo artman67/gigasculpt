@@ -2,8 +2,13 @@
 //! count near the target; a fine open rim is resampled and the result stays manifold; the
 //! sharp-edge file's indices put patch borders on the group borders. The command's own tests
 //! are in gs-engine. These run the program, built once per pin (`third_party/quadwild/`);
-//! `stand_in` runs a stand-in for it that dies or leaves nothing.
+//! `stand_in` runs a stand-in for it that dies or leaves nothing; `digest` checks the source's
+//! tree digest; `fetch` where the source comes from.
 
+#[cfg(unix)]
+mod digest;
+#[cfg(unix)]
+mod fetch;
 #[cfg(unix)]
 mod stand_in;
 
@@ -25,6 +30,7 @@ fn job(name: &str) -> Job {
 fn program() -> Program {
     let env = std::env::var_os;
     let at = places(
+        System::HERE,
         env("GS_QUADWILD"),
         None,
         gs_protocol::cache_dir().ok().as_deref(),
@@ -65,33 +71,43 @@ fn the_pin_is_the_one_the_lock_names() {
 }
 
 /// Decision 0038, section 1, on each system: only `GS_QUADWILD` when it is set, else beside the
-/// binary and then the cache folder. Missing, Linux is told how to build it there, macOS and
-/// Windows that it is not shipped for them yet; each fix names that folder.
+/// binary (and in the macOS app's `Contents/Resources`, where a release puts it) and then the
+/// cache folder. Missing, each system is told that a download carries it and how to build it
+/// into that cache folder.
 #[test]
 fn the_program_is_looked_for_and_its_fix_named_on_each_system() {
-    let (cache, beside) = (PathBuf::from("/c/gigasculpt"), Path::new("/b"));
+    let (cache, beside) = (
+        PathBuf::from("/c/gigasculpt"),
+        Path::new("/A.app/Contents/MacOS"),
+    );
     let pinned = cache.join("quadwild").join(PIN);
-    assert_eq!(
-        places(Some("/q".into()), Some(beside), Some(&cache)),
-        [PathBuf::from("/q")],
-        "GS_QUADWILD alone"
-    );
-    assert_eq!(
-        places(None, Some(beside), Some(&cache)),
-        [beside.join("quadwild"), pinned.join("program")],
-        "beside the binary, then the cache folder"
-    );
     for system in [System::Linux, System::MacOs, System::Windows] {
-        let fix = fix(system, Some(&cache));
-        let linux = system == System::Linux;
-        assert!(
-            fix.contains(&pinned.display().to_string()) && fix.contains("GS_QUADWILD"),
-            "{system:?}: the folder and the variable: {fix}"
-        );
         assert_eq!(
-            (fix.contains("build.sh"), fix.contains("not shipped")),
-            (linux, !linux),
-            "{system:?}: the scripts on Linux, not shipped elsewhere: {fix}"
+            places(system, Some("/q".into()), Some(beside), Some(&cache)),
+            [PathBuf::from("/q")],
+            "{system:?}: GS_QUADWILD alone"
+        );
+        let resources = Path::new("/A.app/Contents/Resources/quadwild");
+        let app = (system == System::MacOs).then_some(resources.to_path_buf());
+        let expected: Vec<PathBuf> = std::iter::once(beside.join("quadwild"))
+            .chain(app)
+            .chain([pinned.join("program")])
+            .collect();
+        assert_eq!(
+            places(system, None, Some(beside), Some(&cache)),
+            expected,
+            "{system:?}: beside the binary, in a macOS app's Resources, then the cache folder"
+        );
+        let fix = fix(system, Some(&cache));
+        let named = [
+            "download",
+            "build.sh",
+            "GS_QUADWILD",
+            &pinned.display().to_string(),
+        ];
+        assert!(
+            named.iter().all(|n| fix.contains(n)) && !fix.contains("not shipped"),
+            "{system:?}: the download, the scripts, the variable and the folder: {fix}"
         );
     }
 }

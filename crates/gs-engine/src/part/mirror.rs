@@ -13,7 +13,7 @@ use super::{NewPart, pin_copy_name, pinned_name, place_below, report};
 use crate::command::PartArg;
 use crate::document::{Props, VertexOrder, pinned};
 use crate::sculpt::Axis;
-use crate::{Command, Ctx, Example, register_command};
+use crate::{Command, Ctx, Example, Unavailable, register_command};
 
 /// Where the mirror plane of `part.mirror_copy` goes through.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -77,6 +77,10 @@ impl Command for PartMirrorCopy {
 
     fn pin(&mut self, cx: &Ctx) -> Result<(), CommandError> {
         pin_copy_name(cx, self.part.as_ref(), &mut self.name)
+    }
+
+    fn check(&self, cx: &Ctx) -> Result<(), Unavailable> {
+        crate::level::check_one_level(cx, self.part.as_ref(), "a mirror copy", false)
     }
 
     fn run(self, cx: &mut Ctx) -> Result<NewPart, CommandError> {

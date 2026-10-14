@@ -10,9 +10,9 @@
 //! default), held past the activation time sets its argument as the pointer moves sideways
 //! from there, and runs its command once when let go; a number typed while it is held sets
 //! the argument exactly instead; a short tap shows that slider alone at the pointer;
-//! Escape lets go without running anything. With sticky keys off, a held slider key never
-//! follows the pointer: a number typed while it is held still sets the argument, and let go
-//! with nothing typed it shows the slider.
+//! Escape lets go without running anything (`Keys::escape`). With sticky keys off, a held
+//! slider key never follows the pointer: a number typed while it is held still sets the
+//! argument, and let go with nothing typed it shows the slider.
 
 use std::collections::BTreeMap;
 
@@ -30,6 +30,10 @@ use crate::values::Value as Brush;
 mod catch;
 
 pub use catch::Catch;
+
+/// How a key is bound from a control (`catch`), said where a person looks for keys: the keys
+/// sheet and Bind a key….
+pub(crate) const BY_CLICK: &str = "Or hold Ctrl+Alt and click a button to give it a key.";
 
 /// What the keys read: the keymap, the session as the engine last reported it (a held key's
 /// starting value, what a `"flip"` turns), the controls (which say what a `"flip"` turns),
@@ -208,6 +212,12 @@ impl Keys {
         self.hold.is_some()
     }
 
+    /// Escape, given by the window (`shell/escape.rs`) while a slider key is held: lets go,
+    /// running nothing.
+    pub fn escape(&mut self) {
+        self.hold = None;
+    }
+
     /// What a slider key held past the activation time, or with a number typed, is setting, for
     /// the cursor: `Size 80 px`, `Strength 75%`, or another argument's last name and value.
     pub fn adjusting(&self) -> Option<String> {
@@ -262,8 +272,7 @@ impl Keys {
         reads: &Reads,
     ) -> Option<Step> {
         match (&self.hold, pressed) {
-            (Some(h), false) if h.key == key => self.let_go(true, reads.controls),
-            (Some(_), true) if key == Key::Escape => self.let_go(false, reads.controls),
+            (Some(h), false) if h.key == key => self.let_go(reads.controls),
             (_, false) => self.unlatch(key),
             (Some(_), true) => {
                 self.typed(key);
@@ -383,10 +392,10 @@ impl Keys {
         with_args(&b.command, args)
     }
 
-    /// Ends a hold, when `run`: its command with the value reached or typed, or with nothing
-    /// typed after a short tap (any hold with sticky keys off), the slider shown.
-    fn let_go(&mut self, run: bool, controls: &Controls) -> Option<Step> {
-        let mut h = self.hold.take().filter(|_| run)?;
+    /// Ends a hold: its command with the value reached or typed, or with nothing typed after a
+    /// short tap (any hold with sticky keys off), the slider shown.
+    fn let_go(&mut self, controls: &Controls) -> Option<Step> {
+        let mut h = self.hold.take()?;
         if !h.active && h.typed.is_empty() {
             return Some(show_slider(&h, controls));
         }

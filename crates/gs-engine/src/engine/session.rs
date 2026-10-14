@@ -8,7 +8,9 @@ use std::collections::BTreeMap;
 
 use gs_core::NodeId;
 use gs_core::rng::CommandRng;
-use gs_protocol::{CommandError, ErrorCode, HelloResult, Kind, PROTOCOL_VERSION, Role, Step};
+use gs_protocol::{
+    Catalog, CommandError, ErrorCode, HelloResult, Kind, PROTOCOL_VERSION, Role, Step,
+};
 use serde_json::{Value, json};
 
 use super::{Call, Done, Engine, Env, Ran, run_steps};
@@ -122,7 +124,7 @@ impl Engine {
         };
         let (session, rev) = (&self.config.session, self.rev);
         let main = state.views.info(MAIN, &state.doc);
-        let now = state_of(StateSources::of(state, &self.config));
+        let now = state_of(StateSources::of(state, &self.config, rev));
         state.window.with(|window| {
             let references = if window.has_window() {
                 shown_references(&state.views, &state.doc)
@@ -149,6 +151,8 @@ impl Engine {
                 .then(|| state.sculpt.settings.resolved(&now.brush.brush).ok())
                 .flatten();
             let problem = state.sculpt.problem.take();
+            let stroke = state.sculpt.refused.take();
+            let saved = state.file.wrote.take();
             let canvas = std::mem::take(&mut state.sculpt.on_canvas);
             window.after_call(&CallReport {
                 session,
@@ -161,6 +165,8 @@ impl Engine {
                 state: &now,
                 preset,
                 problem: problem.as_deref(),
+                stroke: stroke.as_ref(),
+                saved: saved.as_deref(),
                 main: MainView::of(&main),
                 references,
                 on_canvas: canvas,
@@ -176,7 +182,8 @@ impl Engine {
     /// refusal as unavailable or naming nothing that exists counts; any other error is the
     /// controls file's mistake, which shows when the control is pressed. A refusal that asks
     /// for an argument the step does not give leaves the control on: pressed, the window asks
-    /// (decision 0016, section 17).
+    /// (decision 0016, section 17). So does one about an argument it lacks, which the step is
+    /// dry-run with as [`needed`] fills it in.
     fn refused(&mut self, steps: Vec<Step>) -> Vec<(Step, String)> {
         let human = Origin {
             client_id: 0,
@@ -185,8 +192,9 @@ impl Engine {
         };
         let mut out = Vec::new();
         for step in steps {
+            let (runs, filled) = needed(&self.registry.catalog, &step);
             let call = Call {
-                steps: vec![step],
+                steps: vec![runs],
                 if_rev: None,
                 dry_run: true,
                 batch: false,
@@ -206,11 +214,17 @@ impl Engine {
             };
             let mut seq = self.next_seq;
             let ran = run_steps(self.state.scope(), &env, &mut seq, &call, &specs);
+            let filled_at = |at: &str| {
+                filled
+                    .iter()
+                    .any(|f| at.split('/').nth(1) == Some(f.as_str()))
+            };
             if let Err((_, e)) = ran
                 && matches!(e.code, ErrorCode::Precondition | ErrorCode::NotFound)
-                && crate::errors::asks(&e, &call.steps[0].args).is_none()
+                && crate::errors::asks(&e, &step.args).is_none()
+                && !e.path.as_deref().is_some_and(filled_at)
             {
-                out.extend(call.steps.into_iter().map(|s| (s, e.message.clone())));
+                out.push((step, e.message));
             }
         }
         out
@@ -244,15 +258,14 @@ impl Engine {
                     let seed = CommandRng::for_command(self.config.seed, self.next_seq).seed();
                     let held = self.state.control.held;
                     let sculpt = &mut self.state.sculpt;
-                    let begun = camera
-                        .map_err(|e| e.message)
-                        .and_then(|c| Live::begin(origin, down, &sculpt.settings, c, seed));
+                    let begun =
+                        camera.and_then(|c| Live::begin(origin, down, &sculpt.settings, c, seed));
                     match begun {
                         Ok(mut live) => {
                             live.held = held;
                             sculpt.live = Some(live);
                         }
-                        Err(problem) => sculpt.problem = Some(problem),
+                        Err(e) => sculpt.refused = Some(e),
                     }
                 }
                 PenStroke::Sample(sample) => {
@@ -286,7 +299,7 @@ impl Engine {
         };
         let problem = live.problem.clone();
         let Some(ended) = live.end(&mut self.state.doc) else {
-            self.state.sculpt.problem = problem;
+            self.state.sculpt.refused = problem;
             return;
         };
         if let Some(first) = ended.first {
@@ -302,7 +315,7 @@ impl Engine {
             props: None,
         };
         if let Err(e) = self.commit_in_place(&ended.origin, adopted) {
-            self.state.sculpt.problem = Some(e.message);
+            self.state.sculpt.refused = Some(e);
         }
     }
 
@@ -381,6 +394,46 @@ fn view_of(origin: &Origin, spec: &CommandSpec, step: &Step) -> Option<String> {
         (step.args.get("view").and_then(Value::as_str))
             .map_or_else(|| own_view(origin), str::to_string)
     })
+}
+
+/// `step` with each argument its command needs and it lacks filled in from the command's
+/// examples in `catalog` (the first that gives it, one that runs before one that fails, never
+/// one with arguments refused), and the names filled. A control that opens a form lacks what
+/// the form asks for until it is typed (Export…'s path), and a dry run checks the arguments
+/// before the command's check: filled in, the step reaches its check, so a row is gray with the
+/// check's reason before the form asks anything (decision 0025, section 6, amended 2026-10-14).
+/// A refusal about a filled argument is the form's to say once it is typed, not the row's; a
+/// command whose check judges an argument names it in its refusal, as the others do.
+fn needed(catalog: &Catalog, step: &Step) -> (Step, Vec<String>) {
+    let info = catalog.commands.iter().find(|c| c.name == step.command);
+    let required = info.and_then(|i| i.args_schema.get("required")?.as_array());
+    let mut args = step.args.as_object().cloned().unwrap_or_default();
+    let lacks: Vec<&str> = (required.into_iter().flatten())
+        .filter_map(Value::as_str)
+        .filter(|name| !args.contains_key(*name))
+        .collect();
+    // Whether each fails, and its arguments: one that runs sorts first.
+    let mut examples: Vec<(bool, &Value)> = (info.into_iter())
+        .flat_map(|i| &i.examples)
+        .filter(|x| x.fails_with != Some(ErrorCode::ArgsInvalid))
+        .map(|x| (x.fails_with.is_some(), &x.args))
+        .collect();
+    examples.sort_by_key(|(fails, _)| *fails);
+    let mut filled = Vec::new();
+    for name in lacks {
+        if let Some(value) = examples.iter().find_map(|(_, x)| x.get(name)) {
+            args.insert(name.into(), value.clone());
+            filled.push(name.to_string());
+        }
+    }
+    if filled.is_empty() {
+        return (step.clone(), filled);
+    }
+    let runs = Step {
+        command: step.command.clone(),
+        args: Value::Object(args),
+    };
+    (runs, filled)
 }
 
 impl Engine {

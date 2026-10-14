@@ -1,13 +1,23 @@
 name: Release
 
-# A tag v* (for example v0.1.0) builds the downloads and attaches them to a GitHub Release with
-# .github/release-notes.md as its text. Nothing is signed yet; the notes say how to open the
-# apps anyway. Before tagging, set [workspace.package] version in Cargo.toml to the same
-# version, as `gigasculpt --version` reads it there.
+# Builds every download, then tries each one as a person gets it, on its own system (decision
+# 0064). A tag v* (for example v0.1.0) then attaches them to a GitHub Release with
+# .github/release-notes.md as its text; the tag must name the workspace version
+# ([workspace.package] version in Cargo.toml, which the programs print and the Blender add-on
+# carries), or nothing is built. A push to a branch release-trial/* (for example
+# release-trial/1) is a trial: everything runs the same but the GitHub Release job, and the
+# downloads, named vVERSION-trial.RUN, stay with the run as its artifacts. Nothing is signed
+# yet; the notes say how to open the apps anyway.
+#
+# Every download carries Quad Remesh's helper (decision 0038), built on its own system from the
+# pinned source by third_party/quadwild, in a `quadwild` folder where the app looks for it:
+# beside the programs, and in the macOS app's Resources. That source, as fetch.sh assembled
+# and checked it, goes up beside the downloads with the scripts that build it, as its GPL asks.
 
 on:
   push:
     tags: ["v*"]
+    branches: ["release-trial/**"]
 
 permissions:
   contents: read
@@ -16,62 +26,218 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  linux:
-    name: Linux x86_64 (.tar.gz)
+  # The version, the downloads' names, whether this run publishes (cargo-dist's `publishing`),
+  # and where the guide is for the downloads' README.txt.
+  version:
+    name: One version
     runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      name: ${{ steps.version.outputs.name }}
+      publish: ${{ steps.version.outputs.publish }}
+      guide: ${{ steps.version.outputs.guide }}
     steps:
       - uses: actions/checkout@v4
 
-      # SDL3's build from source, with the X11 and Wayland video drivers.
+      - name: The tag, the workspace and the add-on agree
+        id: version
+        run: |
+          if [[ $GITHUB_REF_TYPE == tag ]]; then
+            version=$(python3 -I addons/blender/tests/version_check.py --tag "$GITHUB_REF_NAME")
+            name=$GITHUB_REF_NAME publish=true ref=$GITHUB_REF_NAME
+          else
+            version=$(python3 -I addons/blender/tests/version_check.py)
+            name="v$version-trial.$GITHUB_RUN_NUMBER" publish=false ref=$GITHUB_SHA
+          fi
+          {
+            echo "version=$version"
+            echo "name=$name"
+            echo "publish=$publish"
+            echo "guide=$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/blob/$ref/docs/README.md"
+          } >> "$GITHUB_OUTPUT"
+          echo "downloads named $name, version $version; published: $publish"
+
+  linux:
+    name: Linux x86_64 (.tar.gz)
+    needs: version
+    runs-on: ubuntu-24.04
+    # Built on Ubuntu 22.04, the oldest Ubuntu still supported, so it runs there and on every
+    # system with glibc 2.35 or newer, Debian 12 among them (linux-check tries both). Root in a
+    # privileged container, as bubblewrap must make namespaces to build the helper offline.
+    container:
+      image: ubuntu:22.04
+      options: --privileged
+    defaults:
+      run:
+        shell: bash
+    env:
+      NAME: ${{ needs.version.outputs.name }}
+      VERSION: ${{ needs.version.outputs.version }}
+      GUIDE: ${{ needs.version.outputs.guide }}
+      DEBIAN_FRONTEND: noninteractive
+      # GCC 12, 22.04's newest, for the helper's C++20; 22.04's own libstdc++ is GCC 12's.
+      CC: gcc-12
+      CXX: g++-12
+    steps:
+      # SDL3's build from source, with the X11 and Wayland video drivers, and Quad Remesh's
+      # helper (git, Ninja, bubblewrap); no BLAS, so the helper links none (decision 0038).
       - name: System packages
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            build-essential cmake pkg-config \
+          apt-get update
+          apt-get install -y --no-install-recommends ca-certificates curl git \
+            build-essential gcc-12 g++-12 cmake ninja-build pkg-config bubblewrap \
             libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxfixes-dev libxi-dev \
             libxss-dev libxtst-dev libxkbcommon-dev libwayland-dev libdecor-0-dev \
             libegl1-mesa-dev libgl1-mesa-dev libdrm-dev libgbm-dev libdbus-1-dev libudev-dev
 
+      - uses: actions/checkout@v4
+
       - name: Rust toolchain (from rust-toolchain.toml)
-        run: rustup toolchain install
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs |
+            sh -s -- -y --profile minimal --default-toolchain none
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+          "$HOME/.cargo/bin/rustup" toolchain install
 
       - name: Build
         run: cargo build --release --locked -p gigasculpt -p gs
 
+      - name: Build Quad Remesh's helper
+        run: |
+          third_party/quadwild/fetch.sh "$RUNNER_TEMP/quadwild"
+          third_party/quadwild/build.sh "$RUNNER_TEMP/quadwild" 4
+
+      # The newest glibc and libstdc++ versions each program asks for, which 22.04 and the
+      # systems after it have.
+      - name: What the programs need
+        run: |
+          for f in target/release/gigasculpt target/release/gs \
+            "$RUNNER_TEMP"/quadwild/program/quadwild "$RUNNER_TEMP"/quadwild/program/quad_from_patches; do
+            newest=$(objdump -T "$f" | grep -Eo '(GLIBC|GLIBCXX)_[0-9.]+' | sort -uV |
+              awk -F_ '{ last[$1] = $0 } END { for (k in last) printf "%s ", last[k] }')
+            echo "$(basename "$f"): $newest; links $(objdump -p "$f" | awk '$1 == "NEEDED" { printf "%s ", $2 }')"
+          done
+
       # With a desktop file and its icon, for the app menu (the release notes say where they go).
       - name: Package
         run: |
-          name="gigasculpt-${GITHUB_REF_NAME}-linux-x86_64"
+          name="gigasculpt-$NAME-linux-x86_64"
           mkdir -p "dist/$name"
-          cp target/release/gigasculpt target/release/gs LICENSE README.md "dist/$name/"
+          cp target/release/gigasculpt target/release/gs LICENSE "dist/$name/"
+          sed -e "s|@VERSION@|$VERSION|" -e "s|@GUIDE@|$GUIDE|" .github/release/README.txt > "dist/$name/README.txt"
           cp .github/linux/gigasculpt.desktop "dist/$name/"
           cp assets/brand/icon-256.png "dist/$name/gigasculpt.png"
+          cp -r "$RUNNER_TEMP/quadwild/program" "dist/$name/quadwild"
           tar -C dist -czf "dist/$name.tar.gz" "$name"
+
+      # The helper's source as fetch.sh assembled and checked it, and the scripts that build it.
+      - name: Quad Remesh's source
+        run: |
+          pin=$(awk '$1 == "pin" { print $2 }' third_party/quadwild/sources.lock)
+          tar -czf "dist/quadwild-bimdf-${pin}-source.tar.gz" \
+            -C "$RUNNER_TEMP/quadwild" src -C "$GITHUB_WORKSPACE" third_party/quadwild
 
       - uses: actions/upload-artifact@v4
         with:
           name: linux
           path: dist/*.tar.gz
 
+  # The Linux download unpacked on the oldest systems the release notes name, each a bare image
+  # with nothing added: no compiler, no bubblewrap, no Vulkan. Each check job and step has a
+  # limit, so a check that hangs fails in minutes and says where.
+  linux-check:
+    name: Linux download on ${{ matrix.image }}
+    needs: [version, linux]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    container: ${{ matrix.image }}
+    strategy:
+      fail-fast: false
+      matrix:
+        image: ["ubuntu:22.04", "debian:12"]
+    defaults:
+      run:
+        shell: bash
+    env:
+      NAME: ${{ needs.version.outputs.name }}
+      VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: linux
+          path: download
+
+      - name: Unpack it, as a person does
+        timeout-minutes: 5
+        run: |
+          # sed reads to the end, where head would stop ldd with SIGPIPE, failing under pipefail.
+          ldd --version | sed -n 1p
+          mkdir "$RUNNER_TEMP/unpacked"
+          tar -xzf "download/gigasculpt-$NAME-linux-x86_64.tar.gz" -C "$RUNNER_TEMP/unpacked"
+          folder="$RUNNER_TEMP/unpacked/gigasculpt-$NAME-linux-x86_64"
+          for file in gigasculpt gs LICENSE README.txt gigasculpt.desktop gigasculpt.png \
+            quadwild/quadwild quadwild/quad_from_patches quadwild/stamp; do
+            [[ -e $folder/$file ]] || { echo "the download has no $file" >&2; exit 1; }
+          done
+          if ldd "$folder/gigasculpt" "$folder/gs" "$folder"/quadwild/quad* | grep 'not found'; then
+            exit 1
+          fi
+          echo "FOLDER=$folder" >> "$GITHUB_ENV"
+
+      - name: Versions, help and Quad Remesh
+        timeout-minutes: 10
+        run: bash .github/release/try-download.sh "$VERSION" "$FOLDER"
+
   windows:
     name: Windows x86_64 (.zip)
-    # Has CMake and the MSVC compiler.
+    needs: version
+    # Has CMake, the MSVC compiler and Visual Studio's clang-cl, which the helper builds with.
     runs-on: windows-latest
+    env:
+      NAME: ${{ needs.version.outputs.name }}
+      VERSION: ${{ needs.version.outputs.version }}
+      GUIDE: ${{ needs.version.outputs.guide }}
     steps:
       - uses: actions/checkout@v4
 
       - name: Rust toolchain (from rust-toolchain.toml)
         run: rustup toolchain install
 
+      # gigasculpt.com first, the same program built for the console, which a terminal runs for
+      # `gigasculpt` (decision 0063, amended 2026-10-14 (Release-prep)); then gigasculpt.exe, which
+      # opens no console when double-clicked. The second build only rebuilds gigasculpt itself.
       - name: Build
-        run: cargo build --release --locked -p gigasculpt -p gs
+        run: |
+          cargo build --release --locked -p gigasculpt -p gs --features gigasculpt/console
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          Copy-Item target/release/gigasculpt.exe "$env:RUNNER_TEMP/gigasculpt.com"
+          cargo build --release --locked -p gigasculpt -p gs
 
+      - name: Build Quad Remesh's helper
+        shell: bash
+        run: |
+          dir="$(cd "$RUNNER_TEMP" && pwd)/quadwild"
+          third_party/quadwild/fetch.sh "$dir"
+          third_party/quadwild/build.sh "$dir" 4
+
+      # With the Microsoft C and C++ runtime DLLs each program imports beside it, from Visual
+      # Studio's Redist folder: Windows does not always have them.
       - name: Package
         shell: pwsh
         run: |
-          $name = "gigasculpt-$env:GITHUB_REF_NAME-windows-x86_64"
+          $name = "gigasculpt-$env:NAME-windows-x86_64"
           New-Item -ItemType Directory -Force "dist/$name" | Out-Null
-          Copy-Item target/release/gigasculpt.exe, target/release/gs.exe, LICENSE, README.md "dist/$name/"
+          Copy-Item target/release/gigasculpt.exe, "$env:RUNNER_TEMP/gigasculpt.com", target/release/gs.exe, LICENSE "dist/$name/"
+          (Get-Content -Raw .github/release/README.txt).Replace('@VERSION@', $env:VERSION).Replace('@GUIDE@', $env:GUIDE) |
+            Set-Content -NoNewline "dist/$name/README.txt"
+          Copy-Item -Recurse "$env:RUNNER_TEMP/quadwild/program" "dist/$name/quadwild"
+          $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -property installationPath
+          $crt = Get-ChildItem "$vs\VC\Redist\MSVC\*\x64\Microsoft.VC*.CRT\vcruntime140.dll" |
+            Sort-Object FullName | Select-Object -Last 1
+          if (-not $crt) { throw "no C and C++ runtime in $vs\VC\Redist\MSVC" }
+          & .github/release/vc-runtime.ps1 "dist/$name" -From $crt.DirectoryName
           Compress-Archive -Path "dist/$name" -DestinationPath "dist/$name.zip"
 
       - uses: actions/upload-artifact@v4
@@ -79,12 +245,61 @@ jobs:
           name: windows
           path: dist/*.zip
 
+  # The Windows download unpacked by Expand-Archive, as Explorer's Extract All does, on a
+  # machine that never built it.
+  windows-check:
+    name: Windows download, unpacked
+    needs: [version, windows]
+    runs-on: windows-latest
+    timeout-minutes: 30
+    env:
+      NAME: ${{ needs.version.outputs.name }}
+      VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: windows
+          path: download
+
+      - name: Unpack it, as a person does
+        timeout-minutes: 5
+        shell: pwsh
+        run: |
+          Expand-Archive "download/gigasculpt-$env:NAME-windows-x86_64.zip" -DestinationPath "$env:RUNNER_TEMP/unpacked"
+          $folder = "$env:RUNNER_TEMP\unpacked\gigasculpt-$env:NAME-windows-x86_64"
+          foreach ($file in 'gigasculpt.exe', 'gigasculpt.com', 'gs.exe', 'LICENSE', 'README.txt',
+              'quadwild/quadwild.exe', 'quadwild/quad_from_patches.exe', 'quadwild/stamp') {
+            if (-not (Test-Path "$folder/$file")) { throw "the download has no $file" }
+          }
+          "FOLDER=$folder" >> $env:GITHUB_ENV
+
+      - name: Typed in PowerShell and cmd
+        timeout-minutes: 10
+        shell: pwsh
+        run: '& .github/release/try-console.ps1 $env:FOLDER $env:VERSION'
+
+      - name: The C and C++ runtime
+        timeout-minutes: 5
+        shell: pwsh
+        run: '& .github/release/vc-runtime.ps1 $env:FOLDER'
+
+      - name: Versions, help and Quad Remesh
+        timeout-minutes: 10
+        shell: bash
+        run: bash .github/release/try-download.sh "$VERSION" "$(cygpath -u "$FOLDER")"
+
   macos:
     name: macOS universal (.dmg)
+    needs: version
     # Apple silicon, with the Xcode tools and CMake; the Intel half is cross-compiled.
     runs-on: macos-latest
     env:
       MACOSX_DEPLOYMENT_TARGET: "11.0"
+      NAME: ${{ needs.version.outputs.name }}
+      VERSION: ${{ needs.version.outputs.version }}
+      GUIDE: ${{ needs.version.outputs.guide }}
     steps:
       - uses: actions/checkout@v4
 
@@ -99,37 +314,116 @@ jobs:
       - name: Build for Intel
         run: cargo build --release --locked -p gigasculpt -p gs --target x86_64-apple-darwin
 
+      # For both architectures in one program.
+      - name: Build Quad Remesh's helper
+        run: |
+          third_party/quadwild/fetch.sh "$RUNNER_TEMP/quadwild"
+          third_party/quadwild/build.sh "$RUNNER_TEMP/quadwild" 4
+
       # One universal program of each, in GigaSculpt.app/Contents/MacOS, where gs finds the
-      # app beside itself; the icon in Contents/Resources, named by Info.plist.
+      # app beside itself; the icon in Contents/Resources, named by Info.plist, and Quad
+      # Remesh's helper folder there too, where a folder may sit inside a signed app.
       - name: Package
         run: |
-          version="${GITHUB_REF_NAME#v}"
           app="dist/dmg/GigaSculpt.app"
           mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
           cp assets/brand/icon.icns "$app/Contents/Resources/GigaSculpt.icns"
+          cp -R "$RUNNER_TEMP/quadwild/program" "$app/Contents/Resources/quadwild"
           for bin in gigasculpt gs; do
             lipo -create -output "$app/Contents/MacOS/$bin" \
               "target/aarch64-apple-darwin/release/$bin" "target/x86_64-apple-darwin/release/$bin"
           done
           cp .github/macos/Info.plist "$app/Contents/Info.plist"
-          plutil -replace CFBundleShortVersionString -string "$version" "$app/Contents/Info.plist"
-          plutil -replace CFBundleVersion -string "$version" "$app/Contents/Info.plist"
+          plutil -replace CFBundleShortVersionString -string "$VERSION" "$app/Contents/Info.plist"
+          plutil -replace CFBundleVersion -string "$VERSION" "$app/Contents/Info.plist"
           # An ad-hoc signature over the whole bundle: Apple silicon refuses an unsigned one as
           # damaged, while an ad-hoc signed one gets Privacy & Security's Open Anyway.
           codesign --force --deep --sign - "$app"
-          cp LICENSE README.md dist/dmg/
+          cp LICENSE dist/dmg/
+          sed -e "s|@VERSION@|$VERSION|" -e "s|@GUIDE@|$GUIDE|" .github/release/README.txt > dist/dmg/README.txt
           ln -s /Applications dist/dmg/Applications
           hdiutil create -volname GigaSculpt -srcfolder dist/dmg -format UDZO \
-            "dist/gigasculpt-${GITHUB_REF_NAME}-macos.dmg"
+            "dist/gigasculpt-$NAME-macos.dmg"
 
       - uses: actions/upload-artifact@v4
         with:
           name: macos
           path: dist/*.dmg
 
+  # The disk image opened and the app copied out of it, as dragging it to Applications does, on
+  # a machine that never built it.
+  macos-check:
+    name: macOS download, opened
+    needs: [version, macos]
+    runs-on: macos-latest
+    timeout-minutes: 20
+    env:
+      NAME: ${{ needs.version.outputs.name }}
+      VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: macos
+          path: download
+
+      - name: Open it, as a person does
+        timeout-minutes: 5
+        run: |
+          disk="$RUNNER_TEMP/disk"
+          hdiutil attach -nobrowse -readonly -mountpoint "$disk" "download/gigasculpt-$NAME-macos.dmg"
+          for file in GigaSculpt.app LICENSE README.txt Applications; do
+            [[ -e $disk/$file ]] || { echo "the disk image has no $file" >&2; exit 1; }
+          done
+          mkdir "$RUNNER_TEMP/Applications"
+          cp -R "$disk/GigaSculpt.app" "$RUNNER_TEMP/Applications/"
+          hdiutil detach "$disk"
+          echo "APP=$RUNNER_TEMP/Applications/GigaSculpt.app" >> "$GITHUB_ENV"
+
+      # Its version, its signature, and each program for both architectures, from macOS 11, with
+      # only the system's libraries.
+      - name: The app
+        timeout-minutes: 5
+        run: |
+          for key in CFBundleShortVersionString CFBundleVersion; do
+            said=$(plutil -extract "$key" raw "$APP/Contents/Info.plist")
+            [[ $said == "$VERSION" ]] || { echo "$key is $said, not $VERSION" >&2; exit 1; }
+          done
+          codesign --verify --deep --strict "$APP"
+          for f in "$APP"/Contents/MacOS/* "$APP"/Contents/Resources/quadwild/quad*; do
+            archs=$(lipo -archs "$f")
+            [[ $archs == *x86_64* && $archs == *arm64* ]] || { echo "$f is for $archs" >&2; exit 1; }
+            others=$(otool -arch all -L "$f" | awk '/^[[:space:]]/ { print $1 }' |
+              grep -Ev '^(/usr/lib/|/System/Library/)' || true)
+            [[ -z $others ]] || { echo "$f needs $others" >&2; exit 1; }
+            minos=$(otool -arch all -l "$f" | awk '$1 == "minos" { print $2 }' | sort -u | tr '\n' ' ')
+            if [[ -n $(otool -arch all -l "$f" | awk '$1 == "minos" { split($2, v, "."); if (v[1] > 11 || (v[1] == 11 && v[2] > 0)) print }') ]]; then
+              echo "$f needs a macOS newer than 11 (${minos% })" >&2
+              exit 1
+            fi
+            echo "$(basename "$f"): $archs, macOS ${minos% }, system libraries only"
+          done
+          if arch -x86_64 /usr/bin/true 2>/dev/null; then
+            for p in gigasculpt gs; do
+              said=$(arch -x86_64 "$APP/Contents/MacOS/$p" --version)
+              [[ $said == "$p $VERSION" ]] || { echo "Intel $p --version says $said" >&2; exit 1; }
+              echo "Intel, through Rosetta: $said"
+            done
+          else
+            echo "no Rosetta on this machine: the Intel half is checked by lipo alone"
+          fi
+
+      - name: Versions, help and Quad Remesh
+        timeout-minutes: 10
+        run: bash .github/release/try-download.sh "$VERSION" "$APP/Contents/MacOS"
+
   addon:
     name: Blender add-on (.zip)
+    needs: version
     runs-on: ubuntu-24.04
+    env:
+      NAME: ${{ needs.version.outputs.name }}
     steps:
       - uses: actions/checkout@v4
 
@@ -138,16 +432,24 @@ jobs:
         run: |
           mkdir -p dist
           cd addons/blender/gigasculpt_bridge
-          zip -r "$GITHUB_WORKSPACE/dist/gigasculpt-blender-addon-${GITHUB_REF_NAME}.zip" . -x '__pycache__/*'
+          zip -r "$GITHUB_WORKSPACE/dist/gigasculpt-blender-addon-$NAME.zip" . -x '__pycache__/*'
+
+      # The zip, unpacked, carries the workspace version in its manifest and its bl_info.
+      - name: Its version
+        run: |
+          unzip -q "dist/gigasculpt-blender-addon-$NAME.zip" -d "$RUNNER_TEMP/addon"
+          python3 -I addons/blender/tests/version_check.py --addon "$RUNNER_TEMP/addon"
 
       - uses: actions/upload-artifact@v4
         with:
           name: addon
           path: dist/*.zip
 
+  # Only for a tag, and only when every download passed its check: a trial stops before this.
   publish:
     name: GitHub Release
-    needs: [linux, windows, macos, addon]
+    if: needs.version.outputs.publish == 'true'
+    needs: [version, linux-check, windows-check, macos-check, addon]
     runs-on: ubuntu-24.04
     permissions:
       contents: write

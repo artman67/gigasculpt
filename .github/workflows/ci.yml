@@ -25,8 +25,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # The Blender add-on's version is the workspace's, which the programs print and a release
+      # tag must name (decision 0064).
+      - name: One version
+        run: python3 -I addons/blender/tests/version_check.py
+
       # SDL3's build from source (X11, Wayland and their friends), the tests' software Vulkan
-      # driver and Xvfb, and Quad Remesh's helper (git, Ninja, bubblewrap).
+      # driver, Xvfb and ImageMagick (whose `import` reads back a shown window), and Quad
+      # Remesh's helper (git, Ninja, bubblewrap).
       - name: System packages
         run: |
           sudo apt-get update
@@ -35,7 +41,7 @@ jobs:
             libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxfixes-dev libxi-dev \
             libxss-dev libxtst-dev libxkbcommon-dev libwayland-dev libdecor-0-dev \
             libegl1-mesa-dev libgl1-mesa-dev libdrm-dev libgbm-dev libdbus-1-dev libudev-dev \
-            mesa-vulkan-drivers libvulkan1 xvfb
+            mesa-vulkan-drivers libvulkan1 xvfb imagemagick
 
       # Sessions keep their sockets in $XDG_RUNTIME_DIR, which must be private.
       - name: Runtime folder
@@ -94,18 +100,18 @@ jobs:
           cargo nextest run --workspace --locked --test '*' --no-fail-fast
           -E 'not test(/(^|::)tier2::/)'
 
-  # Windows and macOS: the build, and the tests that need no graphics card. Allowed to fail
-  # until the Windows and macOS port is finished: a red mark here does not fail the run.
+  # Windows and macOS: the build, and the tests that need no graphics card. A failure here fails
+  # the run, as on Linux: run 38541463817 first passed on all three systems (decision 0063).
   other:
-    name: ${{ matrix.os }} (build, tests without a GPU; allowed to fail until the port lands)
+    name: ${{ matrix.os }} (build, tests without a GPU)
     runs-on: ${{ matrix.os }}
-    continue-on-error: true
     timeout-minutes: 180
     strategy:
       fail-fast: false
       matrix:
-        # windows-latest has CMake and the MSVC compiler; macos-latest (Apple silicon) needs
-        # only CMake, which it has, beside the Xcode tools.
+        # windows-latest has CMake, the MSVC compiler and Visual Studio's clang-cl, which Quad
+        # Remesh's helper is built with; macos-latest (Apple silicon) needs only CMake, which it
+        # has, beside the Xcode tools.
         os: [windows-latest, macos-latest]
     steps:
       - uses: actions/checkout@v4
@@ -122,9 +128,142 @@ jobs:
       - name: Build
         run: cargo build --workspace --locked
 
-      # Quad Remesh's tests (gs-geo's `quad`) need its Linux-only helper.
+      # Quad Remesh's tests (gs-geo's `quad`) run in a step of their own, below; the slow `tier2`
+      # modules (the Blender add-on's among them, in the blender job) are left out, as on Linux.
       - name: Tests that need no graphics card
         run: >
           cargo nextest run --locked --no-fail-fast
           -p gs-par -p gs-core -p gs-geo -p gs-io -p gs-protocol
-          -E "not binary(quad)"
+          -E "not binary(quad) and not test(/(^|::)tier2::/)"
+
+      # Quad Remesh's helper, built as a release builds it (macOS: for both architectures),
+      # once per change to third_party/quadwild.
+      - name: Quad Remesh helper from the cache
+        id: quad-cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/quadwild/program
+          key: quadwild-${{ runner.os }}-${{ hashFiles('third_party/quadwild/**') }}
+
+      - name: Build Quad Remesh's helper
+        if: steps.quad-cache.outputs.cache-hit != 'true'
+        shell: bash
+        env:
+          MACOSX_DEPLOYMENT_TARGET: "11.0"
+        run: |
+          dir="$(cd "$RUNNER_TEMP" && pwd)/quadwild"
+          third_party/quadwild/fetch.sh "$dir"
+          third_party/quadwild/build.sh "$dir" 4
+
+      # A few small remeshes with the helper, unsandboxed here (decision 0038, amended
+      # 2026-10-14).
+      - name: Quad Remesh
+        env:
+          GS_QUADWILD: ${{ runner.temp }}/quadwild/program
+        run: cargo nextest run --locked --no-fail-fast -p gs-geo --test quad
+
+      # Crash recovery's autosave tests, among them that a session still running is not offered
+      # as crashed and a stopped one is: each running session holds a lock, on every system.
+      - name: Crash recovery
+        run: >
+          cargo nextest run --locked --no-fail-fast -p gs-engine --test scene
+          -E "test(autosave::)"
+
+      # The app's icon inside the Windows program (bins/gigasculpt/build.rs).
+      - name: Windows icon
+        if: runner.os == 'Windows'
+        run: cargo nextest run --locked --no-fail-fast -p gigasculpt --test icon
+
+      # The console twin (decision 0063, amended 2026-10-14 (Release-prep)), in a folder as a
+      # download holds it: gigasculpt.exe, which opens no console, and gigasculpt.com, the same
+      # program built for the console. Only this crate is rebuilt without debug assertions, as a
+      # release builds it. Then try-console.ps1 types the commands as a person types them, in
+      # PowerShell and in cmd, as the release workflow does in each Windows download (decision
+      # 0064): each finds the .com, prints there, and keeps the terminal until the program ends.
+      - name: Windows console
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $release = "--config=profile.dev.package.gigasculpt.debug-assertions=false"
+          $dir = New-Item -ItemType Directory -Force "$env:RUNNER_TEMP/console"
+          cargo build --workspace --locked --features gigasculpt/console $release
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          Copy-Item target/debug/gigasculpt.exe "$dir/gigasculpt.com"
+          cargo build --workspace --locked $release
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          Copy-Item target/debug/gigasculpt.exe, target/debug/gs.exe "$dir/"
+          & .github/release/try-console.ps1 $dir
+
+  # The Blender add-on's own client, in a headless Blender, over a session socket on each system
+  # (decision 0063): on Windows it reaches the socket through Winsock. Blender from blender.org,
+  # cached by version.
+  blender:
+    name: Blender add-on on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-latest, macos-latest]
+    env:
+      BLENDER: "5.2.1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Rust toolchain (from rust-toolchain.toml)
+        run: rustup toolchain install
+
+      - uses: Swatinem/rust-cache@v2
+
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest
+
+      # The X11 and OpenGL libraries Blender's Linux build loads, even headless.
+      - name: Blender's libraries
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libxi6 libxxf86vm1 libxfixes3 libxrender1 libsm6 libgl1 libegl1 libxkbcommon0
+
+      - name: Blender from the cache
+        id: blender-cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/blender
+          key: blender-${{ env.BLENDER }}-${{ runner.os }}
+
+      - name: Download Blender
+        if: steps.blender-cache.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          url="https://download.blender.org/release/Blender${BLENDER%.*}/blender-$BLENDER"
+          dir="$(cd "$RUNNER_TEMP" && pwd)/blender"
+          mkdir -p "$dir"
+          case "$RUNNER_OS" in
+            Linux) curl -fsSL "$url-linux-x64.tar.xz" | tar -xJ -C "$dir" --strip-components=1 ;;
+            Windows)
+              curl -fsSLo "$dir/blender.zip" "$url-windows-x64.zip"
+              unzip -q "$dir/blender.zip" -d "$dir"
+              rm "$dir/blender.zip" ;;
+            macOS)
+              curl -fsSLo "$dir/blender.dmg" "$url-macos-arm64.dmg"
+              hdiutil attach -quiet -nobrowse -mountpoint "$dir/disk" "$dir/blender.dmg"
+              cp -R "$dir/disk/Blender.app" "$dir/"
+              hdiutil detach -quiet "$dir/disk"
+              rm "$dir/blender.dmg" ;;
+          esac
+
+      - name: Where Blender is
+        shell: bash
+        run: |
+          case "$RUNNER_OS" in
+            Linux) bin="$RUNNER_TEMP/blender/blender" ;;
+            Windows) bin="$RUNNER_TEMP\\blender\\blender-$BLENDER-windows-x64\\blender.exe" ;;
+            macOS) bin="$RUNNER_TEMP/blender/Blender.app/Contents/MacOS/Blender" ;;
+          esac
+          echo "GS_BLENDER=$bin" >> "$GITHUB_ENV"
+
+      - name: The add-on over this system's socket
+        run: cargo nextest run --locked --no-fail-fast -p gs-protocol --test bridge

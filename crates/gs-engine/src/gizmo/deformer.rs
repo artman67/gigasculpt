@@ -540,7 +540,8 @@ impl Engine {
 
     /// Accepts the open deformer, if there is one: puts its part back and runs the
     /// `transform.apply` calls it is, as its client, so it is one undo step and one log line
-    /// (a `cmd.batch` of them for several) that replay it.
+    /// (a `cmd.batch` of them for several) that replay it. A refusal is kept whole for the
+    /// window to say, as a gizmo drag's is.
     pub(crate) fn accept_deformer(&mut self) {
         let Some(mut d) = self.state.gizmos.deformer.take() else {
             return;
@@ -565,7 +566,7 @@ impl Engine {
             dry_run: false,
         };
         if let Outcome::Error(e) = self.run_now(&d.origin, &call).outcome {
-            self.state.sculpt.problem = Some(e.message);
+            self.state.sculpt.refused = Some(e);
         }
     }
 

@@ -24,7 +24,7 @@ mod pose;
 mod press;
 
 use gs_core::camera::Camera;
-use gs_core::gizmo::{HandleId, Handles, MOVE_SNAP, Pose, Style, handles, pick};
+use gs_core::gizmo::{Drive, HandleId, Handles, MOVE_SNAP, Pose, Style, Unit, handles, pick};
 use gs_engine::{BrushState, GizmoSettings, UiGizmo};
 use gs_protocol::{PenSample, Step};
 use serde::{Deserialize, Serialize};
@@ -210,7 +210,8 @@ impl Tool {
 
     /// What the held keys work on while the tool is on: the handle in use, with `pen` (in
     /// window pixels) hovering where the brush shows over the 3D view `rect` (in points) as
-    /// `camera` sees it, drawn with `prefs` at `ppp` pixels per point.
+    /// `camera` sees it, drawn with `prefs` at `ppp` pixels per point. The open deformer's
+    /// handles come first, as a press grabs them first (`press_at`).
     pub fn in_use(
         &self,
         prefs: GizmoPrefs,
@@ -225,23 +226,32 @@ impl Tool {
         let corner = rect.min * ppp;
         let hover =
             (pen.filter(|p| !p.contact)).map(|p| [p.x as f32 - corner.x, p.y as f32 - corner.y]);
-        let size = rect.size() * ppp;
-        let handle = self.drawn().and_then(|(_, pose)| {
-            let drawn = handles(&pose, camera, [size.x, size.y], &style);
+        let size = [rect.width() * ppp, rect.height() * ppp];
+        let deformer = self.deforming.as_ref().and_then(|d| {
+            let shown = d.shown(camera, size, &style);
+            Some(self.hot_deformer(&shown, &style, hover)?.drive)
+        });
+        let handle = self.drawn().filter(|_| deformer.is_none());
+        let handle = handle.and_then(|(_, pose)| {
+            let drawn = handles(&pose, camera, size, &style);
             self.hot(&drawn, &style, hover)
         });
         Some(InUse {
             handle,
+            deformer,
             steps: prefs.snap,
         })
     }
 }
 
 /// What the held keys do to a gizmo drag (decision 0027, sections 8 and 14), by the handle in
-/// use: the one the pen holds, or else the one a press where it hovers would grab.
+/// use: the one the pen holds, or else the one a press where it hovers would grab, the open
+/// deformer's before the gizmo's own.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct InUse {
     pub handle: Option<HandleId>,
+    /// The open deformer's handle in use, by what it drags.
+    pub deformer: Option<Drive>,
     /// Shift snaps a turn to this many steps of a full turn (the gizmo's Snap).
     pub steps: u32,
 }
@@ -251,6 +261,7 @@ impl Default for InUse {
     fn default() -> Self {
         Self {
             handle: None,
+            deformer: None,
             steps: GizmoPrefs::default().snap,
         }
     }
@@ -259,8 +270,12 @@ impl Default for InUse {
 impl InUse {
     /// What `m` (some key held) does to the drag: Alt moves the gizmo only and wins over Ctrl;
     /// Ctrl copies, but a scale box ignores it; Shift snaps a move to [`MOVE_SNAP`] and a turn
-    /// to the steps, and a scale not at all. With no handle in use, Shift snaps both.
+    /// to the steps, and a scale not at all. With no handle in use, Shift snaps both. On a
+    /// deformer's handle, see [`InUse::on_deformer`].
     pub fn says(self, m: egui::Modifiers) -> String {
+        if let Some(drive) = self.deformer {
+            return self.on_deformer(drive, m);
+        }
         let kind = self.handle.map(HandleId::kind);
         let first = match (m.alt, m.ctrl) {
             (true, _) => Some("Gizmo only"),
@@ -278,6 +293,32 @@ impl InUse {
             (Some(first), None) => first.to_string(),
             (None, Some(snap)) => snap,
             (None, None) => "No copy on a box".to_string(),
+        }
+    }
+
+    /// What `m` does to a drag of the deformer's handle that drives `drive`, as its press and
+    /// drag take the keys (`deforming.rs`): Shift snaps an angle to the steps, a length or a
+    /// move to [`MOVE_SNAP`], a factor not at all; on a dot Shift also adds it to the selection
+    /// or takes it out, and Ctrl takes it out with no drag. Alt, and Ctrl on a cone or a ring,
+    /// do nothing there.
+    fn on_deformer(self, drive: Drive, m: egui::Modifiers) -> String {
+        let dot = matches!(drive, Drive::Cage { .. } | Drive::Curve { .. });
+        if dot && m.ctrl {
+            return "Take the dot out of the selection".to_string();
+        }
+        let snap = match drive {
+            Drive::Number {
+                unit: Unit::Angle, ..
+            } => format!("Snap turns to {}°", turn_step(self.steps)),
+            Drive::Number {
+                unit: Unit::Factor, ..
+            } => "Does not snap".to_string(),
+            _ => format!("Snap moves to {MOVE_SNAP}"),
+        };
+        match (m.shift, dot) {
+            (true, true) => format!("Add or take out the dot, {}", snap.to_lowercase()),
+            (true, false) => snap,
+            (false, _) => "Does nothing to this handle".to_string(),
         }
     }
 }

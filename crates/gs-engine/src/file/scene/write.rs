@@ -106,7 +106,9 @@ pub(super) fn write(
             3 => "frozen detail levels",
             _ => "detail levels",
         };
+        // Naming `upgrade`, so the window asks, offering Save as beside it (review 0009, B3).
         return Err(CommandError {
+            path: Some("/upgrade".into()),
             hint: Some("pass upgrade: true to replace it, or save to another path".into()),
             ..error(
                 ErrorCode::Precondition,

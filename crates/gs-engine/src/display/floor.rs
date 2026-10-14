@@ -274,7 +274,11 @@ impl Command for ViewFloorSave {
         let path = std::path::Path::new(&self.path);
         if path.exists() && !self.overwrite {
             let message = format!("{} exists; pass overwrite to replace it", self.path);
-            return Err(error(ErrorCode::Precondition, message));
+            // Naming `overwrite`, so the window asks to replace it, as Save does.
+            return Err(CommandError {
+                path: Some("/overwrite".into()),
+                ..error(ErrorCode::Precondition, message)
+            });
         }
         let body =
             toml::to_string(&preset).map_err(|e| error(ErrorCode::Internal, e.to_string()))?;

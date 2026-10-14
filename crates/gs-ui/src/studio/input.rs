@@ -12,6 +12,9 @@ use crate::glue::PenRouter;
 pub(super) struct InputState {
     /// Input for the next frame.
     pub(super) pending: Vec<egui::Event>,
+    /// The system clipboard's text, read for a paste key in the next input
+    /// (`Studio::clipboard`).
+    pub(super) clipboard: Option<String>,
     /// Turns pen samples into egui pointer events.
     pub(super) router: PenRouter,
     /// The modifiers held now.

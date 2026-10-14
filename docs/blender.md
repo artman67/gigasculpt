@@ -7,8 +7,7 @@ UV, rig or render in Blender, or to bring a Blender mesh in for sculpting.
 
 It needs Blender 5.2 or later.
 
-**Where it works:** on Linux, and on macOS with the new macOS build. It does not work on Windows
-yet: the add-on talks to GigaSculpt over a local socket that Python on Windows cannot open.
+**Where it works:** on Linux, Windows (10 version 1803 or later) and macOS.
 
 ## Installing it
 

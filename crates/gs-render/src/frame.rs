@@ -44,12 +44,16 @@ pub struct Scene<'a> {
 /// The textures one frame is drawn into (decision 0019): reversed depth, the surface target,
 /// the part flags and the paint from the geometry pass, raw and filtered occlusion, two
 /// histories for the accumulated mean, the sRGB color texture the display pass writes (also
-/// readable through a non-sRGB view, for the interface), and live subsurface's diffuse
-/// irradiance, made the first time it runs. It remembers what its last frame showed, so while
-/// nothing changes each frame adds a jittered sample, up to `size.samples`.
+/// readable through a non-sRGB view, for the interface), the last sample's picture, and live
+/// subsurface's diffuse irradiance, made the first time it runs. It remembers what its last
+/// frame showed, so while nothing changes each frame adds a jittered sample, up to
+/// `size.samples`, and then shows that picture again.
 pub struct FrameTarget {
     size: RenderSize,
     pub(crate) color: wgpu::Texture,
+    /// The last sample's color, before ghosts and the interface: a settled frame copies it
+    /// back, so it repeats that frame byte for byte (decision 0019, amended).
+    shown: wgpu::Texture,
     pub(crate) depth: wgpu::TextureView,
     pub(crate) surface: wgpu::TextureView,
     /// Each pixel's part flags (decision 0033): 0 where nothing is drawn.
@@ -149,12 +153,12 @@ impl Renderer {
         };
         // Occlusion is worked out once per `scale` by `scale` frame pixels.
         let scale = self.quality.2;
-        let color_usage = T::RENDER_ATTACHMENT
-            .union(T::COPY_SRC)
-            .union(T::TEXTURE_BINDING);
+        let copies = T::COPY_SRC.union(T::COPY_DST);
+        let color_usage = (T::RENDER_ATTACHMENT.union(T::TEXTURE_BINDING)).union(copies);
         Ok(FrameTarget {
             size,
             color: texture("frame", COLOR_FORMAT, color_usage, &[UI_FORMAT], 1),
+            shown: texture("frame shown", COLOR_FORMAT, copies, &[], 1),
             depth: view("frame depth", DEPTH_FORMAT, 1),
             surface: view("frame surface", SURFACE_FORMAT, 1),
             parts: view("frame parts", PARTS_FORMAT, 1),
@@ -180,7 +184,7 @@ impl Renderer {
 
     /// Encodes the next frame of `scene` into `target`: the next jittered sample averaged into
     /// the last frames while the scene is unchanged, a fresh unjittered one after any change,
-    /// or, once every sample is in, only the display from the history.
+    /// or, once every sample is in, the last sample's picture again.
     pub(crate) fn draw_scene(
         &self,
         encoder: &mut wgpu::CommandEncoder,
@@ -237,46 +241,66 @@ impl Renderer {
                 contents: bytemuck::bytes_of(&uniforms),
                 usage: wgpu::BufferUsages::UNIFORM,
             });
-        if step != Step::Hold {
-            // A frame that pulls any part's vertices culls nothing: on lavapipe a vertex-pulled
-            // draw recorded after a culled one (its count written by the GPU) draws short.
-            let pulls = drawn.iter().any(|&(path, _)| path == Path::Pulled);
-            let culled: Vec<_> = (meshes.iter().zip(&drawn))
-                .map(|(mesh, &(path, _))| mesh.culls(path).filter(|_| !pulls))
-                .collect();
-            let view_proj = mul4(&uniforms.proj, &uniforms.view);
-            // Culling goes first: a compute pass cannot run inside the render pass.
-            for (mesh, buffers) in meshes.iter().zip(&culled) {
-                if let Some(buffers) = buffers {
-                    let (camera, view_proj) = mesh.part_view(&scene.view.camera, &view_proj);
-                    let camera = (&camera, &view_proj);
-                    self.encode_cull(encoder, mesh, buffers, camera, probe.timing);
-                }
+        if let Some(write) = write {
+            let frame = (target, scene, viewport, paint);
+            let parts = (&meshes[..], &drawn[..], &groups[..]);
+            self.sample_passes(encoder, frame, parts, (&uniforms, &buffer), probe);
+            let paint = if paint {
+                &target.paint
+            } else {
+                &self.blank.diffuse
+            };
+            let frame = (target, &scene.view, lit.as_ref(), paint);
+            let group = self.lit_passes(encoder, frame, (viewport, read), &buffer, probe.timing);
+            self.display_pass(encoder, target, write, &group, probe.timing);
+            // The last sample keeps its picture for the settled frames after it.
+            if step == Step::Sample(target.size.samples - 1) {
+                copy_texture(encoder, &target.color, &target.shown);
             }
-            let drawn = (&meshes[..], &drawn[..], &culled[..]);
-            let into = (target, scene.viewport, paint);
-            self.geometry_pass(encoder, into, drawn, &buffer, probe);
-            self.peel_passes(encoder, (target, viewport), &groups, &buffer, probe.timing);
-            if uniforms.occludes() {
-                self.occlusion_passes(encoder, (target, viewport), &buffer, probe.timing);
-            }
-        }
-        let paint = if paint {
-            &target.paint
         } else {
-            &self.blank.diffuse
-        };
-        let (frame, at) = (
-            (target, &scene.view, lit.as_ref(), paint),
-            (viewport, step, read),
-        );
-        let group = self.lit_passes(encoder, frame, at, &buffer, probe.timing);
-        self.display_pass(encoder, target, (read, write), &group, probe.timing);
+            // Settled: the last sample's picture again, copied, not drawn again. Shown by another
+            // shader it could differ by a level here and there on some drivers (decision 0019).
+            copy_texture(encoder, &target.shown, &target.color);
+        }
         let ghosted = (target, viewport);
         self.ghost_pass(encoder, ghosted, &ghosts, &buffer, scene.view.outline);
         // Overlays drawn as geometry (the pivot dot, the gizmo) go here, after the display
         // and before the interface, depth-tested against the reversed depth (decision 0019).
         Ok(())
+    }
+
+    /// A new sample's passes before the display: cull, the geometry pass, Live Boolean's peel
+    /// and ambient occlusion.
+    fn sample_passes(
+        &self,
+        encoder: &mut wgpu::CommandEncoder,
+        (target, scene, viewport, paint): (&FrameTarget, &Scene, [u32; 4], bool),
+        (meshes, drawn, groups): (&[&GpuMesh], &[Drawn], &[crate::peel::Group]),
+        (uniforms, buffer): (&FrameUniforms, &wgpu::Buffer),
+        probe: Probe,
+    ) {
+        // A frame that pulls any part's vertices culls nothing: on lavapipe a vertex-pulled
+        // draw recorded after a culled one (its count written by the GPU) draws short.
+        let pulls = drawn.iter().any(|&(path, _)| path == Path::Pulled);
+        let culled: Vec<_> = (meshes.iter().zip(drawn))
+            .map(|(mesh, &(path, _))| mesh.culls(path).filter(|_| !pulls))
+            .collect();
+        let view_proj = mul4(&uniforms.proj, &uniforms.view);
+        // Culling goes first: a compute pass cannot run inside the render pass.
+        for (mesh, buffers) in meshes.iter().zip(&culled) {
+            if let Some(buffers) = buffers {
+                let (camera, view_proj) = mesh.part_view(&scene.view.camera, &view_proj);
+                let camera = (&camera, &view_proj);
+                self.encode_cull(encoder, mesh, buffers, camera, probe.timing);
+            }
+        }
+        let drawn = (meshes, drawn, &culled[..]);
+        let into = (target, scene.viewport, paint);
+        self.geometry_pass(encoder, into, drawn, buffer, probe);
+        self.peel_passes(encoder, (target, viewport), groups, buffer, probe.timing);
+        if uniforms.occludes() {
+            self.occlusion_passes(encoder, (target, viewport), buffer, probe.timing);
+        }
     }
 
     /// The geometry pass: every part once, at its place, into reversed depth, the surface
@@ -394,12 +418,12 @@ impl Renderer {
     }
 
     /// The display pass's bindings, after live subsurface's diffuse pass when the frame's look
-    /// scatters (a new sample only).
+    /// scatters.
     fn lit_passes(
         &self,
         encoder: &mut wgpu::CommandEncoder,
         frame: (&FrameTarget, &View, Option<&LitFrame>, &wgpu::TextureView),
-        (viewport, step, read): ([u32; 4], Step, usize),
+        (viewport, read): ([u32; 4], usize),
         uniforms: &wgpu::Buffer,
         timing: Option<&Timing>,
     ) -> wgpu::BindGroup {
@@ -412,7 +436,7 @@ impl Renderer {
         });
         let buffers = (uniforms, &lit_buffer);
         let blank = &self.lit.blank_diffuse;
-        if step == Step::Hold || !lit.is_some_and(LitFrame::scatters) {
+        if !lit.is_some_and(LitFrame::scatters) {
             return self.display_group(frame, read, buffers, blank);
         }
         let size = [target.size.width, target.size.height];
@@ -474,26 +498,21 @@ impl Renderer {
 
     /// Lighting and display: each pixel's light from the surface target, the occlusion and the
     /// view's shading, shown over the background with the grid, averaged into the history (read
-    /// from history `read`, written to `write`), sRGB with dither; or, for a settled frame (no
-    /// `write`), history `read` as it is. `group` holds history `read`.
+    /// from the history `group` holds, written to history `write`), sRGB with dither.
     fn display_pass(
         &self,
         encoder: &mut wgpu::CommandEncoder,
         target: &FrameTarget,
-        (_, write): (usize, Option<usize>),
+        write: usize,
         group: &wgpu::BindGroup,
         timing: Option<&Timing>,
     ) {
         let color = target.view(UI_FORMAT);
         let timestamps = timing.and_then(|t| t.render("display"));
         let label = ("display", wgpu::Color::BLACK);
-        let (targets, pipeline) = if let Some(write) = write {
-            (vec![&color, &target.history[write]], &self.passes.display)
-        } else {
-            (vec![&color], &self.passes.show)
-        };
+        let targets = [&color, &target.history[write]];
         let mut pass = begin(encoder, label, &targets, timestamps);
-        pass.set_pipeline(pipeline);
+        pass.set_pipeline(&self.passes.display);
         pass.set_bind_group(0, group, &[]);
         pass.draw(0..3, 0..1);
     }
@@ -684,6 +703,11 @@ impl Renderer {
             .map_err(|e| RenderError::Readback(e.to_string()))?;
         Ok(mapped.to_vec())
     }
+}
+
+/// Copies the whole of texture `from` into `to`, of the same size and format.
+fn copy_texture(encoder: &mut wgpu::CommandEncoder, from: &wgpu::Texture, to: &wgpu::Texture) {
+    encoder.copy_texture_to_texture(from.as_image_copy(), to.as_image_copy(), from.size());
 }
 
 /// Limits a full-screen pass to the scene's viewport; the rest keeps its clear value.

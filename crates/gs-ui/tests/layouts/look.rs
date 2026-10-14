@@ -75,6 +75,78 @@ fn one_look_command_sets_the_matcap_and_edges_of_every_view() {
     assert_eq!(looks(&mut ui), want, "each picked for its own view");
 }
 
+/// The words beside the Look on the reference's bar.
+fn reference_look_words(ui: &mut Ui) -> String {
+    let labels = ui.labels("reference");
+    let look = labels.iter().position(|l| l == "Look");
+    let after = look.and_then(|i| labels.get(i + 1));
+    after
+        .cloned()
+        .unwrap_or_else(|| panic!("no Look in {labels:?}"))
+}
+
+#[test]
+fn the_look_on_the_reference_bar_says_which_look_is_on() {
+    let mut ui = Ui::with_looks();
+    ui.ok("primitive.sphere", json!({}));
+    ui.ok("view.look", json!({ "matcap": "gray" }));
+    ui.ok("reference.open", json!({ "scene": true }));
+    ui.settle();
+    // Following the view, the reference draws with the view's look, and its Look says so.
+    assert_eq!(reference_look_words(&mut ui), "MatCap Gray");
+    // The layout's docked reference wraps its bar, and Look and its title wrap together.
+    let (look, words) = (
+        ui.rect("reference > Look"),
+        ui.rect("reference > MatCap Gray"),
+    );
+    assert!(
+        words[1] >= look[1] && words[3] <= look[3],
+        "{look:?} {words:?}"
+    );
+    tap_on(&mut ui, "reference", "Look");
+    tap_on(&mut ui, "reference", "MatCap White");
+    ui.settle();
+    assert_eq!(reference_look_words(&mut ui), "MatCap White");
+}
+
+/// Whether the row `label` of the reference's Look menu, open, is lit.
+fn lit_row(ui: &mut Ui, label: &str) -> bool {
+    let widgets = ui.widgets("reference");
+    let row = (widgets.iter()).find(|w| w["label"] == label && w["role"] == "button");
+    row.unwrap_or_else(|| panic!("no {label} row in {widgets:?}"))["selected"] == json!(true)
+}
+
+/// The Look menu on the reference's bar lights the row in use (decision 0025, section 4,
+/// amended 2026-10-14, UI-last): "Same as the view" while the reference follows the view's
+/// look, its own look once one is picked. `reference.matcap` says which, as `view.look` takes
+/// it, and `reference.look` still names the look it draws with.
+#[test]
+fn the_reference_look_menu_lights_same_as_the_view_while_it_follows() {
+    let mut ui = Ui::with_looks();
+    ui.ok("primitive.sphere", json!({}));
+    ui.ok("view.look", json!({ "matcap": "gray" }));
+    ui.ok("reference.open", json!({ "scene": true }));
+    ui.settle();
+    tap_on(&mut ui, "reference", "Look");
+    assert!(lit_row(&mut ui, "Same as the view"), "it follows the view");
+    assert!(!lit_row(&mut ui, "MatCap Gray"), "gray is the view's");
+    let s = ui.state();
+    assert_eq!(
+        [&s["reference.matcap"], &s["reference.look"]],
+        [&json!("main"), &json!("gray")]
+    );
+    tap_on(&mut ui, "reference", "MatCap White");
+    ui.settle();
+    tap_on(&mut ui, "reference", "Look");
+    assert!(lit_row(&mut ui, "MatCap White"), "its own");
+    assert!(!lit_row(&mut ui, "Same as the view"));
+    let s = ui.state();
+    assert_eq!(
+        [&s["reference.matcap"], &s["reference.look"]],
+        [&json!("white"), &json!("white")]
+    );
+}
+
 /// The active material's values, as `material.list` reports them.
 fn active_values(ui: &mut Ui) -> Value {
     let list = ui.ok("material.list", json!({}));
@@ -265,12 +337,6 @@ fn the_shading_modes_and_the_view_transforms_are_a_row_each_lit_on_the_one_in_us
     );
 }
 
-/// Whether the Look options show `label` anywhere down their length.
-fn found(ui: &mut Ui, label: &str) -> bool {
-    ui.scroll_to("look", label);
-    crate::gizmo_deformer::shows(ui, "look", label)
-}
-
 #[test]
 fn a_look_row_shows_only_while_it_applies() {
     const LIT: [&str; 3] = ["Subsurface strength", "Studio", "Key light"];
@@ -278,15 +344,15 @@ fn a_look_row_shows_only_while_it_applies() {
     ui.ok("primitive.sphere", json!({}));
     ui.open_look();
     assert_eq!(ui.state()["view.shading"], json!("matcap"));
-    assert!(found(&mut ui, "Flip MatCap"), "MatCap mode's flip");
+    assert!(ui.shows("look", "Flip MatCap"), "MatCap mode's flip");
     for waits in LIT {
-        assert!(!found(&mut ui, waits), "{waits} waits for the light");
+        assert!(!ui.shows("look", waits), "{waits} waits for the light");
     }
     ui.scroll_to("look", "Lit");
     ui.press("look > Lit");
-    assert!(!found(&mut ui, "Flip MatCap"), "no MatCap, no flip");
+    assert!(!ui.shows("look", "Flip MatCap"), "no MatCap, no flip");
     for shows in LIT {
-        assert!(found(&mut ui, shows), "{shows} in Lit mode");
+        assert!(ui.shows("look", shows), "{shows} in Lit mode");
     }
 
     // The mask's switch keeps its key; its opacity shows while the mask does.
@@ -298,19 +364,22 @@ fn a_look_row_shows_only_while_it_applies() {
     assert_eq!(mask.map(|w| w["key"].clone()), Some(json!("Ctrl+H")));
     ui.press("look > Mask");
     assert_eq!(ui.state()["view.mask"], json!(false));
-    assert!(!found(&mut ui, "Mask opacity"), "no mask, no opacity");
+    assert!(!ui.shows("look", "Mask opacity"), "no mask, no opacity");
     ui.press("look > Mask");
-    assert!(found(&mut ui, "Mask opacity"), "back with the mask");
+    assert!(ui.shows("look", "Mask opacity"), "back with the mask");
 
     // Occlusion's radius waits for some strength, the gradient's center for some gradient.
     ui.ok("view.display", json!({ "occlusion_strength": 0.0 }));
     ui.settle();
-    assert!(!found(&mut ui, "Occlusion radius") && !found(&mut ui, "Auto"));
+    assert!(!ui.shows("look", "Occlusion radius") && !ui.shows("look", "Auto"));
     ui.ok("view.display", json!({ "occlusion_strength": 0.5 }));
     ui.settle();
-    assert!(found(&mut ui, "Occlusion radius") && found(&mut ui, "Auto"));
-    assert!(!found(&mut ui, "Gradient center"), "no gradient, no center");
+    assert!(ui.shows("look", "Occlusion radius") && ui.shows("look", "Auto"));
+    assert!(
+        !ui.shows("look", "Gradient center"),
+        "no gradient, no center"
+    );
     ui.ok("view.background", json!({ "gradient": 0.5 }));
     ui.settle();
-    assert!(found(&mut ui, "Gradient center"), "a gradient's center");
+    assert!(ui.shows("look", "Gradient center"), "a gradient's center");
 }

@@ -38,6 +38,10 @@ pub struct UiPalette {
     /// not both.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub ask: Vec<String>,
+    /// True to quit: the window closes as its close button closes it, asking first in the
+    /// palette while there are unsaved changes (File > Quit, Ctrl+Q).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub quit: bool,
 }
 
 impl Command for UiPalette {
@@ -55,6 +59,7 @@ impl Command for UiPalette {
             form: None,
             args: Map::new(),
             ask: Vec::new(),
+            quit: false,
         };
         vec![
             Example::new("search for sphere (needs the window)", open)

@@ -16,8 +16,10 @@
 //! line. A save records how many lines the current run holds, so recovery knows which lines
 //! came after it.
 //!
-//! While a run is written, its file is locked (an advisory lock), so pruning the standard log
-//! folder (`standard`) can tell a live log from a closed one.
+//! While a run is written, the session holds a lock on the file beside it, `<log>.lock`, so
+//! pruning the standard log folder (`standard`) can tell a live log from a closed one. Beside
+//! it, not on it: locks on Windows are mandatory, so a lock on the log would stop every other
+//! reader there, a recovery or `gs run` replaying it (decision 0063).
 
 mod standard;
 mod tail;
@@ -27,7 +29,7 @@ pub use standard::StandardLog;
 use std::collections::{BTreeSet, VecDeque};
 use std::fs::{self, File};
 use std::io::{self, Write};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use gs_protocol::{LogHeader, LogRecord, Role, free_path};
@@ -42,6 +44,8 @@ pub(crate) const RECORDER_BYTES: usize = 64 << 20;
 /// Where the log goes, and its last lines.
 pub(crate) struct CommandLog {
     file: Option<File>,
+    /// The lock beside the file while a run is written.
+    lock: Option<Beside>,
     recent: VecDeque<LogLine>,
     /// The bytes of the records in `recent`.
     recent_bytes: usize,
@@ -91,6 +95,7 @@ impl CommandLog {
     pub fn start(path: Option<&Path>, header: &LogHeader) -> io::Result<Self> {
         let mut log = Self {
             file: None,
+            lock: None,
             recent: VecDeque::new(),
             recent_bytes: 0,
             run: 0,
@@ -107,17 +112,16 @@ impl CommandLog {
         self.run += 1;
         self.records = 0;
         self.carried.clear();
-        self.file = None;
+        (self.file, self.lock) = (None, None);
         let Some(path) = path else {
             return Ok(());
         };
         if path.exists() {
             fs::rename(path, free_path(path))?;
         }
-        let file = File::create(path)?;
+        self.file = Some(File::create(path)?);
         // Held until the run ends; a file system without locks only makes pruning keep it.
-        file.try_lock().ok();
-        self.file = Some(file);
+        self.lock = Beside::hold(path);
         let text = serde_json::to_string(header).unwrap_or_default();
         match self.write(&text) {
             Some(warning) => Err(io::Error::other(warning)),
@@ -169,5 +173,50 @@ impl CommandLog {
         file.write_all(line.as_bytes())
             .err()
             .map(|e| format!("could not write the command log: {e}"))
+    }
+}
+
+/// The lock held beside a log while a run is written, its file removed when it is let go of.
+struct Beside {
+    path: PathBuf,
+    _held: File,
+}
+
+impl Beside {
+    fn hold(log: &Path) -> Option<Self> {
+        let path = lock_of(log);
+        take_lock(&path).map(|held| Self { path, _held: held })
+    }
+}
+
+impl Drop for Beside {
+    /// Removes the file while it still holds the lock, so it never removes another's.
+    fn drop(&mut self) {
+        fs::remove_file(&self.path).ok();
+    }
+}
+
+/// The lock file beside log `log`: `<log>.lock`.
+pub(crate) fn lock_of(log: &Path) -> PathBuf {
+    let mut name = log.as_os_str().to_owned();
+    name.push(".lock");
+    PathBuf::from(name)
+}
+
+/// Takes the lock on file `lock`, made if missing, for as long as the handle it gives lives;
+/// `None` when another holds it or it cannot be made. The engine's locks are on files of their
+/// own like this, beside what they guard: locks on Windows are mandatory, so a lock on a file
+/// others read would stop them there.
+pub(crate) fn take_lock(lock: &Path) -> Option<File> {
+    let file = File::create(lock).ok()?;
+    file.try_lock().ok()?;
+    Some(file)
+}
+
+/// True while someone holds the lock on file `lock`; false when nobody does, or there is none.
+pub(crate) fn lock_held(lock: &Path) -> bool {
+    match File::open(lock) {
+        Ok(file) => file.try_lock().is_err(),
+        Err(e) => e.kind() != io::ErrorKind::NotFound,
     }
 }

@@ -129,18 +129,18 @@ impl Tool {
 
     /// The deformer handle in use: the one the pen holds, or else the one a press at `hover`
     /// (the view's pixels) would grab among `shown`.
-    pub(super) fn hot_deformer(
-        &self,
-        shown: &DeformerHandles,
+    pub(super) fn hot_deformer<'a>(
+        &'a self,
+        shown: &'a DeformerHandles,
         style: &Style,
         hover: Option<[f32; 2]>,
-    ) -> Option<String> {
+    ) -> Option<&'a DeformerHandle> {
         if let PenPress::Hold(h) = &self.press {
-            return Some(h.handle.name());
+            return Some(&h.handle);
         }
         let radius = style.pick_pt * style.px_per_pt;
         let i = pick_deformer(&shown.handles, hover?, radius)?;
-        Some(shown.handles[i].name())
+        Some(&shown.handles[i])
     }
 
     /// A press at `at` (the view's pixels) on the open deformer's handles: it holds the one it

@@ -116,17 +116,30 @@ impl Command for CurveLoad {
     type Output = CurveFile;
 
     fn examples() -> Vec<Example<Self>> {
-        vec![
-            Example::raw(
+        // Each is refused here: what it shows, the path it is given and the refusal.
+        let refused = [
+            (
                 "load a saved curve (refused: no such file)",
-                json!({ "path": "/nonexistent/soft.toml" }),
-            )
-            .fails_with(ErrorCode::NotFound),
-        ]
+                "/nonexistent/soft.toml",
+                ErrorCode::NotFound,
+            ),
+            (
+                "a folder is refused: it asks for a file",
+                "/",
+                ErrorCode::Precondition,
+            ),
+        ];
+        (refused.into_iter())
+            .map(|(shows, path, code)| {
+                Example::raw(shows, json!({ "path": path })).fails_with(code)
+            })
+            .collect()
     }
 
     fn run(self, _: &mut Ctx) -> Result<CurveFile, CommandError> {
         let path = &self.path;
+        // A folder asks for a file name, as Load brush… does, not the system's "Is a directory".
+        crate::file::not_a_folder(std::path::Path::new(path))?;
         let text =
             std::fs::read_to_string(path).map_err(|e| at_path(crate::file::io_error(path, &e)))?;
         toml::from_str(&text)

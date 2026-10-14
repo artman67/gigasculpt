@@ -130,9 +130,11 @@ fn the_palette_opens_in_the_window_and_is_not_logged() {
         .by(Role::Agent)
         .query("ui.palette", json!({ "query": "undo" }));
     assert_eq!(info["open"], json!(true));
-    let first = [&info["matches"][0], &info["matches"][1]];
+    // The rows lead with the controls, by their labels (review 0009, C12): History's Undo.
+    let runs = |i: usize| info["rows"][i]["command"]["command"].clone();
+    let first = [runs(0), runs(1)];
     assert!(
-        first.contains(&&json!("history.undo")),
+        first.contains(&json!("history.undo")),
         "history.undo is among the best matches (view.undo matches as well): {first:?}"
     );
     assert!(host.lock().shell.palette.open);

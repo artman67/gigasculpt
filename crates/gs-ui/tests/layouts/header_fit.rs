@@ -236,11 +236,12 @@ fn reference_bar(ui: &mut Ui) -> Vec<(String, [f64; 4])> {
 
 /// Item 5: beside a docked Reference View at 1280 by 800 points the header takes at most two
 /// rows, and so does the Reference View's bar, which keeps every control in its order and never
-/// scrolls; at 1920 by 1080 its bar is one row. Each size is a session of its own, opened in a
-/// window that size, as a docked Reference View keeps the width it first took.
+/// scrolls. At 1920 by 1080 its bar was one row until UI-keys put Look's words after it, which
+/// the layout's 560 points do not hold: two rows there too. Each size is a session of its own,
+/// opened in a window that size, as a docked Reference View keeps the width it first took.
 #[test]
 fn beside_a_docked_reference_view_both_bars_fit_and_the_reference_bar_never_folds() {
-    for (size, most) in [([1280, 800], 2), ([1920, 1080], 1)] {
+    for (size, most) in [([1280, 800], 2), ([1920, 1080], 2)] {
         let mut ui = Ui::new();
         sized(&mut ui, size);
         ui.ok("primitive.sphere", json!({}));

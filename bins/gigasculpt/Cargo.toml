@@ -7,9 +7,18 @@ license.workspace = true
 rust-version.workspace = true
 publish.workspace = true
 
+[features]
+# Windows' console twin, gigasculpt.com (decision 0063, amended 2026-10-14 (Release-prep)): the
+# same program built for the console, so a terminal that types `gigasculpt` gets its output and
+# waits. Changes nothing on other systems.
+console = []
+
 [dependencies]
 gs-engine.workspace = true
 gs-ui.workspace = true
+
+[build-dependencies]
+winresource = { version = "0.1", default-features = false }
 
 [dev-dependencies]
 gs-protocol.workspace = true

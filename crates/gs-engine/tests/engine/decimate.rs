@@ -308,7 +308,7 @@ fn a_symmetric_part_stays_exactly_symmetric_and_holds_its_map() {
 }
 
 #[test]
-fn levels_a_lopsided_part_and_a_missing_or_too_high_target_are_refused() {
+fn levels_a_lopsided_part_and_a_too_high_target_are_refused_and_no_target_is_half() {
     let mut s = sphere(4);
     s.ok("level.subdivide", json!({}));
     let err = s.err("mesh.decimate", json!({ "percent": 50 }));
@@ -323,8 +323,9 @@ fn levels_a_lopsided_part_and_a_missing_or_too_high_target_are_refused() {
     s.ok("mesh.decimate", json!({ "percent": 50 }));
     s.ok("level.unfreeze", json!({}));
     let mut s = sphere(4);
-    let err = s.err("mesh.decimate", json!({}));
-    assert_eq!(code(err.code), "E_ARGS_INVALID", "no target");
+    let half = s.query("mesh.decimate", json!({}));
+    assert_eq!(half["target"], json!(48), "no target is half: {half}");
+    let mut s = sphere(4);
     let err = s.err("mesh.decimate", json!({ "faces": 96 }));
     assert_eq!(code(err.code), "E_PRECONDITION", "not fewer faces");
     s.ok("mesh.jitter", json!({ "amount": "2%", "seed": 3 }));

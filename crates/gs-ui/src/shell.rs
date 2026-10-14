@@ -11,7 +11,7 @@
 use gs_core::brush::BrushPreset;
 use gs_core::curve::Curve;
 use gs_engine::{MainView, Materials, PaletteEntry, PanelInfo, SessionState};
-use gs_protocol::{Catalog, CommandError, PenSample, Step};
+use gs_protocol::{Catalog, PenSample, Step};
 use gs_render::{Camera, Preset};
 use serde_json::{Value, json};
 
@@ -41,7 +41,10 @@ use regions::REGIONS;
 
 mod answers;
 mod early;
+pub(crate) mod escape;
+mod files;
 mod prefs;
+pub(crate) mod refusals;
 mod regions;
 mod settings_file;
 
@@ -208,7 +211,7 @@ impl Shell {
     pub fn new(catalog: Catalog, keymap: Keymap, layout: LayoutFile) -> Self {
         let mut status = Status::default();
         let directions = Directions::shipped().unwrap_or_else(|e| {
-            status.problem = Some(e);
+            status.says(&e);
             Directions::default()
         });
         Self {
@@ -265,11 +268,19 @@ impl Shell {
     /// brush's automask dims the Live Detail switch.
     fn start(&mut self, ctx: &egui::Context) {
         prepare(ctx, self.theme_shown());
+        // The window's job that ended refused, said as a refusal at once is.
+        if let Some((step, e)) = self.status.ended.take() {
+            self.refused(step, &e);
+        }
         let why = self.exchange.nothing_new(&self.status.session);
         self.applies.hold("exchange.read", why);
         for (step, why) in crate::pieces::level_ends(&self.state) {
             self.applies.hold_step(step, why);
         }
+        let none = self.recovery.offers.is_empty();
+        let why =
+            none.then(|| "No session that closed without saving waits to be recovered".into());
+        self.applies.hold_step(crate::recovery::row(), why);
         let (shows, why) = Detail::switch(&self.state);
         self.applies.idle(shows, why);
     }
@@ -278,6 +289,10 @@ impl Shell {
     pub fn ui(&mut self, ui: &mut egui::Ui) {
         self.start(ui.ctx());
         let rec = Recorder::new(ui.ctx().pixels_per_point());
+        // One Escape, Enter, Tab or arrow, each to the one thing in front, before any region or
+        // key sees it (`escape`).
+        self.escape(ui.ctx());
+        self.route(ui.ctx());
         self.keys(ui);
         // With the gizmo tool on, a press works the gizmo and Live Detail has no say.
         let detail = Detail::of(&self.state, self.preset.as_ref());
@@ -309,9 +324,11 @@ impl Shell {
         for region in REGIONS {
             region(&mut frame, ui);
         }
-        // egui gives the keyboard to the first widget that takes it on Tab, and the keymap would
-        // stop: outside a text field the window keeps it, so the keys go on working (Tab shows
-        // and hides the panels) and Space never presses that widget.
+        // Tab from a field moves the keyboard on (`escape`), and the keymap would stop on the
+        // widget it lands on: outside a text field the window keeps it, so the keys go on
+        // working and Space never presses that widget. `escape::route` cannot: egui moves the
+        // keyboard while the regions draw, after it. Pinned by the test
+        // `front::tab_from_a_field_leaves_no_button_for_space_to_press`.
         if ui.input(|i| i.key_pressed(egui::Key::Tab)) && !ui.ctx().text_edit_focused() {
             ui.memory_mut(|m| {
                 if let Some(id) = m.focused() {
@@ -325,6 +342,7 @@ impl Shell {
         }
         self.viewport = drawn.view;
         self.finish(drawn.asked, drawn.rec, (drawn.fold, drawn.width));
+        escape::keep_field(ui.ctx());
     }
 
     /// While a slider sets a brush value (a slider key held, a slider shown alone), the cursor
@@ -372,19 +390,24 @@ impl Shell {
             self.layout.layout.widths.insert(id, width);
         }
         if let Err(problem) = self.layout.save_if_changed() {
-            self.status.problem = Some(problem);
+            self.status.says(&problem);
         }
         self.keep_preferences();
+        // A recover the offer sent waits while it is queued, runs as a job, or waits on the
+        // question about unsaved changes.
+        let (outbox, unsaved) = (&self.outbox, &self.palette.unsaved);
+        let running = self.status.busy.as_ref().and_then(|b| b.step.as_ref());
+        let waits = |command: &str| {
+            let mut steps = outbox.iter().chain(running).chain(unsaved.waiting());
+            steps.any(|s| s.command == command)
+        };
+        self.recovery.settle(waits);
     }
 
     /// Runs the keymap on this frame's keys, unless a text field has the keyboard or the
     /// palette is open (it takes its own keys); an open brush wheel takes the letters its
     /// slots start with first.
     fn keys(&mut self, ui: &egui::Ui) {
-        // Esc cancels a gizmo drag wherever the keyboard is.
-        if ui.input(|i| i.key_pressed(egui::Key::Escape)) {
-            self.outbox.extend(self.gizmo.escape());
-        }
         // The held modifiers hold a brush slot, unless they are typing or work the gizmo, and
         // not while a stroke runs (Shift after the press draws a straight line) or the pen is
         // down or lifting elsewhere, so a slider drag sets the brush it started on.
@@ -393,10 +416,10 @@ impl Shell {
             let down = i.pointer.any_down() || i.pointer.any_released();
             (i.modifiers, i.time, i.predicted_dt, down)
         });
-        // The open deformer's lift, and its Enter and Escape unless something takes them first.
-        let busy = typing || self.keys.holding() || self.quick.is_some() || self.wheel.at.is_some();
+        // The open deformer's lift, and its Enter when nothing in front takes it (`escape`).
+        let enter = escape::entered(ui.ctx(), escape::To::Deformer);
         let held = self.state.deformer.as_ref().map(|d| d.held);
-        (self.outbox).extend(crate::gizmo::deformer::keys(ui, held, down, busy));
+        (self.outbox).extend(crate::gizmo::deformer::keys(held, down, enter));
         let m = if typing || self.gizmo.on {
             egui::Modifiers::NONE
         } else {
@@ -409,6 +432,7 @@ impl Shell {
         }
         if !typing {
             let mut events = ui.input(|i| i.events.clone());
+            escape::unbind_given(ui.ctx(), &mut events);
             if self.wheel.at.is_some() {
                 let (slots, _) = wheel_slots(&self.now_plain());
                 events.retain(|e| !self.wheel.letter(e, &slots));
@@ -472,9 +496,16 @@ impl Shell {
 
     /// The commands the interface asked for since the last call, in order, a control's view
     /// `reference` named (see [`RefPanel::resolve`]) and its exchange folder given by name
-    /// (see [`Exchange::resolve`]).
+    /// (see [`Exchange::resolve`]). The person's next step clears the problem line (review
+    /// 0009, C2): it succeeds, or its own refusal says why. A form kept for the step it sent
+    /// lives until that step's answer ([`Palette::taken`]).
     pub fn take_commands(&mut self) -> Vec<Step> {
+        let running = self.status.busy.as_ref().and_then(|b| b.step.as_ref());
+        self.palette.taken(running);
         let mut steps = std::mem::take(&mut self.outbox);
+        if steps.iter().any(refusals::moves_on) {
+            (self.status.problem, self.status.ended) = (None, None);
+        }
         self.reference.resolve(&mut steps, self.pointer);
         self.exchange
             .resolve(&mut steps, &self.status.session, true);
@@ -484,37 +515,6 @@ impl Shell {
             gesture,
         ));
         steps
-    }
-
-    /// A step the window ran (`step`; `None` for the pen's samples) was refused with `e`. The
-    /// status line says why; when the refusal asks for an argument the step does not give,
-    /// the palette's form opens for the step with the arguments it had, asking that one
-    /// (decision 0016, section 17): Open with unsaved changes asks `discard_changes`, a first
-    /// Save asks `path`. A save refused while the pen holds the session waits for the lift
-    /// instead (`gizmo::deformer::held_back`).
-    pub fn refused(&mut self, step: Option<Step>, e: &CommandError) {
-        let (waiting, gesture) = (&mut self.status.waiting, self.state.gesture);
-        if crate::gizmo::deformer::held_back(waiting, step.as_ref(), e, gesture) {
-            return;
-        }
-        if step.as_ref().is_some_and(|s| self.adjust.refused(s, e)) {
-            return;
-        }
-        let code = serde_json::to_value(e.code).unwrap_or_default();
-        let code = code.as_str().unwrap_or("error");
-        self.status.problem = Some(format!("{code}: {}", e.message));
-        let Some(step) = step else {
-            return;
-        };
-        let Some(asked) = gs_engine::errors::asks(e, &step.args).map(String::from) else {
-            return;
-        };
-        if !self.palette.open {
-            self.palette.at = self.pointer;
-        }
-        if let Err(problem) = self.palette.refused(step, &self.catalog, asked) {
-            self.status.problem = Some(problem);
-        }
     }
 
     /// The window's start, from `file.recovery`'s answer and `file.recent`'s (`None` when

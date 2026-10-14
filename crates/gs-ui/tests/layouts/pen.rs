@@ -11,12 +11,6 @@ use serde_json::{Value, json};
 use crate::region::middle;
 use crate::rig::{Ui, center};
 
-/// The widget labelled `label` in panel `id`.
-pub(crate) fn widget(ui: &mut Ui, id: &str, label: &str) -> Value {
-    let found = ui.widgets(id).into_iter().find(|w| w["label"] == label);
-    found.unwrap_or_else(|| panic!("no {label} in {id}"))
-}
-
 #[test]
 fn a_slider_dragged_with_the_pen_sets_its_value_once_when_the_pen_lifts() {
     let mut ui = Ui::new();
@@ -32,7 +26,7 @@ fn a_slider_dragged_with_the_pen_sets_its_value_once_when_the_pen_lifts() {
         json!(0.4_f32),
         "nothing set while the pen is down"
     );
-    let shown = widget(&mut ui, "brush", "Strength")["command"]["args"]["strength"].clone();
+    let shown = ui.widget("brush", "Strength")["command"]["args"]["strength"].clone();
     assert!(
         shown.as_f64().unwrap_or_default() > 0.9,
         "the slider shows it as it goes: {shown}"
@@ -55,7 +49,7 @@ fn the_stabilize_slider_sets_the_string_in_brush_radii_once_when_the_pen_lifts()
     assert_eq!(ui.state()["brush.smoothing"], json!(0.0), "nothing set yet");
     // It runs `brush.set` with the stroke settings' own argument (decision 0036 section 6), the
     // one L turns off and on, so it shows L.
-    let slider = widget(&mut ui, "brush", "Stabilize");
+    let slider = ui.widget("brush", "Stabilize");
     let radius = slider["command"]["args"]["settings"]["stroke"]["smoothing"]["radius"].as_f64();
     assert!(radius.is_some_and(|v| v > 3.5), "{slider}");
     assert_eq!(slider["key"], json!("L"), "{slider}");
@@ -202,7 +196,7 @@ fn the_pressure_curves_switch_on_as_a_straight_line_take_the_pen_and_switch_off(
 #[test]
 fn the_pen_toggles_beside_size_and_strength_switch_their_pressure_curves() {
     let mut ui = Ui::new();
-    let lit = |ui: &mut Ui, label| widget(ui, "brush", label)["selected"] == true;
+    let lit = |ui: &mut Ui, label| ui.widget("brush", label)["selected"] == true;
     let curve =
         |ui: &mut Ui, key: &str| ui.ok("brush.set", json!({}))["settings"]["pressure"][key].clone();
     // Draw ships with strength following the pressure and size not.
@@ -217,8 +211,8 @@ fn the_pen_toggles_beside_size_and_strength_switch_their_pressure_curves() {
         "flat: off"
     );
     assert!(!lit(&mut ui, "Strength by pen"));
-    let size = widget(&mut ui, "brush", "Size")["rect"].clone();
-    let pen = widget(&mut ui, "brush", "Size by pen")["rect"].clone();
+    let size = ui.widget("brush", "Size")["rect"].clone();
+    let pen = ui.widget("brush", "Size by pen")["rect"].clone();
     let right = size[2].as_f64() < pen[0].as_f64();
     assert!(
         right && size[3].as_f64() > pen[1].as_f64(),

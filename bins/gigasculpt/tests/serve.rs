@@ -1,7 +1,7 @@
 //! The shipped binaries together: the real `gs` starts the real `gigasculpt serve --headless`
 //! (found next to `gs`, as in an install), adds a sphere, undoes and redoes it, and stops. The
 //! real engine process keeps no file descriptor per finished connection, and refuses a session
-//! name too long for its socket before binding.
+//! name too long for its socket, or an explicit `--socket` too long, before binding.
 //!
 //! `gs` is the program next to `gigasculpt` in the build folder. `cargo test --workspace` builds
 //! both; when this package is tested alone (cargo-mutants does that), the test builds `gs` itself
@@ -131,6 +131,29 @@ fn a_session_name_too_long_for_its_socket_is_refused_before_binding() {
         "refused with the limit and the longest name: {said}"
     );
     assert!(!made, "nothing was made in the session folder");
+}
+
+/// An explicit `--socket` too long for the system's socket address is refused the same way,
+/// before the engine makes the socket's folder, its lock or the socket.
+#[test]
+fn an_explicit_socket_too_long_is_refused_before_binding() {
+    let runtime = runtime_dir().join(format!("gigasculpt-sock-{}", std::process::id()));
+    let folder = runtime.join("sockets");
+    let output = Command::new(env!("CARGO_BIN_EXE_gigasculpt"))
+        .args(["serve", "--headless", "--socket"])
+        .arg(folder.join(format!("{}.sock", "s".repeat(120))))
+        .env("XDG_RUNTIME_DIR", &runtime)
+        .env("XDG_STATE_HOME", runtime.join("state"))
+        .output()
+        .unwrap_or_else(|e| panic!("cannot run the engine: {e}"));
+    let said = String::from_utf8_lossy(&output.stderr).into_owned();
+    let made = folder.exists();
+    std::fs::remove_dir_all(&runtime).ok();
+    assert!(
+        !output.status.success() && said.contains("is too long") && said.contains("bytes"),
+        "refused with the limit: {said}"
+    );
+    assert!(!made, "nothing was made in the socket's folder");
 }
 
 /// The engine's descriptors are counted in Linux's `/proc`.

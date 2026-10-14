@@ -3,13 +3,17 @@
 //! (`CallReport::refused`); a control whose command is refused is drawn disabled, the reason
 //! on hover. A Reference View's controls name the view `reference`, and the Blender buttons
 //! their folder by name, which the window fills in when one runs, so each is asked about as it
-//! would run. The window can also hold a command back itself, saying why, and dim a toggle that
-//! has no effect now while it still runs (decision 0025, section 6, amended 2026-10-12).
+//! would run, and a control opening a form as its form's command too, with the arguments it
+//! gives (amended 2026-10-14). The window can also hold a command back itself, saying why, and
+//! dim a toggle that has no effect now while it still runs (decision 0025, section 6, amended
+//! 2026-10-12).
 
 use std::collections::BTreeMap;
 
 use gs_engine::{PanelInfo, Shows};
-use gs_protocol::Step;
+use gs_protocol::{ErrorCode, Step};
+
+use crate::shell::refusals::words;
 
 /// The controls' steps as last asked about, and those the engine refused.
 #[derive(Default)]
@@ -48,19 +52,25 @@ impl Applies {
             let mut runs = [step.clone()];
             resolve(&mut runs);
             let [runs] = runs;
-            if !out.contains(&runs) {
-                out.push(runs.clone());
+            for runs in [form_of(&runs), Some(runs)].into_iter().flatten() {
+                if !out.contains(&runs) {
+                    out.push(runs.clone());
+                }
+                self.asked.push((step.clone(), runs));
             }
-            self.asked.push((step.clone(), runs));
         }
         out
     }
 
-    /// Takes the engine's answer: the steps it refused, as they would run, with why.
+    /// Takes the engine's answer: the steps it refused, as they would run, with why, said as the
+    /// window says a refusal of each (`shell::refusals::words`): a sentence, in a person's words
+    /// where the engine's name what a person never sees (decision 0025, section 2, amended
+    /// 2026-10-14).
     pub fn heard(&mut self, refused: &[(Step, String)]) {
         let of = |(drawn, runs): &(Step, Step)| {
             let (_, why) = refused.iter().find(|(s, _)| s == runs)?;
-            Some((drawn.clone(), why.clone()))
+            let e = gs_engine::errors::error(ErrorCode::Precondition, why);
+            Some((drawn.clone(), words(Some(runs), &e).0))
         };
         self.refused = self.asked.iter().filter_map(of).collect();
     }
@@ -97,6 +107,23 @@ impl Applies {
     pub fn why_idle(&self, shows: &Shows) -> Option<&str> {
         self.idle.get(&shows.value).map(String::as_str)
     }
+}
+
+/// The step a control opening a form would run with the arguments it gives (`ui.palette` with
+/// `form`), so the control is asked about as that step too: Revert… is gray while the scene has
+/// no file, as Revert would refuse. An argument the form still asks for (Export…'s path) the
+/// engine fills in from the command's examples to ask (gs-engine `engine/session.rs`,
+/// `needed`), so Export… is gray in an empty scene too (amended 2026-10-14, UI-last).
+fn form_of(step: &Step) -> Option<Step> {
+    if step.command != "ui.palette" {
+        return None;
+    }
+    let form = step.args.get("form")?.as_str()?;
+    let args = step.args.get("args").cloned();
+    Some(Step {
+        command: form.into(),
+        args: args.unwrap_or_else(|| serde_json::json!({})),
+    })
 }
 
 /// Why `step` is in `list`, if it is.

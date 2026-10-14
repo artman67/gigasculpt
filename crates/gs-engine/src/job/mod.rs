@@ -146,6 +146,12 @@ impl JobWatch {
         self.0.ended()
     }
 
+    /// Why it was refused, once it ended so: a refusal that asks for an argument reaches the
+    /// window here, not on its status line (decision 0016, section 17).
+    pub fn refusal(&self) -> Option<gs_protocol::CommandError> {
+        self.0.error()
+    }
+
     /// True while its thread still works, even once it ended: a cancelled job ends at once
     /// and its thread stops when its command next looks.
     pub fn working(&self) -> bool {

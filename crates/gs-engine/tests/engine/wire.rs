@@ -1,5 +1,5 @@
 //! The wire protocol over the socket: batches and expected revisions, misspelled and
-//! malformed requests, and lines over the limit.
+//! malformed requests, lines over the limit, and a request split by a pause.
 
 use std::io::{Read, Write};
 use std::process::ExitCode;
@@ -226,5 +226,23 @@ fn a_line_over_the_limit_closes_the_connection() {
         other.run("mesh.stats", json!({})).get("ok").is_some(),
         "others are served"
     );
+    assert_eq!(server.stop(), ExitCode::SUCCESS, "stops");
+}
+
+/// A request that comes in two pieces, with a pause longer than a connection waits before it
+/// checks whether the session is stopping, is answered whole: what came before the check is kept.
+#[test]
+fn a_request_split_by_a_pause_is_answered_whole() {
+    let server = Server::start("pause", &[]);
+    let mut c = server.client("a", "agent");
+    let request =
+        br#"{"jsonrpc": "2.0", "id": 7, "method": "cmd.run", "params": {"command": "mesh.stats"}}"#;
+    let (first, rest) = request.split_at(30);
+    c.writer.write_all(first).ok();
+    std::thread::sleep(std::time::Duration::from_secs(1));
+    c.send(rest);
+    let reply = c.read();
+    assert_eq!(reply["id"], json!(7), "the request's own answer: {reply}");
+    assert!(reply["result"]["ok"].is_object(), "answered whole: {reply}");
     assert_eq!(server.stop(), ExitCode::SUCCESS, "stops");
 }

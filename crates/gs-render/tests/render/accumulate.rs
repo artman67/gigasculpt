@@ -155,6 +155,34 @@ fn a_still_view_settles_and_a_moved_one_starts_over() {
     );
 }
 
+/// A settled frame runs no pass: it copies the last sample's picture. Shown again by its own
+/// shader instead, it matched here but differed by a level in scattered pixels on the CI
+/// runner's Mesa, which no test here could see (decision 0019, amended 2026-10-14).
+#[test]
+fn a_settled_frame_draws_no_pass() {
+    let r = lavapipe();
+    let mesh = upload(r, &wedge());
+    let scene = Scene {
+        meshes: &[&mesh],
+        view: view(),
+        viewport: [0, 0, SIZE, SIZE],
+    };
+    let size = RenderSize {
+        samples: 2,
+        ..RenderSize::square(SIZE)
+    };
+    let target = r.frame_target(size).expect("target");
+    let first = r.time_frame(&target, &scene).expect("times");
+    assert!(
+        first.iter().any(|&(name, _)| name == "display"),
+        "lavapipe times passes, and a sample runs the display: {first:?}"
+    );
+    r.time_frame(&target, &scene).expect("times");
+    assert!(target.settled(), "settled after 2 samples");
+    let settled = r.time_frame(&target, &scene).expect("times");
+    assert!(settled.is_empty(), "a settled frame runs {settled:?}");
+}
+
 /// Samples a fraction of a pixel apart move smooth shading inside a surface by a level or two,
 /// and smooth its silhouette by much more.
 #[test]

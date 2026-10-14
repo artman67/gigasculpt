@@ -146,7 +146,7 @@ controls = [
   { label = "Redo material", short = "Redo", command = "material.redo", hint = "Makes again the last step Undo material took back." },
   { label = "Reset material", short = "Reset", command = "material.set", args = { shipped = true }, hint = "Puts the material's shipped settings back; its name stays." },
   { label = "Copy material", short = "Copy", command = "material.copy", hint = "Makes a copy of the material, which can be edited, renamed and deleted." },
-  { label = "Rename material", short = "Rename", command = "ui.palette", args = { form = "material.rename", ask = ["name", "title"] }, hint = "Asks the material's new name and title." },
+  { label = "Rename material", short = "Rename", command = "ui.palette", args = { form = "material.rename", ask = ["title"] }, hint = "Asks the material's new title, the name the window shows." },
   { label = "Delete material", short = "Delete", command = "material.delete", hint = "Deletes a material of the user's; the first material becomes active." },
 ]
 

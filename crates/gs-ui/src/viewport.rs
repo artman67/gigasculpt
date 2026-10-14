@@ -8,8 +8,9 @@
 //! place symmetry repeats the dab. The brush's symmetry planes are drawn on the active part,
 //! and a select outline being dragged with each place symmetry repeats it.
 //!
-//! The drawings over the view (the pivot, the symmetry planes, a select outline) are in
-//! `overlays`; the cursor (its rings, its lines of text, the smoothing string) is in `cursor`.
+//! The drawings over the view (the pivot, the symmetry planes, a select outline, the view's name
+//! in its top corner away from the pen) are in `overlays`; the cursor (its rings, its lines of
+//! text, the smoothing string) is in `cursor`.
 
 mod cursor;
 mod overlays;
@@ -27,7 +28,7 @@ use crate::theme::theme;
 pub use cursor::{Cursor, Detail, Ring, symmetry_text};
 use cursor::{draw_mirrored, draw_ring, draw_string};
 pub use overlays::ActivePart;
-use overlays::{PLANE_LINE, draw_outline, draw_pivot, draw_planes};
+use overlays::{PLANE_LINE, draw_name, draw_outline, draw_pivot, draw_planes};
 
 /// What the 3D view navigates: `main` as the engine last reported it, the navigation
 /// settings, whether the pen's press landed on empty canvas, and the hand that holds the pen
@@ -116,6 +117,8 @@ pub fn central(
                     }
                 }
             }
+            // After the cursor's, whose label beside the pen stays the view's first.
+            draw_name(ui, (view.rect, sight.hand), &sight.main.camera, rec);
             let corner = (view.rect, sight.hand);
             let seen = (sight.main, nav.dragging_pad());
             view.steps.extend(figure(ui, corner, seen, rec));

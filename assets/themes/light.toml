@@ -27,7 +27,8 @@ axis_y = "#78c85a"
 axis_z = "#508cf0"
 on_axis = "#000000"
 problem = "#b3261e"    # a refused command in the status line: 4.9 to 1 on panel
-warning = "#735400"    # low disk space in the status line: a dark amber, 5.3 to 1 on panel
+warning = "#4f3900"    # low disk space in the status line, and a button that deletes: a dark
+                       # amber, 8.2 to 1 on panel and 4.8 on pressed
 pen = "#aac8ff"
 pen_down = "#ffc478"
 brush = "#ffe6be"

@@ -145,7 +145,8 @@ impl Command for MeshQuadRemesh {
         examples()
     }
 
-    fn check(&self, _cx: &Ctx) -> Result<(), Unavailable> {
+    fn check(&self, cx: &Ctx) -> Result<(), Unavailable> {
+        crate::level::check_one_level(cx, self.part.as_ref(), "quad remesh", true)?;
         program().map(drop)
     }
 
@@ -291,7 +292,7 @@ fn program() -> Result<Program, Unavailable> {
     let exe = std::env::current_exe().ok();
     let beside = exe.as_deref().and_then(Path::parent);
     let cache = gs_protocol::cache_dir().ok();
-    let at = places(env("GS_QUADWILD"), beside, cache.as_deref());
+    let at = places(System::HERE, env("GS_QUADWILD"), beside, cache.as_deref());
     Program::find(&at, bwrap_in(env("PATH"))).map_err(|why| {
         Unavailable::new(format!("the Quad Remesh program is missing ({why})"))
             .fix(quad::fix(System::HERE, cache.as_deref()))

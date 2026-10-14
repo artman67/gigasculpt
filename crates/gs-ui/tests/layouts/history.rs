@@ -28,7 +28,13 @@ fn the_history_buttons_name_their_step_count_the_rest_and_are_disabled_with_none
         );
         assert_eq!(fresh["enabled"], false, "{word} has nothing to travel to");
         let why = fresh["reason"].as_str().unwrap_or_default();
-        assert!(why.contains("nothing to"), "{word} says why: {why}");
+        // In the words the status line would say it (decision 0025, section 6, amended
+        // 2026-10-14).
+        let nothing = format!("nothing to {}", word.to_lowercase());
+        assert!(
+            why.to_lowercase().contains(&nothing),
+            "{word} says why: {why}"
+        );
     }
     ui.ok("primitive.sphere", json!({ "subdivisions": 12 }));
     let stroke = json!({ "brush": "Draw", "size": "20%", "samples": [{ "position": [0, 0, 1] }] });

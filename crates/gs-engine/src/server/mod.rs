@@ -43,6 +43,11 @@ const TICK: Duration = Duration::from_secs(1);
 /// How long a write to a client may block before the connection is dropped.
 const WRITE_PATIENCE: Duration = Duration::from_secs(30);
 
+/// How long a connection's thread waits for a line before it checks whether the session is
+/// stopping. Shutting a socket's read side wakes a waiting read on Linux and macOS but not on
+/// Windows, where a `recv` already waiting sleeps on; the read timeout wakes it everywhere.
+const STOP_CHECK: Duration = Duration::from_millis(250);
+
 /// How to run a session server.
 #[derive(Clone, Debug)]
 pub struct ServeOptions {
@@ -104,7 +109,9 @@ impl Shared {
         self.live.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
-    /// Stops accepting, and ends every open connection once its pending reply is written.
+    /// Stops accepting, and ends every open connection once its pending reply is written: a
+    /// connection waiting for a line wakes at the shutdown, or else (Windows) sees the flag at
+    /// its next read timeout ([`STOP_CHECK`]).
     fn stopping(&self) {
         self.stop.store(true, Ordering::SeqCst);
         // Wake the accept loop so it sees the flag.
@@ -168,6 +175,9 @@ impl Server {
         prepare: impl FnOnce(&mut Engine),
     ) -> io::Result<Self> {
         let socket = options.socket.clone();
+        // Before anything is made: a path too long for a socket would only fail at the bind.
+        gs_protocol::check_socket_path(gs_protocol::System::HERE, &socket)
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
         if let Some(dir) = socket.parent() {
             private_folder(dir)?;
         }
@@ -366,6 +376,7 @@ fn open(
     max_line: usize,
 ) {
     stream.set_write_timeout(Some(WRITE_PATIENCE)).ok();
+    stream.set_read_timeout(Some(STOP_CHECK)).ok();
     let (Ok(writer), Ok(closer)) = (stream.try_clone(), stream.try_clone()) else {
         return;
     };
@@ -376,7 +387,7 @@ fn open(
     shared.live().insert(conn, open);
     let (tasks, done) = (tasks.clone(), Arc::clone(shared));
     let started = thread::Builder::new().spawn(move || {
-        conn::serve(conn, stream, writer, &tasks, max_line);
+        conn::serve(conn, stream, writer, &tasks, max_line, &done.stop);
         done.live().remove(&conn);
     });
     let mut live = shared.live();

@@ -33,7 +33,7 @@
 //! const SETUP: &'static str = r#"[{"command": "gizmo.place", "args": {"origin": [0, 0, 0], "normal": [1, 1, 0]}}]"#;
 //! ```
 //!
-//! [`run::Harness::check_catalog`] then checks it in a run of its own
+//! [`run::Harness::check_share`] then checks it in a run of its own
 //! ([`run::Harness::check_setup_of`]): plans of the command and the edit commands its setup
 //! calls, each starting with the setup. The setup heads no other plan, so it never changes
 //! what other commands are checked against, and outside its own run such a command is only
@@ -45,8 +45,9 @@
 //! # Wiring
 //!
 //! `cargo mutants` runs only the tests of the package it mutates, so each crate whose code
-//! commands reach calls [`run::Harness::check_catalog`] from one test in its own `tests/`
-//! folder (gs-engine does, in `tests/engine/claims.rs`).
+//! commands reach calls [`run::Harness::check_share`] on every share of the catalog, one test
+//! per share, in its own `tests/` folder (gs-engine does, in `tests/engine/claims.rs`, with a
+//! test that the shares cover every edit command).
 
 pub mod closed;
 pub mod model;

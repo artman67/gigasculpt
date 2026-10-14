@@ -213,7 +213,7 @@ fn a_control_whose_command_cannot_run_is_disabled_until_it_can() {
     // An empty scene has nothing to subdivide: the button says why, and still names its command.
     let off = tray_control(&mut ui, "detail", "Subdivide");
     assert_eq!(off["enabled"], false, "{off}");
-    assert_eq!(off["reason"], "the scene has no parts", "{off}");
+    assert_eq!(off["reason"], "The scene has no parts", "{off}");
     assert_eq!(off["command"]["command"], "level.subdivide", "{off}");
     ui.ok("primitive.sphere", json!({ "subdivisions": 4 }));
     let on = tray_control(&mut ui, "detail", "Subdivide");

@@ -7,7 +7,8 @@ window or without one, is a session that listens on a socket, and `gs` talks to 
 ## gs
 
 `gs` comes with GigaSculpt and finds the `gigasculpt` program beside itself (on Windows they are
-`gs.exe` and `gigasculpt.exe`; on macOS both are inside `GigaSculpt.app/Contents/MacOS/`). With
+`gs.exe` and `gigasculpt.exe`, with `gigasculpt.com` for the terminal; on macOS both are inside
+`GigaSculpt.app/Contents/MacOS/`). With
 the window open (its session is named `main`):
 
 ```
@@ -44,9 +45,14 @@ gs -s work stop --key KEY
 ```
 
 `gigasculpt serve --headless` starts one by hand; `gigasculpt serve --help` lists its options
-and the folders it uses. On Linux, offscreen pictures in a headless session draw on lavapipe,
-Mesa's software Vulkan driver, unless `--adapter` names another, so they come out the same on
-any machine. On Windows and macOS they draw on the first graphics adapter the system offers.
+and the folders it uses. On Windows, type them in a terminal opened in the GigaSculpt folder
+(in PowerShell, `.\gigasculpt serve --headless`), or anywhere once that folder is on your
+`PATH`. There `gigasculpt` runs `gigasculpt.com`, the same program built for the console, so it
+prints in that terminal and keeps it until the program ends, as on Linux and macOS;
+double-clicking `gigasculpt.exe` opens the app with no console window. On Linux, offscreen
+pictures in a headless session draw on lavapipe, Mesa's software Vulkan driver, unless
+`--adapter` names another, so they come out the same on any machine. On Windows and macOS they
+draw on the first graphics adapter the system offers.
 
 A session's name is letters, digits, `-` and `_`. Its socket's path has a length limit (shorter
 on macOS than on Linux), so a name too long for it is refused with a message that says how long

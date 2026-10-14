@@ -21,7 +21,7 @@
 use gs_core::NodeId;
 use gs_core::brush::StrokeSpec;
 use gs_core::camera::Camera;
-use gs_protocol::PenSample;
+use gs_protocol::{CommandError, PenSample};
 
 use super::BrushSettings;
 use super::aim::Driver;
@@ -79,7 +79,7 @@ pub(crate) struct Live {
     /// brush's name and whether it refines.
     run: Option<(String, Driver, String, Refining)>,
     /// Why the stroke cannot go on, if something refused it.
-    pub problem: Option<String>,
+    pub problem: Option<CommandError>,
     /// What a press that misses every part is.
     miss: Miss,
     /// The press was on empty canvas (`miss`): no stroke, the window navigates.
@@ -133,10 +133,10 @@ impl Live {
         settings: &BrushSettings,
         camera: Camera,
         seed: u64,
-    ) -> Result<Self, String> {
+    ) -> Result<Self, CommandError> {
         let state = settings.state();
         let brush = down.brush.unwrap_or(state.brush);
-        let shipped = super::presets::find(&brush).map_err(|e| e.message)?;
+        let shipped = super::presets::find(&brush)?;
         let name = &shipped.preset.name;
         let [x, y, w, h] = down.viewport;
         let mut args = BrushStroke::new(name, Vec::new());
@@ -150,9 +150,8 @@ impl Live {
         args.invert = down.invert;
         args.symmetry = Some(state.symmetry);
         args.live_detail = settings.detail.pen();
-        args.pin_brush(settings).map_err(|e| e.message)?;
-        args.pin_paint(seed, &settings.colors)
-            .map_err(|e| e.message)?;
+        args.pin_brush(settings)?;
+        args.pin_paint(seed, &settings.colors)?;
         let stroke = args.resolve().ok().map(|p| p.stroke);
         let space = stroke.is_some_and(|s| s.moves()).then_some(false);
         let miss = match (down.classic, stroke) {
@@ -244,7 +243,7 @@ impl Live {
             && let Some(store) = doc.get_mut(part).map(Part::store_mut)
             && let Err(e) = driver.feed(store, input)
         {
-            self.problem = Some(e.message);
+            self.problem = Some(fed(e));
         }
     }
 
@@ -286,7 +285,7 @@ impl Live {
             (None, _) => return,
         };
         if let Some(job) = self.held {
-            self.problem = Some(crate::job::busy(job).message);
+            self.problem = Some(crate::job::busy(job));
             return;
         }
         let levels = doc
@@ -306,7 +305,7 @@ impl Live {
             Ok((mut driver, brush, refining)) => {
                 for s in &self.args.samples {
                     if let Err(e) = driver.feed(store, s.input()) {
-                        self.problem = Some(e.message);
+                        self.problem = Some(fed(e));
                         break;
                     }
                 }
@@ -315,7 +314,7 @@ impl Live {
             }
             Err(e) => {
                 store.cancel_step();
-                self.problem = Some(e.message);
+                self.problem = Some(e);
             }
         }
     }
@@ -343,4 +342,9 @@ impl Live {
             first: done.first.filter(|_| touched).map(gs_core::Vec3::to_array),
         })
     }
+}
+
+/// A sample the stroke could not take, refused as `brush.stroke` refuses it (`run_samples`).
+fn fed(e: gs_core::StrokeError) -> CommandError {
+    crate::errors::args_invalid("/samples", e.message)
 }

@@ -62,13 +62,14 @@ impl Command for PartMergeDown {
 
     fn check(&self, cx: &Ctx) -> Result<(), Unavailable> {
         let part = self.part.as_ref().map_or("", |p| p.0.as_str());
-        if below(cx, part).is_none() {
+        let Some(lower) = below(cx, part) else {
             return Err(Unavailable::new(format!(
                 "part '{part}' is last in the list, so nothing is below it to merge"
             ))
             .fix("move a part below it with part.reorder, or merge the part above it"));
-        }
-        Ok(())
+        };
+        crate::level::check_one_level(cx, self.part.as_ref(), "a merge", false)?;
+        crate::level::check_one_level(cx, Some(&PartRef(lower)), "a merge", false)
     }
 
     fn run(self, cx: &mut Ctx) -> Result<Merged, CommandError> {

@@ -447,10 +447,10 @@ fn a_look_through_main_shows_what_the_window_shows() {
     let shot = w.ok("view.snapshot", args);
     let look = crate::rig::decode_png(shot["png_base64"].as_str().unwrap_or_default());
     assert_eq!(look.len(), window.len(), "the same size");
-    // The corner figure and the Zoom and Pan buttons under it draw over the window's picture
-    // only, inside the rectangles `ui.describe` gives them; every other pixel is the same
-    // bytes: both draw the part from its mesh store (decision 0024).
-    let overlays = [w.rect("figure"), w.rect("pads")];
+    // The corner figure, the Zoom and Pan buttons under it and the view's name draw over the
+    // window's picture only, inside the rectangles `ui.describe` gives them; every other pixel
+    // is the same bytes: both draw the part from its mesh store (decision 0024).
+    let overlays = [w.rect("figure"), w.rect("pads"), w.rect("view_name")];
     let over = |x: usize, y: usize| {
         let (x, y) = (x as f64 + 0.5, y as f64 + 0.5);
         (overlays.iter()).any(|r| x >= r[0] && x < r[2] && y >= r[1] && y < r[3])

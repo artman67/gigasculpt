@@ -177,12 +177,15 @@ pub(crate) fn names(parts: &[PartRef]) -> Vec<String> {
 /// Why `name` cannot name a part that does not exist yet: it reads as an id or a place, or a
 /// part has it (names stay unique, decision 0015).
 pub(crate) fn refused_name(cx: &Ctx, name: &str) -> Option<Unavailable> {
-    unfit(name).or_else(|| {
-        cx.doc.contains(name).then(|| {
-            Unavailable::new(format!("a part named '{name}' already exists"))
-                .fix("choose another name, or leave it out to get a free one")
-        })
-    })
+    unfit(name).or_else(|| cx.doc.contains(name).then(|| taken(name)))
+}
+
+/// Why a new part cannot be named `name`: a part has it. It names `name` as its path, so the
+/// window finds it by that rather than by its words.
+pub(crate) fn taken(name: &str) -> Unavailable {
+    Unavailable::new(format!("a part named '{name}' already exists"))
+        .fix("choose another name, or leave it out to get a free one")
+        .asks("name")
 }
 
 /// A pinned name, or `E_INTERNAL` if the command's `pin` did not pin it.

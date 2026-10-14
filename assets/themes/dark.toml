@@ -27,8 +27,8 @@ axis_z = "#508cf0"
 on_axis = "#000000"    # the figure's letters on the axis colors; a theme without it takes on_lit
                        # or text, whichever reads better on its faintest axis color
 problem = "#ff6e5a"    # a refused command in the status line: subtract's red, both mean careful
-warning = "#f0d246"    # low disk space in the status line: an amber, 9.8 to 1 on panel; a theme
-                       # without it takes problem
+warning = "#f0d246"    # low disk space in the status line, and a button that deletes: an amber,
+                       # 9.8 to 1 on panel and 5.2 on pressed; a theme without it takes problem
 pen = "#aac8ff"        # the ring marking the pen while it hovers over the view
 pen_down = "#ffc478"   # and while it touches
 brush = "#ffe6be"      # the brush's rings and lines beside the pen while no key is held

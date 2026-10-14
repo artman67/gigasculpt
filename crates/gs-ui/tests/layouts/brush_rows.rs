@@ -3,12 +3,12 @@
 //! each set their stroke setting once, when the pen lifts; Save brush
 //! asks for a file and writes the brush there, asking before it replaces one, and Load brush,
 //! asking from that folder, brings the brush's settings back; Reset to defaults puts the brush
-//! back as it ships, and Copy settings to… gives another brush its changes.
+//! back as it ships, and Copy settings to gives another brush its changes by that brush's button.
 
 use serde_json::{Value, json};
 
 use crate::region::middle;
-use crate::rig::{Ui, folder};
+use crate::rig::{Ui, center, folder};
 use crate::scene::answer;
 
 /// Drags the brush tray's slider `label` from its left end to its right with the pen. Returns
@@ -84,7 +84,7 @@ fn save_brush_asks_for_a_file_then_before_replacing_it_and_load_brush_brings_it_
     spaced(&mut ui, 0.75);
     menu(&mut ui, "Save brush…");
     answer(&mut ui, "wide-draw.toml");
-    ui.press("palette > Overwrite");
+    ui.press("palette > Replace");
     let text = std::fs::read_to_string(&path).unwrap_or_default();
     assert!(text.contains("0.75"), "replaced: {text}");
     spaced(&mut ui, 0.1);
@@ -104,15 +104,45 @@ fn save_brush_asks_for_a_file_then_before_replacing_it_and_load_brush_brings_it_
     );
 }
 
+/// The open brush ⋯'s Copy settings to buttons: the brush each gives the settings to, and where
+/// it is.
+fn copy_targets(ui: &mut Ui) -> Vec<(String, Value)> {
+    let to = |w: &Value| w["command"]["args"]["for"].as_str().map(String::from);
+    let copies = |w: &Value| w["command"]["command"] == "brush.set" && to(w).is_some();
+    (ui.widgets("brush").into_iter().filter(copies))
+        .map(|w| (to(&w).unwrap_or_default(), w["rect"].clone()))
+        .collect()
+}
+
+/// Review 0009, R6: Copy settings to offers the other brushes as buttons, the pen's own left
+/// out, and a tap gives the one picked the settings, with nothing to type (decision 0025,
+/// amended 2026-10-14).
 #[test]
 fn reset_to_defaults_and_copy_settings_to_work_on_the_brushs_changes() {
     let mut ui = Ui::new();
     ui.ok("ui.layout", json!({ "name": "workbench" }));
     let shipped = ui.state()["brush.spacing"].clone();
     spaced(&mut ui, 0.5);
-    menu(&mut ui, "Copy settings to…");
-    assert_eq!(form(&ui).map(|f| f.0), Some("brush.set".into()));
-    answer(&mut ui, "Clay");
+    ui.press("brush > ···");
+    let targets = copy_targets(&mut ui);
+    let names: Vec<&str> = targets.iter().map(|(n, _)| n.as_str()).collect();
+    assert!(
+        names.contains(&"Clay") && names.contains(&"Smooth"),
+        "{names:?}"
+    );
+    assert!(
+        !names.contains(&"Draw"),
+        "the pen's own brush is left out: {names:?}"
+    );
+    let clay = targets
+        .iter()
+        .find(|(n, _)| n == "Clay")
+        .map(|(_, r)| center(r));
+    let [x, y] = clay.unwrap_or_else(|| panic!("a Clay button: {names:?}"));
+    ui.tap_at(x, y);
+    ui.settle();
+    assert_eq!(form(&ui), None, "nothing to type");
+    assert_eq!(copy_targets(&mut ui), Vec::new(), "the pick shut the menu");
     assert_eq!(ui.state()["brush"], "Draw", "the pen keeps its brush");
     menu(&mut ui, "Reset to defaults");
     assert_eq!(ui.state()["brush.spacing"], shipped, "Draw as it ships");

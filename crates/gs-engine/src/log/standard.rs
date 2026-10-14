@@ -3,7 +3,7 @@
 //! (the run recovery would replay), always stays. A run file is never cut: recovery counts its
 //! lines from the start, and every run replays on its own from its header.
 
-use std::fs::{self, File};
+use std::fs;
 use std::path::{Path, PathBuf};
 
 /// Where the standard command logs go, and how many of them are kept.
@@ -33,15 +33,16 @@ impl StandardLog {
         self.state_dir.join("logs")
     }
 
-    /// The log of session `session` in this process: `<state>/logs/<session>-<pid>.jsonl`.
-    /// The process id keeps a new session of the same name from moving a crashed one's log.
+    /// The log of session `session` in this process: `<state>/logs/<session>-<pid>.jsonl`,
+    /// numbered past one that is there, so a new session never moves a crashed one's log, even
+    /// one that had the same process id.
     pub fn path(&self, session: &str) -> PathBuf {
         let name = format!("{session}-{}.jsonl", std::process::id());
-        self.folder().join(name)
+        gs_protocol::free_path(&self.folder().join(name))
     }
 
     /// Deletes the oldest logs beyond the limits, keeping the newest by modification time.
-    /// Never deletes a file named in `keep` or one a session holds the lock on; those still
+    /// Never deletes a file named in `keep` or one a session holds the lock beside; those still
     /// count against the limits, so the folder may stay over them while they exist.
     pub(crate) fn prune(&self, keep: &[PathBuf]) {
         let Ok(entries) = fs::read_dir(self.folder()) else {
@@ -62,7 +63,9 @@ impl StandardLog {
                 files += 1;
                 bytes = bytes.saturating_add(len);
             } else {
+                // With the lock file a crash left beside it, which nobody holds.
                 fs::remove_file(&path).ok();
+                fs::remove_file(super::lock_of(&path)).ok();
             }
         }
     }
@@ -74,7 +77,7 @@ fn named(keep: &[PathBuf], path: &Path) -> bool {
     keep.iter().any(|k| k.file_name() == path.file_name())
 }
 
-/// True unless the lock on `path` can be taken: a session writing a log holds it.
+/// True while a session writing log `path` holds the lock beside it.
 fn writing(path: &Path) -> bool {
-    !File::open(path).is_ok_and(|f| f.try_lock().is_ok())
+    super::lock_held(&super::lock_of(path))
 }

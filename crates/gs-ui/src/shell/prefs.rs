@@ -157,7 +157,7 @@ impl Shell {
             self.prefs.put("startup.last", &json!(brush));
         }
         if let Err(problem) = self.prefs.save_if_changed() {
-            self.status.problem = Some(problem);
+            self.status.says(&problem);
         }
     }
 }

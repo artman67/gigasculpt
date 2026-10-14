@@ -159,8 +159,10 @@ impl Tool {
                 // A copy moves whole, with no mirror, so radial symmetry does not stop it.
                 if seen.brush.symmetry.radial.is_some() && transforms && !copy {
                     // As `transform.apply` refuses it: never a drag that silently does not copy.
+                    // Said in a person's words, with what to do ((Rough-tray-notes) (1)).
                     self.press = PenPress::Done;
-                    let why = "radial symmetry is on; transforms do not support it yet";
+                    let why = "Radial symmetry is on, which the gizmo cannot follow yet. Turn \
+                               it off in the Symmetry menu, or hold Ctrl to move a copy.";
                     return Took {
                         problem: Some(why.into()),
                         ..took
@@ -240,8 +242,18 @@ impl Tool {
         steps
     }
 
-    /// Esc: lets go of a held handle, putting what it dragged back; a press on the model keeps
-    /// the gizmo on the surface, unaimed; the pen rectangle selects nothing.
+    /// Whether the pen's press works the gizmo: it holds a handle, aims the gizmo or draws the
+    /// pen rectangle, all of which Escape cancels.
+    pub fn pressing(&self) -> bool {
+        matches!(
+            self.press,
+            PenPress::Grab(_) | PenPress::Hold(_) | PenPress::Aim(_) | PenPress::Rect(_)
+        )
+    }
+
+    /// Esc, given by the window (`shell/escape.rs`) while the pen is down: lets go of a held
+    /// handle, putting what it dragged back; a press on the model keeps the gizmo on the
+    /// surface, unaimed; the pen rectangle selects nothing.
     pub fn escape(&mut self) -> Option<Step> {
         match std::mem::take(&mut self.press) {
             PenPress::Grab(g) => {

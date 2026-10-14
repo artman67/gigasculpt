@@ -7,14 +7,19 @@ use gs_platform::{Button, Input};
 use gs_protocol::PenSample;
 use gs_render::{UiImage, UiLayer, UiMesh, UiTexture, UiVertex};
 
-/// egui modifiers from the platform's.
+/// egui modifiers from the platform's. egui's `command` is Cmd on macOS and Ctrl elsewhere, as
+/// its text fields read it (select all, copy, cut and paste).
 pub fn modifiers(m: gs_platform::Modifiers) -> Modifiers {
     Modifiers {
         alt: m.alt,
         ctrl: m.ctrl,
         shift: m.shift,
         mac_cmd: m.logo,
-        command: m.ctrl,
+        command: if cfg!(target_os = "macos") {
+            m.logo
+        } else {
+            m.ctrl
+        },
     }
 }
 
@@ -29,6 +34,71 @@ pub fn key(name: &str) -> Option<Key> {
         other => other,
     };
     Key::from_name(renamed)
+}
+
+/// A text field's clipboard keys.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Clip {
+    Copy,
+    Cut,
+    Paste,
+}
+
+/// The clipboard key `key` pressed with `m` is, as desktop software reads them: Ctrl (Cmd on
+/// macOS) with C, X or V, with or without Shift, and Shift+Insert to paste but on macOS.
+fn clip(key: Key, m: Modifiers) -> Option<Clip> {
+    match key {
+        Key::C if m.command => Some(Clip::Copy),
+        Key::X if m.command => Some(Clip::Cut),
+        Key::V if m.command => Some(Clip::Paste),
+        Key::Insert if m.shift && !cfg!(target_os = "macos") => Some(Clip::Paste),
+        _ => None,
+    }
+}
+
+/// Whether `inputs` press a paste key (see [`clip`]), so the clipboard is worth reading.
+pub(crate) fn pastes(inputs: &[Input]) -> bool {
+    inputs.iter().any(|input| match input {
+        Input::Key {
+            key: name,
+            down: true,
+            modifiers: m,
+            ..
+        } => key(name).and_then(|k| clip(k, modifiers(*m))) == Some(Clip::Paste),
+        _ => false,
+    })
+}
+
+/// `events` for a text field: each clipboard key pressed becomes egui's copy, cut or paste (its
+/// text fields take only those), the paste carrying `clipboard`'s text with Windows' line breaks
+/// made plain, or nothing when there is no text.
+pub(crate) fn clipboard(events: Vec<Event>, clipboard: Option<&str>) -> Vec<Event> {
+    let paste = clipboard.map(|text| Event::Paste(text.replace("\r\n", "\n")));
+    (events.into_iter())
+        .filter_map(|event| match event {
+            Event::Key {
+                key,
+                pressed: true,
+                modifiers: m,
+                ..
+            } => match clip(key, m) {
+                Some(Clip::Copy) => Some(Event::Copy),
+                Some(Clip::Cut) => Some(Event::Cut),
+                Some(Clip::Paste) => paste.clone(),
+                None => Some(event),
+            },
+            other => Some(other),
+        })
+        .collect()
+}
+
+/// The text egui asks to put on the clipboard in `output`, a text field's copy or cut: the last,
+/// if there are several.
+pub(crate) fn copied(output: &egui::PlatformOutput) -> Option<String> {
+    (output.commands.iter().rev()).find_map(|command| match command {
+        egui::OutputCommand::CopyText(text) => Some(text.clone()),
+        _ => None,
+    })
 }
 
 /// egui events for the non-pen input of one frame. `ppp` is pixels per point.
@@ -68,7 +138,13 @@ pub fn events(inputs: &[Input], ppp: f32, held: Modifiers) -> Vec<Event> {
             }),
             Input::Text(text) => Some(Event::Text(text.clone())),
             Input::PointerGone => Some(Event::PointerGone),
-            Input::Pen(_) | Input::Resized | Input::Close => None,
+            // The window's own: the studio takes them before egui's events (`Shell::window_input`).
+            Input::Pen(_)
+            | Input::Resized
+            | Input::Close
+            | Input::Quit
+            | Input::Dropped(_)
+            | Input::Dialog(_) => None,
         })
         .collect()
 }

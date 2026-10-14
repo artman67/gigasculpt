@@ -188,6 +188,10 @@ impl Command for MeshVoxelRemesh {
         Ok(())
     }
 
+    fn check(&self, cx: &Ctx) -> Result<(), Unavailable> {
+        crate::level::check_one_level(cx, self.part.as_ref(), "voxel remesh", true)
+    }
+
     fn run(self, cx: &mut Ctx) -> Result<VoxelRemeshed, CommandError> {
         let part = pinned(self.part)?;
         cx.doc.single_level_or_frozen(&part, "voxel remesh")?;

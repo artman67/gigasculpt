@@ -126,6 +126,36 @@ impl Platform {
         self.window.clone().set_minimum_size(width, height).ok();
     }
 
+    /// The window's title.
+    pub fn title(&self) -> String {
+        self.window.title().to_string()
+    }
+
+    /// Sets the window's title, telling the system only when it changes.
+    pub fn set_title(&self, title: &str) {
+        if self.window.title() != title {
+            // The window lives in an Arc: a clone sets the one window.
+            self.window.clone().set_title(title).ok();
+        }
+    }
+
+    /// Lets the window ask before it closes: a click on its close button then sends only
+    /// [`Input::Close`], never the quit SDL adds when the last window closes, which ends the
+    /// program at once ([`Input::Quit`]).
+    pub fn ask_before_closing(&self) {
+        sdl3::hint::set("SDL_QUIT_ON_LAST_WINDOW_CLOSE", "0");
+    }
+
+    /// The SDL window, for the dialogs to show over.
+    pub(crate) fn sdl_window(&self) -> &'static Window {
+        self.window
+    }
+
+    /// SDL's video subsystem, for the clipboard.
+    pub(crate) fn video(&self) -> &sdl3::VideoSubsystem {
+        &self.video
+    }
+
     /// Nanoseconds on SDL's event clock.
     pub fn now_ns(&self) -> u64 {
         self.clock.now_ns()

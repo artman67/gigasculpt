@@ -1,7 +1,7 @@
 //! Binding a key from a control (catalog `interface.gesture-map-widgets`, decision 0025
 //! section 5 as amended 2026-10-12): Ctrl+Alt + click on a button aims at it without running
 //! it and the status line asks for the key; the next key is bound to the button's command, a
-//! taken one is refused naming its holder and moves once `replace` is confirmed, Escape binds
+//! taken one is asked about naming its holder and moves once `replace` is confirmed, Escape binds
 //! nothing, a switch's key switches it, and a wheel notch with a modifier held binds as a key.
 
 use gs_platform::{Input, Modifiers};
@@ -78,15 +78,16 @@ fn ctrl_alt_click_on_a_button_then_k_binds_k_to_its_command() {
     assert_eq!(ui.logged("level.subdivide").len(), 2);
 }
 
-/// A taken key: `ui.keymap` names the holder on the status line and the palette's form asks
-/// to replace it; confirmed, the key moves. Escape binds nothing.
+/// A taken key: the palette asks to replace it, naming the holder in the question's line;
+/// confirmed, the key moves. Escape binds nothing.
 #[test]
 fn a_taken_key_names_its_holder_and_escape_binds_nothing() {
     let mut ui = detail();
     aim(&mut ui, "Subdivide");
     ui.tap("I", held("Ctrl"));
-    let named = "Ctrl+I runs Invert mask (mask.invert scope = \"all\") in the window";
-    assert!(status(&mut ui).contains(named), "{}", status(&mut ui));
+    let named = "Ctrl+I runs Invert mask in the window";
+    let asked = ui.labels("palette");
+    assert!(asked.iter().any(|l| l.contains(named)), "{asked:?}");
     assert_eq!(runs(&ui, "Ctrl+I").as_deref(), Some("mask.invert"));
     let form = ui.host.lock().shell.palette.form.as_ref().map(|f| {
         let fields: Vec<String> = f.fields.iter().map(|(n, _)| n.clone()).collect();
@@ -148,4 +149,15 @@ fn a_switch_and_a_wheel_notch_bind_as_a_button_and_a_key_do() {
     ui.input(&[Input::Wheel { dx: 0.0, dy: 1.0 }], held("Alt"));
     assert_eq!(ui.logged("level.subdivide").len(), 1, "the notch runs it");
     assert_eq!(camera(&mut ui), seen, "the camera stays");
+}
+
+/// The keys sheet says how, where a person looks for keys (UI-keys, 2026-10-14).
+#[test]
+fn the_keys_sheet_says_ctrl_alt_click_binds_a_key() {
+    let mut ui = Ui::new();
+    ui.ok("ui.settings", json!({ "open": true, "page": "Keys" }));
+    ui.settle();
+    let line = "Or hold Ctrl+Alt and click a button to give it a key.";
+    let labels = ui.labels("settings");
+    assert!(labels.iter().any(|l| l == line), "{labels:?}");
 }

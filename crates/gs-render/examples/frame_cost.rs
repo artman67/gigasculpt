@@ -11,7 +11,8 @@
 //! to a full queue wait, with every frame drawn as after a camera move (one fresh sample). Then,
 //! for clay, the baked look and the two lit looks, each pass's GPU time from timestamps (median
 //! of 9) for a moving frame, an accumulating frame and a settled frame, and the wall time from a
-//! camera move until 16 samples are in.
+//! camera move until 16 samples are in. A settled frame runs no pass (it copies the last
+//! sample's picture, which no timestamp brackets), so its column reads 0.
 //!
 //! With `parts` after MILLIONS (decision 0033, section 5): the same triangles as 5 quad spheres
 //! in a row, clay and the baked look, each without and with the active part's outline: the

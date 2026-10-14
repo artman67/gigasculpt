@@ -10,7 +10,7 @@ use std::f64::consts::FRAC_1_SQRT_2;
 use gs_platform::Modifiers;
 use serde_json::{Value, json};
 
-use crate::paint::{BLUE, RED, colors, hint, pixel_at, seen, shows, type_hex, undos};
+use crate::paint::{BLUE, RED, colors, hint, pixel_at, type_hex, undos};
 use crate::region::middle;
 use crate::rig::{Ui, held};
 
@@ -46,7 +46,7 @@ fn agrees(ui: &mut Ui, hex: &str) {
         "Saturation and value",
         "Gray",
     ] {
-        assert_eq!(seen(ui, label)["command"], set, "{label}");
+        assert_eq!(ui.seen("brush", label)["command"], set, "{label}");
     }
 }
 
@@ -54,9 +54,12 @@ fn agrees(ui: &mut Ui, hex: &str) {
 fn the_wheel_and_the_gray_bar_set_exact_bytes_the_hex_field_and_the_sliders_agree_with() {
     let mut ui = Ui::new();
     ui.ok("color.set", json!({ "main": RED }));
-    assert!(!shows(&mut ui, "Hue"), "the picker starts shut");
+    assert!(!ui.shows("brush", "Hue"), "the picker starts shut");
     ui.press("brush > Main");
-    assert!(shows(&mut ui, "Hue"), "a tap on the edited swatch opens it");
+    assert!(
+        ui.shows("brush", "Hue"),
+        "a tap on the edited swatch opens it"
+    );
     let undone = undos(&mut ui);
     // 45 degrees clockwise from red at the top, at red's full saturation and value.
     let wheel = ui.rect("brush > Hue");
@@ -81,7 +84,7 @@ fn the_wheel_and_the_gray_bar_set_exact_bytes_the_hex_field_and_the_sliders_agre
     agrees(&mut ui, PAINT);
     assert_eq!(undos(&mut ui), undone, "no color is an undo step");
     ui.press("brush > Main");
-    assert!(!shows(&mut ui, "Hue"), "a second tap shuts it");
+    assert!(!ui.shows("brush", "Hue"), "a second tap shuts it");
 }
 
 #[test]

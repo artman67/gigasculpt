@@ -124,9 +124,11 @@ pub fn main_with(args: impl IntoIterator<Item = OsString>, renderer: MakeRendere
 
 fn run_serve(args: ServeArgs, renderer: MakeRenderer) -> Result<(), String> {
     gs_protocol::check_session_name(&args.session)?;
-    // Before the GPU opens, so a name too long for its socket is refused at once.
+    // Before the GPU opens, so a name or a socket too long for a socket is refused at once.
     let socket = match args.socket {
-        Some(socket) => socket,
+        Some(socket) => {
+            gs_protocol::check_socket_path(gs_protocol::System::HERE, &socket).map(|()| socket)?
+        }
         None => gs_protocol::socket_path(&args.session)?,
     };
     let render = renderer(args.adapter.as_deref())?;

@@ -20,11 +20,6 @@ use crate::determinism::seeded;
 use crate::support::{EngineSession, agent, log_records, worst};
 use crate::views::log_path;
 
-/// The operations, as `op` names them.
-const OPS: [&str; 10] = [
-    "bend", "fold", "twist", "taper", "shear", "clip", "spherize", "noise", "lattice", "curve",
-];
-
 fn remove(log: &Path) {
     if let Some(dir) = log.parent() {
         std::fs::remove_dir_all(dir).ok();
@@ -355,16 +350,14 @@ fn as_given(examples: &[ExampleInfo], placing: &[Step]) -> Plan {
     plan.starting_with(placing)
 }
 
-/// Every operation keeps `transform.apply`'s claims on its own examples, as given and on random
-/// plans, without symmetry and mirrored across x about a frame off the plane, over parts placed
-/// by a half turn, an even scale and a move that keep them symmetric across x and z: so
+/// The operation `op` keeps `transform.apply`'s claims on its own examples, as given and on
+/// random plans, without symmetry and mirrored across x about a frame off the plane, over parts
+/// placed by a half turn, an even scale and a move that keep them symmetric across x and z: so
 /// `placement_invariant` (which a plane skips) meets parts with a transform, and
 /// `keeps_symmetry` a mirror plane that splits them. The examples also run as given because
 /// the random plans perturb every number, and the cage's and the curve's dozen or so numbers
 /// leave few of their calls valid (a size of 0 or 1, an index past it, a scale below 0).
-#[test]
-fn every_deformer_keeps_the_claims_of_transform_apply_on_placed_and_mirrored_parts() {
-    let catalog = Session::new().engine.catalog().clone();
+fn keeps_the_claims_of_transform_apply(op: &str) {
     let placing: Vec<Step> = [
         json!({ "rotate": { "axis": "y", "degrees": 180 } }),
         json!({ "scale": [2.0, 2.0, 2.0] }),
@@ -376,47 +369,64 @@ fn every_deformer_keeps_the_claims_of_transform_apply_on_placed_and_mirrored_par
         args: json!({ "frame": at([0.0; 3]), "op": op }),
     })
     .collect();
-    for op in OPS {
-        let mut own = catalog.clone();
-        let Some(info) = own
-            .commands
-            .iter_mut()
-            .find(|c| c.name == "transform.apply")
-        else {
-            panic!("no transform.apply");
-        };
-        info.examples.retain(|e| e.args["op"].get(op).is_some());
-        (info.examples.iter_mut())
-            .filter_map(|e| e.args.as_object_mut())
-            .for_each(|args| {
-                args.remove("symmetry");
-            });
-        let mirrored: Vec<_> = (info.examples.iter())
-            .filter(|e| e.fails_with.is_none())
-            .map(|e| {
-                let mut e = e.clone();
-                e.args["frame"] = at([0.4, 0.1, -0.2]);
-                e.args["symmetry"] = json!({ "mirror": { "x": true } });
-                e
-            })
-            .collect();
-        assert!(!mirrored.is_empty(), "{op} has an example that runs");
-        info.examples.extend(mirrored);
-        let given = as_given(&info.examples, &placing);
-        let harness = (Harness::new(&own).unwrap_or_else(|e| panic!("{e}")))
-            .only(&["transform.apply"])
-            .starting_with(&placing);
-        let mut tally =
-            (harness.check(&given)).unwrap_or_else(|v| panic!("{op}, its examples as given: {v}"));
-        let random = harness
-            .run()
-            .unwrap_or_else(|report| panic!("{op}: {report}"));
-        for (key, n) in random.checks {
-            *tally.checks.entry(key).or_default() += n;
-        }
-        (harness.require_checked(&tally)).unwrap_or_else(|e| panic!("{op}: {e}"));
-        for ((_, claim), seen) in &tally.observed {
-            eprintln!("observed {op} {claim}: {:e}", seen.max);
-        }
+    let mut own = Session::new().engine.catalog().clone();
+    let Some(info) = own
+        .commands
+        .iter_mut()
+        .find(|c| c.name == "transform.apply")
+    else {
+        panic!("no transform.apply");
+    };
+    info.examples.retain(|e| e.args["op"].get(op).is_some());
+    (info.examples.iter_mut())
+        .filter_map(|e| e.args.as_object_mut())
+        .for_each(|args| {
+            args.remove("symmetry");
+        });
+    let mirrored: Vec<_> = (info.examples.iter())
+        .filter(|e| e.fails_with.is_none())
+        .map(|e| {
+            let mut e = e.clone();
+            e.args["frame"] = at([0.4, 0.1, -0.2]);
+            e.args["symmetry"] = json!({ "mirror": { "x": true } });
+            e
+        })
+        .collect();
+    assert!(!mirrored.is_empty(), "{op} has an example that runs");
+    info.examples.extend(mirrored);
+    let given = as_given(&info.examples, &placing);
+    let harness = (Harness::new(&own).unwrap_or_else(|e| panic!("{e}")))
+        .only(&["transform.apply"])
+        .starting_with(&placing);
+    let mut tally =
+        (harness.check(&given)).unwrap_or_else(|v| panic!("{op}, its examples as given: {v}"));
+    let random = harness
+        .run()
+        .unwrap_or_else(|report| panic!("{op}: {report}"));
+    for (key, n) in random.checks {
+        *tally.checks.entry(key).or_default() += n;
     }
+    (harness.require_checked(&tally)).unwrap_or_else(|e| panic!("{op}: {e}"));
+    for ((_, claim), seen) in &tally.observed {
+        eprintln!("observed {op} {claim}: {:e}", seen.max);
+    }
+}
+
+/// Every deformer, one test for each operation as `op` names it, so nextest runs them side by
+/// side (decision 0008, amended 2026-10-14).
+mod every_deformer_keeps_the_claims_of_transform_apply_on_placed_and_mirrored_parts {
+    macro_rules! each {
+        ($($op:ident),+ $(,)?) => {
+            $(
+                #[test]
+                fn $op() {
+                    super::keeps_the_claims_of_transform_apply(stringify!($op));
+                }
+            )+
+        };
+    }
+
+    each!(
+        bend, fold, twist, taper, shear, clip, spherize, noise, lattice, curve
+    );
 }

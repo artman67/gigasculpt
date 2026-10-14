@@ -124,8 +124,14 @@ impl ReferenceOpen {
                 vec![],
             ));
         }
+        let path = self.file.clone().unwrap_or_default();
+        // A folder asks for a file name, as Open does, named as this command's `file`.
+        crate::file::not_a_folder(std::path::Path::new(&path)).map_err(|e| CommandError {
+            path: Some("/file".into()),
+            ..e
+        })?;
         let source = Source::File {
-            path: self.file.clone().unwrap_or_default(),
+            path,
             hash: self.hash.clone().unwrap_or_default(),
             format: self.format,
             up: self.up,

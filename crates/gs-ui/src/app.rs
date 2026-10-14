@@ -10,7 +10,7 @@ use std::time::Duration;
 use clap::Parser;
 use gs_engine::server::{JobWatch, ServeOptions, Server, Window};
 use gs_engine::{EngineConfig, cli};
-use gs_platform::{Input, Platform, Pumped, WindowOptions};
+use gs_platform::{Dialogs, Input, Platform, Pumped, WindowOptions};
 use gs_protocol::{
     Catalog, CmdResponse, CommandError, Outcome, PROTOCOL_VERSION, Request, RunParams, Step, method,
 };
@@ -76,11 +76,20 @@ pub struct WindowArgs {
     /// Turn autosave and crash recovery off.
     #[arg(long)]
     pub no_autosave: bool,
+    /// A scene file to open as the window starts, or a mesh file (OBJ, PLY, STL, ZTL, ZPR) to
+    /// import into a new scene. One that is not there, or not a file GigaSculpt reads, is
+    /// refused before the window opens.
+    pub file: Option<PathBuf>,
 }
 
-/// True if the command line asks for the window: no arguments, or `window`.
+/// True if the command line asks for the window: no arguments, `window`, or a file to open
+/// (`gigasculpt head.gss`, as a file manager runs it).
 pub fn wants_window(args: &[OsString]) -> bool {
-    args.len() < 2 || args[1] == "window"
+    let file = |a: &OsString| {
+        let named = std::path::Path::new(a);
+        named.extension().is_some() && !a.to_string_lossy().starts_with('-')
+    };
+    args.len() < 2 || args[1] == "window" || file(&args[1])
 }
 
 /// Runs `gigasculpt` or `gigasculpt window [options]`.
@@ -163,7 +172,9 @@ pub fn shell(config: &std::path::Path) -> Shell {
     problems.extend(broken);
     shell.themes = themes;
     shell.prefs = prefs;
-    shell.status.problem = (!problems.is_empty()).then(|| problems.join("; "));
+    if !problems.is_empty() {
+        shell.status.says(&problems.join("; "));
+    }
     shell
 }
 
@@ -176,10 +187,13 @@ pub fn materials(config: &std::path::Path) -> Step {
     with_args("material.folder", json!({ "folder": folder }))
 }
 
-/// Opens the window and serves the session until the window closes.
+/// Opens the window and serves the session until the window closes, opening the file the
+/// command line names first.
 pub fn run(o: &WindowArgs) -> Result<(), String> {
-    // Checked before the window opens, so a bad or too long name never flashes one.
+    // Checked before the window opens, so a bad or too long name, or a file it cannot open,
+    // never flashes one.
     socket(o)?;
+    let file = o.file.as_deref().map(crate::palette::opened).transpose()?;
     let kind = match &o.adapter {
         Some(name) => Some(AdapterKind::from_name(name).ok_or(format!("unknown adapter {name}"))?),
         None => None,
@@ -187,7 +201,7 @@ pub fn run(o: &WindowArgs) -> Result<(), String> {
     let config = o.config.clone().map_or_else(gs_protocol::config_dir, Ok)?;
     let shell = shell(&config);
     let mut platform = Platform::open(&WindowOptions {
-        title: format!("GigaSculpt - {}", o.session),
+        title: "GigaSculpt".into(),
         width: o.width,
         height: o.height,
         driver: o.driver.clone(),
@@ -206,6 +220,9 @@ pub fn run(o: &WindowArgs) -> Result<(), String> {
     let server = start(o, &host)?;
     let window = server.window();
     launch(&config, &host, |request| window.execute(request));
+    if let Some(step) = file {
+        host.lock().shell.open_at_start(step);
+    }
     let closed = frames(&mut platform, &mut surface, &host, &window, o.close_after);
     window.close();
     server.wait().map_err(|e| e.to_string())?;
@@ -316,6 +333,11 @@ fn frames(
     let mut wait = Duration::ZERO;
     let mut measured = 0;
     let mut mouse = MousePen::default();
+    // Closing asks about unsaved changes first, and file actions ask the system's dialogs
+    // (decision 0016, section 17, amended 2026-10-13).
+    platform.ask_before_closing();
+    host.lock().shell.palette.dialogs = true;
+    let dialogs = Dialogs::default();
     loop {
         let pumped = platform.pump(wait);
         // The memory the status line shows, about twice a second.
@@ -324,11 +346,13 @@ fn frames(
             host.lock().memory(crate::status::resident_mb());
         }
         let late = deadline.is_some_and(|d| platform.now_ns() >= d);
-        if late || pumped.inputs.contains(&Input::Close) {
+        if late || pumped.inputs.contains(&Input::Quit) || host.lock().shell.closes() {
             return Ok(());
         }
-        // The mouse's held buttons are the pen's (decision 0017 as amended).
-        let inputs = mouse.convert(&pumped.inputs, platform.now_ns());
+        // The mouse's held buttons are the pen's (decision 0017 as amended); the dialogs'
+        // answers come with the rest of the input.
+        let mut inputs = mouse.convert(&pumped.inputs, platform.now_ns());
+        inputs.extend(dialogs.answers().into_iter().map(Input::Dialog));
         let (samples, others) = split_pen(&inputs);
         let applied = if samples.is_empty() {
             None
@@ -345,6 +369,7 @@ fn frames(
         // The interface's commands run before the frame is painted, so a navigation drag
         // shows in the frame it happened in.
         commands(host, window)?;
+        files(platform, host, &dialogs);
         let Some((ui, frame, begun)) = pass else {
             wait = IDLE;
             continue;
@@ -361,6 +386,15 @@ fn frames(
     }
 }
 
+/// Shows the file dialog the interface asked for, and the scene in the window's title.
+fn files(platform: &Platform, host: &Host, dialogs: &Dialogs) {
+    let mut studio = host.lock();
+    if let Some(dialog) = studio.shell.take_dialog() {
+        dialogs.show(platform, &dialog);
+    }
+    platform.set_title(&studio.shell.title());
+}
+
 /// One pass of the window loop's command path: runs what the interface asked for as the human
 /// at the window. `Err` once the engine has stopped.
 pub fn commands(host: &Host, window: &Window) -> Result<(), String> {
@@ -370,12 +404,26 @@ pub fn commands(host: &Host, window: &Window) -> Result<(), String> {
         let ran = call(window, step.clone()).ok_or("the engine stopped")?;
         report(host, Some(step), ran);
     }
-    // The bar follows the window's job each pass, and goes once it ends.
+    // The bar follows the window's job each pass, and goes once it ends. A job refused on its
+    // own thread for an argument its step lacks asks for it, as a call refused at once does.
     let mut studio = host.lock();
+    let was = studio.shell.status.busy.clone();
     if crate::status::follow(&mut studio.shell.status) {
         studio.dirty = true;
     }
+    let ended = was.filter(|_| studio.shell.status.busy.is_none());
+    if let Some((step, e)) = ended.and_then(asked) {
+        studio.shell.refused(Some(step), &e);
+    }
     Ok(())
+}
+
+/// The step of the window's job that ended and its refusal, when it was refused for an
+/// argument the step lacks (a first save's file, Open's unsaved changes).
+fn asked(busy: Busy) -> Option<(Step, CommandError)> {
+    let (step, e) = (busy.step?, busy.job.refusal()?);
+    gs_engine::errors::asks(&e, &step.args)?;
+    Some((step, e))
 }
 
 /// Shows a job a command became on the status line's bar, or a command's failure in the status
@@ -383,7 +431,13 @@ pub fn commands(host: &Host, window: &Window) -> Result<(), String> {
 /// ran; `None` for the pen's samples.
 fn report(host: &Host, step: Option<Step>, result: Result<Option<JobWatch>, CommandError>) {
     match result {
-        Ok(Some(job)) => host.lock().shell.status.busy = Some(Busy::new(job)),
+        Ok(Some(job)) => {
+            let busy = Busy {
+                step,
+                ..Busy::new(job)
+            };
+            host.lock().shell.status.busy = Some(busy);
+        }
         Ok(None) => {}
         Err(e) => host.lock().shell.refused(step, &e),
     }
@@ -412,13 +466,20 @@ fn interface(
     let scale = pumped.content_scale * studio.shell.layout.layout.ui_scale;
     platform.set_minimum_size([640.0, 480.0].map(|v| (v * scale).ceil() as u32));
     studio.at(platform.now_ns());
+    studio.clipboard(others, || platform.clipboard_text());
     studio.input(others, pumped.modifiers);
     if !studio.dirty {
         return None;
     }
     let begun = platform.now_ns();
     let (ui, frame) = studio.interface();
-    Some((ui, frame, platform.now_ns() - begun))
+    let spent = platform.now_ns() - begun;
+    // What a text field copied or cut goes on the system clipboard.
+    if let Some(Err(e)) = (frame.copied.as_deref()).map(|text| platform.set_clipboard_text(text)) {
+        studio.shell.status.says(&format!("Could not copy: {e}"));
+        studio.dirty = true;
+    }
+    Some((ui, frame, spent))
 }
 
 /// Paints and presents a frame with the interface layer `ui`, which took `spent` nanoseconds to

@@ -36,24 +36,6 @@ fn show(ui: &mut Ui, open: &[&str]) -> Vec<String> {
     ui.open_only_in("brush", open)
 }
 
-/// The brush tray's widget labelled `label`, scrolled into sight, if it shows anywhere.
-fn found(ui: &mut Ui, label: &str) -> Option<Value> {
-    ui.scroll_to("brush", label);
-    ui.widgets("brush")
-        .into_iter()
-        .find(|w| w["label"] == label)
-}
-
-/// The brush tray's widget labelled `label`, scrolled into sight.
-fn widget(ui: &mut Ui, label: &str) -> Value {
-    found(ui, label).unwrap_or_else(|| panic!("the brush tray shows {label}"))
-}
-
-/// Whether the brush tray shows a widget labelled `label` anywhere, scrolling to look.
-fn shows(ui: &mut Ui, label: &str) -> bool {
-    found(ui, label).is_some()
-}
-
 /// This session's change to the pen's brush at the dotted `path`, as `session.state` says.
 fn changed(ui: &mut Ui, path: &str) -> Value {
     let pointer = format!("/{}", path.replace('.', "/"));
@@ -64,13 +46,13 @@ fn changed(ui: &mut Ui, path: &str) -> Value {
 /// The value the slider `label` shows at the dotted `path` of its `brush.set` settings.
 fn slider(ui: &mut Ui, label: &str, path: &str) -> Option<f64> {
     let pointer = format!("/{}", path.replace('.', "/"));
-    let w = widget(ui, label);
+    let w = ui.seen("brush", label);
     w["command"]["args"]["settings"].pointer(&pointer)?.as_f64()
 }
 
 /// Whether the button `label` is lit.
 fn lit(ui: &mut Ui, label: &str) -> bool {
-    widget(ui, label)["selected"] == true
+    ui.seen("brush", label)["selected"] == true
 }
 
 /// The brush's `brush.set` calls in the log so far.
@@ -155,13 +137,13 @@ fn every_depth_and_tilt_control_runs_brush_set_once_with_its_path() {
     // Clay Build: a plane brush with an alpha, which takes every one of them.
     let mut ui = workbench("Clay Build");
     // Depth starts shut, last in the tray; a tap on its title row opens it.
-    assert!(!shows(&mut ui, "Imbed"), "Depth starts shut");
+    assert!(!ui.shows("brush", "Imbed"), "Depth starts shut");
     let rect = ui.rect("brush > depth");
     ui.tap_at(middle(rect)[0], rect[1] + 10.0);
     // Decision 0060, section 6, item 6: Inner and Outer only while Mask is on, X, Y and Z
     // while Infinite is, and Gravity's directions while it is not 0.
     for label in ["Inner Depth", "Outer Depth", "X", "Down"] {
-        assert!(!shows(&mut ui, label), "{label} waits for its switch");
+        assert!(!ui.shows("brush", label), "{label} waits for its switch");
     }
     let on = json!(true);
     flip(&mut ui, "depth.mask", &on);
@@ -265,7 +247,7 @@ fn the_controls_light_from_the_brush_in_effect_and_relight_on_a_brush_switch() {
         );
     }
     for label in ["Y", "Right", "Down"] {
-        assert!(!shows(&mut ui, label), "Clay Build hides {label}");
+        assert!(!ui.shows("brush", label), "Clay Build hides {label}");
     }
     more(&mut ui);
     assert!(!lit(&mut ui, "Hold turn"), "Clay Build's Hold turn is off");
@@ -282,12 +264,12 @@ fn the_controls_light_from_the_brush_in_effect_and_relight_on_a_brush_switch() {
 fn brush_placement_is_described_and_its_circle_follows_imbed() {
     let mut ui = workbench("Clay Build");
     show(&mut ui, &["depth"]);
-    let view = pixels(&widget(&mut ui, "Brush Placement")["rect"]);
+    let view = pixels(&ui.seen("brush", "Brush Placement")["rect"]);
     assert!(
         view[3] - view[1] >= 60.0,
         "a view tall enough to show the band: {view:?}"
     );
-    let circle = |ui: &mut Ui| center(&widget(ui, "Brush Placement circle")["rect"])[1];
+    let circle = |ui: &mut Ui| center(&ui.seen("brush", "Brush Placement circle")["rect"])[1];
     let at = circle(&mut ui);
     ui.ok(
         "brush.set",
@@ -312,18 +294,21 @@ fn brush_placement_is_described_and_its_circle_follows_imbed() {
         "Infinite Depth reach",
     ];
     for mark in marks {
-        assert!(!shows(&mut ui, mark), "{mark} shows only with its switch");
+        assert!(
+            !ui.shows("brush", mark),
+            "{mark} shows only with its switch"
+        );
     }
     let both = json!({ "depth": { "mask": true, "infinite": true } });
     ui.ok("brush.set", json!({ "settings": both }));
-    let mark = |ui: &mut Ui, label: &str| center(&widget(ui, label)["rect"])[1];
+    let mark = |ui: &mut Ui, label: &str| center(&ui.seen("brush", label)["rect"])[1];
     let (outer, inner) = (mark(&mut ui, marks[0]), mark(&mut ui, marks[1]));
     assert!(
         outer < inner,
         "Outer Depth above Inner Depth: {outer}, {inner}"
     );
-    let reach = pixels(&widget(&mut ui, marks[2])["rect"]);
-    let view = pixels(&widget(&mut ui, "Brush Placement")["rect"]);
+    let reach = pixels(&ui.seen("brush", marks[2])["rect"]);
+    let view = pixels(&ui.seen("brush", "Brush Placement")["rect"]);
     assert!(
         reach[1] <= view[1] + 1.0 && reach[3] >= view[3] - 1.0,
         "{reach:?} in {view:?}"
@@ -334,7 +319,7 @@ fn brush_placement_is_described_and_its_circle_follows_imbed() {
 fn the_depth_curve_shows_with_the_mask_and_an_edit_reaches_depth_curve() {
     let mut ui = workbench("Draw");
     show(&mut ui, &["depth"]);
-    assert!(!shows(&mut ui, "Depth Curve"), "not with the mask off");
+    assert!(!ui.shows("brush", "Depth Curve"), "not with the mask off");
     flip(&mut ui, "depth.mask", &json!(true));
     // A tap on the graph halfway across, near its foot, adds a point there.
     let graph = ui.rect("brush > Depth Curve");
@@ -414,7 +399,7 @@ fn with_every_section_open_the_brush_tray_scrolls_rather_than_widens() {
         }
     }
     assert!(
-        shows(&mut ui, "Depth Curve"),
+        ui.shows("brush", "Depth Curve"),
         "the Depth Curve shows at the foot"
     );
 }
@@ -430,7 +415,7 @@ fn a_gesture_brush_refuses_its_switches_and_drags_saying_why() {
     let mut ui = workbench("Clip Curve");
     show(&mut ui, &["depth"]);
     for label in ["Brush Placement", "Imbed", "Gravity"] {
-        assert_eq!(widget(&mut ui, label)["enabled"], true, "{label} shows");
+        assert_eq!(ui.seen("brush", label)["enabled"], true, "{label} shows");
     }
     // A switch the gesture refuses shows, and a press of it sets nothing, saying why.
     let refused = |ui: &mut Ui, what: &str, before: usize| {
@@ -446,7 +431,7 @@ fn a_gesture_brush_refuses_its_switches_and_drags_saying_why() {
         assert_ne!(switch(&mut ui, path)["selected"], true, "{path} stays off");
     }
     show(&mut ui, &["alpha"]);
-    assert_eq!(widget(&mut ui, "Follow")["enabled"], true, "Follow shows");
+    assert_eq!(ui.seen("brush", "Follow")["enabled"], true, "Follow shows");
     more(&mut ui);
     let before = sets(&mut ui);
     ui.press("brush > Hold turn");

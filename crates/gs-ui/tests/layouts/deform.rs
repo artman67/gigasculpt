@@ -157,13 +157,6 @@ impl Tray {
             .collect()
     }
 
-    /// The panel's widget `label`, as `ui.describe` reports it.
-    fn widget(&mut self, label: &str) -> Value {
-        let widgets = self.ui.widgets("menu");
-        let found = widgets.iter().find(|w| w["label"] == label).cloned();
-        found.unwrap_or_else(|| panic!("no {label} in Deform: {widgets:?}"))
-    }
-
     /// Every point of part `part`, as bits.
     fn bits(&mut self, part: &str) -> Vec<[u32; 3]> {
         let mesh = self.ui.session.mesh(part);
@@ -243,7 +236,7 @@ fn a_bend_pull_opens_updates_and_accepts_one_step_named_bend_and_springs_back() 
     );
     assert!(lines[0].args["box"].is_object(), "{:?}", lines[0].args);
 
-    let shown = tray.widget("Smooth bend");
+    let shown = tray.ui.widget("menu", "Smooth bend");
     let at = number(&shown["command"]["args"]["op"]["bend"]["degrees"]);
     assert_eq!(at, 0.0, "the slider reads 0 after: {shown}");
 }
@@ -370,7 +363,7 @@ fn typed_as_pulled(slider: &str, at: fn(&Value) -> f64) -> f64 {
     assert_eq!(lines[0].args, pulled[0].args, "the same line");
     assert_eq!(tray.undos(), json!(number(&undos) as u64 + 1), "one step");
     assert!(tray.sessions().is_empty(), "no session for a typed value");
-    let shown = tray.widget(slider);
+    let shown = tray.ui.widget("menu", slider);
     let reads = at(&shown["command"]["args"]);
     assert_eq!(reads, 0.0, "the slider reads 0 after: {shown}");
     at(&pulled[0].args)
@@ -531,7 +524,7 @@ fn pen_moves_over_several_frames_send_one_update_with_the_last_value() {
     assert_eq!(taken[0].args["phase"], "update");
     let sent = number(&taken[0].args["transforms"][0]["op"]["bend"]["degrees"]);
     tray.send(taken[0].clone());
-    let shown = tray.widget("Smooth bend");
+    let shown = tray.ui.widget("menu", "Smooth bend");
     let held = number(&shown["command"]["args"]["op"]["bend"]["degrees"]);
     assert!(held > 0.0, "{shown}");
     assert_eq!(sent, held, "the last value");
@@ -562,7 +555,7 @@ fn with_the_gizmo_tool_on_a_pull_asks_for_the_gizmo_again_only_after_its_accept(
 
 /// The amount a smoothing slider's widget runs now, as `ui.describe` reports it.
 fn amount(tray: &mut Tray, slider: &str) -> f64 {
-    let shown = tray.widget(slider);
+    let shown = tray.ui.widget("menu", slider);
     number(&shown["command"]["args"]["amount"])
 }
 
@@ -679,7 +672,7 @@ fn until_the_axis_row_is_touched_a_smoothing_works_along_x_y_and_z() {
     let (axes, moved) = smoothed(&mut tray);
     assert_eq!(axes, json!({ "x": true, "y": true, "z": true }));
     assert!(moved.iter().all(|m| *m > 1e-3), "all three: {moved:?}");
-    let lit = |tray: &mut Tray, axis: &str| tray.widget(axis)["selected"].clone();
+    let lit = |tray: &mut Tray, axis: &str| tray.ui.widget("menu", axis)["selected"].clone();
     assert_eq!(lit(&mut tray, "X"), json!(true), "the row as it was");
     assert_eq!(lit(&mut tray, "Y"), json!(false), "the row as it was");
 }

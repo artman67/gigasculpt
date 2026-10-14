@@ -10,12 +10,12 @@
 //! autosave is still running or the scene is empty.
 //!
 //! A running session with autosave on keeps a marker file naming its log and its scene's
-//! autosave folder; a clean stop removes it. A marker whose process is gone means a crash,
-//! which `file.recovery` offers to recover.
+//! autosave folder, and holds the lock beside it; a clean stop removes both. A marker whose
+//! lock nobody holds means a crash, which `file.recovery` offers to recover.
 
-use std::fs;
+use std::fs::{self, File};
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 use std::time::Duration;
 
 use gs_protocol::{CmdResponse, Request, Role, RunParams};
@@ -85,6 +85,9 @@ pub(crate) struct Autosave {
     running: Option<Arc<JobCell>>,
     /// A recovery landed and no autosave has been tried since.
     recovered: bool,
+    /// This session's marker file and the lock it holds beside it, once it is marked; `None`
+    /// inside when no marker could be claimed, so it is never marked.
+    marker: OnceLock<Option<(PathBuf, File)>>,
 }
 
 impl Autosave {
@@ -95,6 +98,7 @@ impl Autosave {
             covered: None,
             running: None,
             recovered: false,
+            marker: OnceLock::new(),
         }
     }
 
@@ -216,10 +220,16 @@ pub(crate) fn marked_logs(state_dir: &Path) -> Vec<PathBuf> {
     .collect()
 }
 
-/// The marker file of this process's session.
-fn marker_path(config: &StateFolder, session: &str) -> PathBuf {
+/// Claims this process's marker file for `session`, holding the lock beside it:
+/// `<state>/sessions/<session>-<pid>.json`, else the first free numbered name after it, so a
+/// marker a stopped session given the same process number left stays where it is.
+fn claim(config: &StateFolder, session: &str) -> Option<(PathBuf, File)> {
+    let dir = config.state_dir.join("sessions");
+    fs::create_dir_all(&dir).ok()?;
     let name = format!("{session}-{}.json", std::process::id());
-    config.state_dir.join("sessions").join(name)
+    let marker = gs_protocol::free_path(&dir.join(name));
+    let lock = super::recover::hold(&marker)?;
+    Some((marker, lock))
 }
 
 impl Engine {
@@ -273,9 +283,14 @@ impl Engine {
         Some(self.run_inline(*work))
     }
 
-    /// Writes this session's marker, naming its log and its scene's autosave folder.
+    /// Writes this session's marker, naming its log and its scene's autosave folder, once it
+    /// holds the lock beside it.
     pub(crate) fn mark_session(&self) {
         let Some(config) = &self.config.autosave else {
+            return;
+        };
+        let claimed = (self.autosave.marker).get_or_init(|| claim(config, &self.config.session));
+        let Some((path, _)) = claimed else {
             return;
         };
         let file: &FileState = &self.state.file;
@@ -291,21 +306,20 @@ impl Engine {
             autosave: (file.id.as_ref())
                 .map(|id| folder(config, &file.name(), id).display().to_string()),
         };
-        let path = marker_path(config, &self.config.session);
-        if let Some(dir) = path.parent() {
-            fs::create_dir_all(dir).ok();
-        }
         let text = serde_json::to_string_pretty(&marker).unwrap_or_default();
         fs::write(path, text).ok();
     }
 
-    /// A clean stop: removes this session's marker and, when the scene is saved with no
-    /// changes since, its autosaves, which the saved file has overtaken.
+    /// A clean stop: removes this session's marker and its lock and, when the scene is saved
+    /// with no changes since, its autosaves, which the saved file has overtaken.
     pub fn close(&mut self) {
+        // The lock is let go of last, once the marker is gone.
+        if let Some((marker, _lock)) = self.autosave.marker.take().flatten() {
+            super::recover::forget(&marker);
+        }
         let Some(config) = self.config.autosave.clone() else {
             return;
         };
-        fs::remove_file(marker_path(&config, &self.config.session)).ok();
         let file = &self.state.file;
         let unsaved = file.unsaved(self.rev, self.state.palette.steps);
         if let (Some(_), Some(id), false) = (&file.path, &file.id, unsaved) {

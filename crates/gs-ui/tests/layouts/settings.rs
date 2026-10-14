@@ -242,3 +242,40 @@ fn the_figure_and_the_settings_window_sit_under_the_header_by_the_scene_tray() {
         "the settings {window:?} by the scene tray {tray:?}"
     );
 }
+
+/// Review 0009, R14: Escape closes the settings window, as Close does. Typing in its search or
+/// in a slider's value, the first Escape only lets go of the field; with Reset's question up,
+/// Escape answers Cancel and the window stays.
+#[test]
+fn escape_closes_the_settings_window_once_no_field_is_typed_in() {
+    let none = Modifiers::default();
+    let mut ui = Ui::new();
+    ui.ok("ui.navigation", json!({ "barrel_click": "palette" }));
+    crate::header::open(&mut ui, "Window");
+    ui.press("menu > Settings");
+    ui.press("settings > Search");
+    ui.input(&[Input::Text("pivot".into())], none);
+    ui.tap("Escape", none);
+    assert!(
+        !ui.widgets("settings").is_empty(),
+        "the search let go first"
+    );
+    ui.press("settings > Navigation");
+    let speed = ui.rect("settings > Orbit speed");
+    ui.tap_at(speed[2] - 4.0, middle(speed)[1]);
+    ui.input(&[Input::Text("3".into())], none);
+    ui.tap("Escape", none);
+    assert!(
+        !ui.widgets("settings").is_empty(),
+        "the slider's value let go first"
+    );
+    ui.press("settings > Reset all");
+    assert!(!ui.widgets("reset").is_empty(), "Reset asks first");
+    ui.tap("Escape", none);
+    assert!(ui.widgets("reset").is_empty(), "Escape answers Cancel");
+    assert!(!ui.widgets("settings").is_empty(), "and the window stays");
+    ui.tap("Escape", none);
+    assert!(ui.widgets("settings").is_empty(), "Escape closed it");
+    let barrel = ui.state()["navigation.barrel_click"].clone();
+    assert_eq!(barrel, json!("palette"), "and reset nothing");
+}

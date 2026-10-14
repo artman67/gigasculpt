@@ -30,69 +30,149 @@ fn canonical(value: &Value) -> Value {
 
 /// Every edit command keeps its declared claims, and every declaration reaches the harness,
 /// whichever commands declare them: the harness reads exactly the catalog's declarations, in
-/// catalog order, with every argument intact, and one full run passes and checks each of them
-/// (and the claims every edit is held to) at least once, history and effects included. A
-/// command that names a setup (`part.apply_transform`, the locked Reset Orientation) is checked
-/// in that run on plans of its own that start with it. No declaring command is named here, so
-/// a command that starts declaring claims or a setup needs no change to this test.
-#[test]
-fn every_edit_command_keeps_its_claims() {
-    let catalog = Session::new().engine.catalog().clone();
-    let written: Vec<(String, Vec<Value>, Vec<Step>)> = (catalog.commands.iter())
-        .filter(|c| !c.claims.is_empty() || !c.setup.is_empty())
-        .map(|c| {
-            let claims = c.claims.iter().map(canonical).collect();
-            (c.name.clone(), claims, c.setup.clone())
-        })
-        .collect();
-    assert!(
-        written.iter().any(|(_, claims, _)| !claims.is_empty()),
-        "some command declares claims, or this checks nothing"
+/// catalog order, with every argument intact, and the runs over the shares of the catalog's
+/// edit commands pass and check each of them (and the claims every edit is held to) at least
+/// once, history and effects included. A command that names a setup (`part.apply_transform`,
+/// the locked Reset Orientation) is checked in its share's test on plans of its own that start
+/// with it. No declaring command is named here, so a command that starts declaring claims or a
+/// setup needs no change to these tests. One test per share, so nextest runs them side by side
+/// (decision 0008, amended 2026-10-14).
+mod every_edit_command_keeps_its_claims {
+    use super::{Claim, Harness, Session, Step, Value, canonical, declared, json};
+
+    /// One test per share of the catalog's edit commands; `SHARES` holds their numbers.
+    macro_rules! shares {
+        ($($share:ident = $k:literal),+ $(,)?) => {
+            const SHARES: &[usize] = &[$($k),+];
+            $(
+                #[test]
+                fn $share() {
+                    keeps_its_claims($k);
+                }
+            )+
+        };
+    }
+
+    shares!(
+        share_0 = 0,
+        share_1 = 1,
+        share_2 = 2,
+        share_3 = 3,
+        share_4 = 4,
+        share_5 = 5,
+        share_6 = 6,
+        share_7 = 7,
+        share_8 = 8,
+        share_9 = 9,
     );
-    let found = declared(&catalog).unwrap_or_else(|e| panic!("{e}"));
-    let read: Vec<(String, Vec<Value>, Vec<Step>)> = (found.iter())
-        .map(|d| {
-            let claims = d.claims.iter().map(|c| canonical(&json!(c))).collect();
-            (d.command.clone(), claims, d.setup.clone())
-        })
-        .collect();
-    assert_eq!(
-        read, written,
-        "every declaration is read, in catalog order, unchanged"
-    );
-    let tally = Harness::check_catalog(&catalog).unwrap_or_else(|report| panic!("{report}"));
-    for ((command, claim), seen) in &tally.observed {
-        eprintln!(
-            "observed {command} {claim}: {:e}, policy tolerance {:e}",
-            seen.max,
-            seen.tolerance()
+
+    /// The catalog and the harness over all of it.
+    fn whole() -> (gs_protocol::Catalog, Harness) {
+        let catalog = Session::new().engine.catalog().clone();
+        let harness = Harness::new(&catalog).unwrap_or_else(|e| panic!("{e}"));
+        (catalog, harness)
+    }
+
+    /// The harness reads exactly the catalog's declarations, in catalog order, with every
+    /// argument intact.
+    #[test]
+    fn every_declaration_is_read_unchanged() {
+        let catalog = Session::new().engine.catalog().clone();
+        let written: Vec<(String, Vec<Value>, Vec<Step>)> = (catalog.commands.iter())
+            .filter(|c| !c.claims.is_empty() || !c.setup.is_empty())
+            .map(|c| {
+                let claims = c.claims.iter().map(canonical).collect();
+                (c.name.clone(), claims, c.setup.clone())
+            })
+            .collect();
+        assert!(
+            written.iter().any(|(_, claims, _)| !claims.is_empty()),
+            "some command declares claims, or this checks nothing"
+        );
+        let found = declared(&catalog).unwrap_or_else(|e| panic!("{e}"));
+        let read: Vec<(String, Vec<Value>, Vec<Step>)> = (found.iter())
+            .map(|d| {
+                let claims = d.claims.iter().map(|c| canonical(&json!(c))).collect();
+                (d.command.clone(), claims, d.setup.clone())
+            })
+            .collect();
+        assert_eq!(
+            read, written,
+            "every declaration is read, in catalog order, unchanged"
         );
     }
-    for d in found.iter().filter(|d| !d.claims.is_empty()) {
-        let command = &d.command;
-        for claim in d.claims.iter().chain(&Claim::UNIVERSAL) {
+
+    /// The shares are numbered 0 to their count, and together hold every edit command random
+    /// plans call once, with every command that declares claims or names a setup and the two
+    /// whose history and effects are compared by name.
+    #[test]
+    fn the_shares_cover_every_edit_command() {
+        assert_eq!(
+            SHARES,
+            (0..SHARES.len()).collect::<Vec<_>>(),
+            "numbered in order"
+        );
+        let (catalog, harness) = whole();
+        let mut dealt: Vec<String> = (SHARES.iter())
+            .flat_map(|&k| harness.share(k, SHARES.len()))
+            .collect();
+        dealt.sort();
+        let mut every = harness.share(0, 1);
+        every.sort();
+        assert_eq!(dealt, every, "each edit command in one share");
+        let found = declared(&catalog).unwrap_or_else(|e| panic!("{e}"));
+        let named = ["mesh.translate", "mesh.jitter"].map(String::from);
+        let declaring = found.iter().map(|d| &d.command).chain(&named);
+        for command in declaring {
+            assert!(every.contains(command), "{command} is in a share");
+        }
+    }
+
+    /// Share `k`: its commands keep their declared claims, and the run over them checks each,
+    /// and the claims every edit is held to, at least once; history is compared on the three
+    /// history steps, and on `mesh.translate` and effects on `mesh.jitter` in their shares.
+    fn keeps_its_claims(k: usize) {
+        let (catalog, harness) = whole();
+        let mine = harness.share(k, SHARES.len());
+        let tally = (harness.check_share(k, SHARES.len()))
+            .unwrap_or_else(|report| panic!("share {k}: {report}"));
+        for ((command, claim), seen) in &tally.observed {
+            eprintln!(
+                "observed {command} {claim}: {:e}, policy tolerance {:e}",
+                seen.max,
+                seen.tolerance()
+            );
+        }
+        let found = declared(&catalog).unwrap_or_else(|e| panic!("{e}"));
+        let declaring = found.iter().filter(|d| !d.claims.is_empty());
+        for d in declaring.filter(|d| mine.contains(&d.command)) {
+            let command = &d.command;
+            for claim in d.claims.iter().chain(&Claim::UNIVERSAL) {
+                assert!(
+                    tally.count(command, claim.name()) >= 1,
+                    "{command}: {} reached the harness and was checked",
+                    claim.name()
+                );
+            }
+        }
+        let history = ["history.undo", "history.redo", "history.checkpoint"].map(String::from);
+        let translate = ["mesh.translate".to_string()];
+        for command in history
+            .iter()
+            .chain(translate.iter().filter(|c| mine.contains(c)))
+        {
             assert!(
-                tally.count(command, claim.name()) >= 1,
-                "{command}: {} reached the harness and was checked",
-                claim.name()
+                tally.count(command, "history") >= 1,
+                "{command}: history compared"
+            );
+        }
+        if mine.iter().any(|c| c == "mesh.jitter") {
+            assert!(
+                tally.count("mesh.jitter", "effect") >= 1,
+                "effects compared"
             );
         }
     }
-    for command in [
-        "history.undo",
-        "history.redo",
-        "history.checkpoint",
-        "mesh.translate",
-    ] {
-        assert!(
-            tally.count(command, "history") >= 1,
-            "{command}: history compared"
-        );
-    }
-    assert!(
-        tally.count("mesh.jitter", "effect") >= 1,
-        "effects compared"
-    );
 }
 
 /// The fixture and example on which a command first makes an undo step, called as random plans

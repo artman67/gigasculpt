@@ -19,11 +19,19 @@ use crate::rig::{Ui, key};
 const ROWS: &[(&str, &str, &str, &str)] = &[
     // interface.default-bindings: the general rows, and ours.
     ("Space", "General", "ui.palette", "{}"),
+    // Ctrl+Q quits, asking first (review 0009, R10).
+    ("Ctrl+Q", "General", "ui.palette", r#"{"quit": true}"#),
     ("Shift+Space", "General", "ui.quick", r#"{"open": true}"#),
     ("Ctrl+Z", "General", "history.undo", "{}"),
     ("Ctrl+Shift+Z", "General", "history.redo", "{}"),
     ("Ctrl+Y", "General", "history.redo", "{}"),
     ("Ctrl+S", "General", "file.save", "{}"),
+    (
+        "Ctrl+Shift+S",
+        "General",
+        "ui.palette",
+        r#"{"form": "file.save", "ask": ["path"]}"#,
+    ),
     (
         "Ctrl+O",
         "General",
@@ -266,7 +274,7 @@ const ROWS: &[(&str, &str, &str, &str)] = &[
         r#"{"maker": {"by": "masked", "clear_mask": true}}"#,
     ),
     ("Ctrl+Shift+X", "Mask", "visibility.grow", "{}"),
-    ("Ctrl+Shift+S", "Mask", "visibility.shrink", "{}"),
+    ("Ctrl+Shift+C", "Mask", "visibility.shrink", "{}"),
     (
         "Ctrl+Shift+A",
         "Mask",
@@ -291,6 +299,10 @@ const ROWS: &[(&str, &str, &str, &str)] = &[
         r#"{"toggle": true}"#,
     ),
     ("Ctrl+Shift+D", "Geometry", "part.duplicate", "{}"),
+    // Delete deletes the active part (review 0009, R12), and Backspace, a Mac laptop's delete
+    // key (UI-keys, 2026-10-14).
+    ("Delete", "Geometry", "part.delete", "{}"),
+    ("Backspace", "Geometry", "part.delete", "{}"),
 ];
 
 /// A key as the keymap writes it (`Ctrl+Shift+Z`): its name and the modifiers held with it.
@@ -532,7 +544,7 @@ fn each_key_a_menu_shows_asks_for_its_rows_command() {
         ("Mask", "Invert", "Ctrl+I"),
         ("Mask", "Clear", "Alt+M"),
         ("Visible", "Grow", "Ctrl+Shift+X"),
-        ("Visible", "Shrink", "Ctrl+Shift+S"),
+        ("Visible", "Shrink", "Ctrl+Shift+C"),
         ("Visible", "Shells", "Ctrl+Shift+A"),
         ("Visible", "Groups", "Ctrl+Shift+Q"),
         ("Groups", "Mask and clear it", "Ctrl+W"),
@@ -574,6 +586,7 @@ fn each_key_the_add_part_view_and_window_menus_show_asks_for_its_rows_command() 
         named,
         [
             "Ctrl+Shift+D",
+            "Delete",
             "V H",
             "V X",
             "V Y",

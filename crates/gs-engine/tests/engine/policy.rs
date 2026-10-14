@@ -81,31 +81,44 @@ fn outcome(response: CmdResponse) -> (String, String) {
     }
 }
 
-/// The policy table: role x switch x path x every command. A refused call gets the policy's
-/// code; an admitted call gets exactly what the same client gets with no switch set.
-#[test]
-fn the_policy_holds_for_every_command_role_switch_and_path() {
+/// The policy table along one way in: role x switch x every command. A refused call gets the
+/// policy's code; an admitted call gets exactly what the same client gets with no switch set.
+fn the_policy_holds_along(path: Path) {
     let catalog = agent().engine.catalog().clone();
     let mut refusals = 0;
     for info in &catalog.commands {
-        for path in [Path::Run, Path::Batch] {
-            for role in [Role::Human, Role::Agent, Role::Observer] {
-                let unswitched = attempt(info, role, Switch::Off, path);
-                for switch in [Switch::Off, Switch::Paused, Switch::Gesture] {
-                    let what = format!("{} by {role:?}, {switch:?}, {path:?}", info.name);
-                    let got = attempt(info, role, switch, path);
-                    match expected(info, role, switch, path) {
-                        Some(wanted) => {
-                            assert_eq!(got.0, wanted, "{what}: {}", got.1);
-                            refusals += 1;
-                        }
-                        None => assert_eq!(got, unswitched, "{what} is admitted"),
+        for role in [Role::Human, Role::Agent, Role::Observer] {
+            let unswitched = attempt(info, role, Switch::Off, path);
+            for switch in [Switch::Off, Switch::Paused, Switch::Gesture] {
+                let what = format!("{} by {role:?}, {switch:?}, {path:?}", info.name);
+                let got = attempt(info, role, switch, path);
+                match expected(info, role, switch, path) {
+                    Some(wanted) => {
+                        assert_eq!(got.0, wanted, "{what}: {}", got.1);
+                        refusals += 1;
                     }
+                    None => assert_eq!(got, unswitched, "{what} is admitted"),
                 }
             }
         }
     }
     assert!(refusals > 100, "non-trivial: {refusals} refusals checked");
+}
+
+/// The policy table, one test for each way in (`cmd.run` and `cmd.batch`), so nextest runs
+/// the two side by side (decision 0008, amended 2026-10-14).
+mod the_policy_holds_for_every_command_role_switch_and_path {
+    use super::{Path, the_policy_holds_along};
+
+    #[test]
+    fn run() {
+        the_policy_holds_along(Path::Run);
+    }
+
+    #[test]
+    fn batch() {
+        the_policy_holds_along(Path::Batch);
+    }
 }
 
 /// Refusals tell an agent what it can do, never how to get round the human: no hint mentions

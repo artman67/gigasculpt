@@ -11,9 +11,10 @@ use super::name;
 use crate::command::ViewArg;
 use crate::{Command, Ctx, Example, register_command};
 
-/// Read a view: its exact camera, the size it is seen at, whether it is locked, its orbit mode,
-/// its pivot rule and the point that gives now, its last edit point, and how far its camera
-/// history reaches.
+/// Read a view: its exact camera, the side it looks from (`looks_from`, while it looks along an
+/// axis view, as the window's 3D view names it), the size it is seen at, whether it is locked,
+/// its orbit mode, its pivot rule and the point that gives now, its last edit point, and how
+/// far its camera history reaches.
 ///
 /// Views belong to whoever looks: `main` is the window's, and each agent has its own
 /// (`agent:<name>`), made from `main` the first time it is used. Pass the reported `camera` to

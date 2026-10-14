@@ -26,8 +26,8 @@ To see why the window will not open, start it from a terminal and read what it p
 
 - on Linux, run `gigasculpt`;
 - on macOS, run `/Applications/GigaSculpt.app/Contents/MacOS/gigasculpt`;
-- on Windows, the app prints nothing to a terminal yet, so a failed start shows no reason.
-  [Report it](#reporting-a-bug) with your graphics card's name.
+- on Windows, open a terminal in the GigaSculpt folder and type `gigasculpt` (in PowerShell,
+  `.\gigasculpt`), which runs `gigasculpt.com` and prints there.
 
 With more than one graphics device, GigaSculpt picks the fastest one that can draw to the
 window. On Linux you can choose another with `--adapter`:
@@ -56,21 +56,58 @@ choose a shorter one. Names may use letters, digits, `-` and `_`.
 
 ## Nothing prints on Windows
 
-On Windows, `gigasculpt.exe` started from a terminal prints nothing, not even `--version` or
-`--help`. Use `gs.exe`, which comes beside it, for anything you run from a terminal (see
-[Scripts and agents](scripting.md)).
+`gigasculpt.exe` is the app you double-click, and it prints nothing, not even `--version` or
+`--help`. In a terminal, type `gigasculpt` without `.exe` (`.\gigasculpt` in PowerShell), in the
+GigaSculpt folder or anywhere once that folder is on your `PATH`: that runs `gigasculpt.com`, the
+same program built for the terminal, which prints there (see
+[Scripts and agents](scripting.md#sessions-without-a-window)).
+
+## A script on Windows waits after `gs spawn`
+
+A known issue on Windows: the session `gs spawn` starts keeps a copy of `gs`'s output open. So
+a program that reads `gs spawn`'s output through a pipe until it ends, such as `$(gs spawn work)`
+in Git Bash, `$s = gs spawn work` in PowerShell or Python's `subprocess` with
+`capture_output`, waits until the session stops. Typing `gs spawn` in a terminal is not
+affected. In a script, send its output to a file and read the stop key from there:
+
+```
+gs spawn work > spawn.txt
+gs -s work stop --key "$(sed -n 's/^stop key: \([^ ]*\).*/\1/p' spawn.txt)"
+```
+
+In Python, pass an open file as `stdout` instead of capturing it. A program that captures the
+output of the whole script still waits for the session, so have the script stop the session
+before it ends.
+
+`gs mcp --spawn` does the same with the session it starts: that session keeps the MCP client's
+connection to `gs mcp` open, so a client that waits for `gs mcp` to end waits for the session
+too. Open GigaSculpt first, or start the session from a terminal, and leave out `--spawn`: then
+`gs mcp` uses the session that is running and starts nothing.
+
+## A download does not start
+
+Keep everything a download holds together in one folder, as it came: `gs` looks for the app
+beside itself and the app for the `quadwild` folder.
+
+- **Linux:** a message that a version of `GLIBC` was not found means the system is older than
+  the download is built for: it needs glibc 2.35 or newer (Ubuntu 22.04, Debian 12 and later).
+  On an older system, [build it from source](building.md).
+- **Windows:** a message that `VCRUNTIME140.dll` or `MSVCP140.dll` was not found means a program
+  was moved out of its folder, away from the copies the download holds beside it. Move it back,
+  or install Microsoft's Visual C++ Redistributable (x64).
 
 ## The Blender add-on cannot find GigaSculpt
 
 Start GigaSculpt first, and check that the add-on's Session matches the session's name (`main`
-unless you chose another). The add-on does not work on Windows yet. See
+unless you chose another). On Windows it needs Windows 10 version 1803 or later. See
 [The Blender add-on](blender.md).
 
 ## Reporting a bug
 
 Open an issue on the project's GitHub page and pick the bug template. A good report says:
 
-- **The version:** `gigasculpt --version` prints it (on Windows, `gs --version`).
+- **The version:** `gigasculpt --version` prints it (on Windows in a terminal, as above), and
+  `gs --version` prints the same.
 - **Your system:** Linux, Windows or macOS and its version, your graphics card, and your tablet.
 - **What you did, what you expected and what happened.** The fewer steps it takes to make it
   happen again, the faster it can be fixed.

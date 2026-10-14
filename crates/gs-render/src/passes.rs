@@ -21,10 +21,9 @@ pub(crate) struct Passes {
     pub filter: wgpu::RenderPipeline,
     /// Live subsurface's diffuse irradiance, for the display pass to gather.
     pub diffuse: wgpu::RenderPipeline,
-    /// Lighting and display: a new sample, averaged into the history.
+    /// Lighting and display: a new sample, averaged into the history. A settled frame runs no
+    /// pass: it copies the last sample's picture (`frame.rs`).
     pub display: wgpu::RenderPipeline,
-    /// The display of a settled frame: the history as it is, no new sample.
-    pub show: wgpu::RenderPipeline,
     /// Nearest and clamped at the edges: the display pass gathers the part flags with it.
     pub gather: wgpu::Sampler,
 }
@@ -117,12 +116,6 @@ impl Passes {
                 (display_wgsl, "fs"),
                 &display_layout,
                 &[UI_FORMAT, HISTORY_FORMAT],
-            ),
-            show: pipeline(
-                "display settled",
-                (display_wgsl, "fs_show"),
-                &display_layout,
-                &[UI_FORMAT],
             ),
             occlusion_layout,
             filter_layout,

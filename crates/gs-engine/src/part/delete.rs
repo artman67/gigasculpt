@@ -6,7 +6,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 
 use super::pin_part;
-use crate::{Command, Ctx, Example, errors, register_command};
+use crate::document::Document;
+use crate::{Command, Ctx, Example, Unavailable, errors, register_command};
 
 /// Which parts `part.delete` removes.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -74,6 +75,23 @@ impl Command for PartDelete {
             Example::raw("a part that does not exist", json!({ "part": "head" }))
                 .after("primitive.sphere", json!({}))
                 .fails_with(ErrorCode::NotFound),
+            Example::raw(
+                "an empty scene has nothing to delete",
+                json!({ "scope": "all" }),
+            )
+            .fails_with(ErrorCode::Precondition),
+            Example::raw(
+                "one part has no others to delete",
+                json!({ "scope": "others" }),
+            )
+            .after("primitive.sphere", json!({}))
+            .fails_with(ErrorCode::Precondition),
+            Example::raw(
+                "with no part hidden there is none to delete",
+                json!({ "scope": "hidden" }),
+            )
+            .after("primitive.sphere", json!({}))
+            .fails_with(ErrorCode::Precondition),
         ]
     }
 
@@ -88,32 +106,52 @@ impl Command for PartDelete {
         }
     }
 
+    /// A scope with nothing to delete is refused: an empty scene in any scope (scopes `part`
+    /// and `others` are refused already, when their part is pinned), one part for `others`,
+    /// and no hidden part for `hidden`. Refused here, before the step runs, the window grays
+    /// the Delete row with why (decision 0025, section 6), where it once ran and deleted
+    /// nothing.
+    fn check(&self, cx: &Ctx) -> Result<(), Unavailable> {
+        if cx.doc.part_names().next().is_none() {
+            let reason = Unavailable::new("the scene has no parts");
+            return Err(reason.fix("add or import a part first"));
+        }
+        if !self.parts(cx.doc.document()).is_empty() {
+            return Ok(());
+        }
+        Err(match self.scope {
+            Scope::Hidden => Unavailable::new("no part is hidden")
+                .fix("turn a part's eye off with part.set_visible first"),
+            Scope::Part | Scope::Others | Scope::All => {
+                Unavailable::new("there are no other parts").fix("add or import a part first")
+            }
+        })
+    }
+
     fn run(self, cx: &mut Ctx) -> Result<Deleted, CommandError> {
-        let part = self.part.map(|PartRef(name)| name);
-        let is_part = |name: &str| part.as_deref() == Some(name);
-        let doc = cx.doc.document();
+        let parts = self.parts(cx.doc.document());
+        for name in &parts {
+            cx.doc.remove_part(name);
+        }
+        Ok(Deleted { parts })
+    }
+}
+
+impl PartDelete {
+    /// The parts it deletes, in list order, its part pinned.
+    fn parts(&self, doc: &Document) -> Vec<String> {
+        let part = self.part.as_ref().map(|PartRef(name)| name.as_str());
         let showing = doc.showing();
-        let parts: Vec<String> = (doc.list().into_iter())
+        (doc.list().into_iter())
             .filter(|(name, p)| match self.scope {
-                Scope::Part => is_part(name),
-                Scope::Others => !is_part(name),
+                Scope::Part => part == Some(*name),
+                Scope::Others => part != Some(*name),
                 Scope::All => true,
                 // Its eye is off and it does not show: neither isolated nor active.
                 Scope::Hidden => p.props().hidden && !p.shown(showing),
             })
             .map(|(name, _)| name.to_string())
-            .collect();
-        if parts.is_empty() {
-            cx.noop_reason(match self.scope {
-                Scope::Hidden => "no part is hidden",
-                Scope::All => "the scene has no parts",
-                Scope::Part | Scope::Others => "there are no other parts",
-            });
-        }
-        for name in &parts {
-            cx.doc.remove_part(name);
-        }
-        Ok(Deleted { parts })
+            .collect()
     }
 }
 register_command!(PartDelete, "Delete part");

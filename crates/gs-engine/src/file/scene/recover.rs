@@ -1,13 +1,16 @@
 //! Crash recovery (decision 0016, section 11): `file.recovery` lists crashed sessions (a marker
-//! whose process is gone) and deletes one on request; `file.recover` opens a crashed session's
-//! newest autosave and replays the log lines recorded after it, so the scene comes back to the
-//! last command, not only to the last autosave.
+//! whose lock nobody holds) and deletes one on request; `file.recover` opens a crashed
+//! session's newest autosave and replays the log lines recorded after it, so the scene comes
+//! back to the last command, not only to the last autosave.
 //!
 //! A replay is bit-safe on the same engine and catalog (ARCHITECTURE 8); when the log was
-//! written by another, or is gone, the offer is the autosave alone and says why. Process
-//! liveness is read from `/proc`, so this is Linux only for now.
+//! written by another, or is gone, the offer is the autosave alone and says why. A running
+//! session holds a lock on the file beside its marker (`<session>-<pid>.lock`), which the
+//! system lets go of when its process ends, however it ends; so a session counts as crashed
+//! only once its program no longer runs, on every system, and a process number handed on to
+//! another program changes nothing.
 
-use std::fs;
+use std::fs::{self, File};
 use std::path::{Path, PathBuf};
 
 use gs_io::scene;
@@ -93,7 +96,7 @@ impl Command for FileRecovery {
                 }
                 fs::remove_dir(dir).ok();
             }
-            fs::remove_file(marker_file).ok();
+            forget(&marker_file);
             discarded = Some(id.clone());
         }
         let candidates = markers(&config)
@@ -255,9 +258,22 @@ fn autosave_on(cx: &Ctx) -> Result<StateFolder, CommandError> {
     })
 }
 
-/// True while process `pid` runs (Linux: `/proc`).
-fn alive(pid: u32) -> bool {
-    pid == std::process::id() || Path::new("/proc").join(pid.to_string()).exists()
+/// Takes the lock beside `marker` for as long as the file it gives lives, so the session
+/// marked there counts as running; `None` when another holds it, or it cannot be made.
+pub(crate) fn hold(marker: &Path) -> Option<File> {
+    crate::log::take_lock(&marker.with_extension("lock"))
+}
+
+/// True once the session marked at `marker` has stopped: nobody holds the lock beside it, or
+/// there is none.
+fn stopped(marker: &Path) -> bool {
+    !crate::log::lock_held(&marker.with_extension("lock"))
+}
+
+/// Removes `marker` and then the lock beside it, so no one sees the marker without its lock.
+pub(crate) fn forget(marker: &Path) {
+    fs::remove_file(marker).ok();
+    fs::remove_file(marker.with_extension("lock")).ok();
 }
 
 /// Every crashed session's marker, by file name.
@@ -268,8 +284,9 @@ fn markers(config: &StateFolder) -> Vec<(PathBuf, Marker)> {
     let mut found: Vec<(PathBuf, Marker)> = entries
         .filter_map(|e| {
             let path = e.ok()?.path();
+            path.extension().filter(|x| *x == "json")?;
             let marker: Marker = serde_json::from_slice(&fs::read(&path).ok()?).ok()?;
-            (!alive(marker.pid)).then_some((path, marker))
+            stopped(&path).then_some((path, marker))
         })
         .collect();
     found.sort_by(|a, b| a.0.cmp(&b.0));
@@ -306,24 +323,27 @@ fn describe(file: &Path, m: &Marker, catalog: &Catalog) -> Candidate {
     let newest = all.last().map(|c| c.1.clone());
     let session = newest.as_deref().and_then(session_of);
     let log = log_lines(m.log.as_ref(), m.log_run, session.as_ref());
-    let same = log.as_ref().is_some_and(|(h, _)| {
-        h.engine_version == catalog.engine_version && h.catalog_hash == catalog.hash
+    let same = log.as_ref().is_ok_and(|t| {
+        t.header.engine_version == catalog.engine_version && t.header.catalog_hash == catalog.hash
     });
-    let lines_after = log.as_ref().map(|(_, lines)| lines.len() as u64);
+    let lines_after = log.as_ref().ok().map(|t| t.lines.len() as u64);
     let offer = match (&newest, &log, same) {
         (None, _, _) => "nothing to recover from: it wrote no autosave".to_string(),
-        (Some(_), Some((_, lines)), true) => {
-            format!(
-                "the newest autosave plus the {} commands after it",
-                lines.len()
-            )
+        (Some(_), Ok(t), true) => {
+            let cut = if t.cut {
+                "; the last command was cut off when the session stopped, so it is left out"
+            } else {
+                ""
+            };
+            let n = t.lines.len();
+            format!("the newest autosave plus the {n} commands after it{cut}")
         }
-        (Some(_), Some(_), false) => {
+        (Some(_), Ok(_), false) => {
             "the newest autosave alone: another engine wrote the log, so a replay could differ"
                 .to_string()
         }
-        (Some(_), None, _) => {
-            "the newest autosave alone: the command log after it cannot be read".to_string()
+        (Some(_), Err(why), _) => {
+            format!("the newest autosave alone: the command log after it cannot be read: {why}")
         }
     };
     Candidate {
@@ -344,41 +364,82 @@ fn session_of(autosave: &Path) -> Option<SessionSection> {
     serde_json::from_value::<SessionSection>(seen.session).ok()
 }
 
+/// What recovery reads of a command log.
+struct LogTail {
+    header: gs_protocol::LogHeader,
+    /// The records after the autosave.
+    lines: Vec<LogRecord>,
+    /// Whether a last record that a crash cut off was left out.
+    cut: bool,
+}
+
 /// The log's header and the lines it recorded after the autosave, if the log is there and is
-/// the run the autosave was written in.
+/// the run the autosave was written in; else why not, with the system's reason when it could
+/// not be read.
 fn log_lines(
     log: Option<&String>,
     run: u64,
     session: Option<&SessionSection>,
-) -> Option<(gs_protocol::LogHeader, Vec<LogRecord>)> {
-    let at = session?.log.clone()?;
+) -> Result<LogTail, String> {
+    let session = session.ok_or("the autosave's session section cannot be read")?;
+    let at = session
+        .log
+        .clone()
+        .ok_or("the session kept no command log")?;
     if Some(&at.path) != log || at.run != run {
-        return None;
+        return Err(format!(
+            "the autosave was not written in {}'s last run",
+            at.path
+        ));
     }
-    let text = fs::read_to_string(&at.path).ok()?;
+    let bytes = fs::read(&at.path).map_err(|e| format!("{}: {e}", at.path))?;
+    let (whole, cut) = whole_records(&bytes);
+    let text = std::str::from_utf8(whole).map_err(|e| format!("{}: {e}", at.path))?;
     let mut header = None;
     let mut records = Vec::new();
-    for line in text.lines().filter(|l| !l.trim().is_empty()) {
-        match ScriptLine::parse(line).ok()? {
+    for (n, line) in text
+        .lines()
+        .enumerate()
+        .filter(|(_, l)| !l.trim().is_empty())
+    {
+        match ScriptLine::parse(line).map_err(|e| format!("{} line {}: {e}", at.path, n + 1))? {
             ScriptLine::Header(h) if header.is_none() => header = Some(h),
-            ScriptLine::Header(_) => return None,
+            ScriptLine::Header(_) => return Err(format!("{} holds a second header", at.path)),
             ScriptLine::Record(r) => records.push(r),
         }
     }
-    let after = records.split_off(usize::try_from(at.records).ok()?.min(records.len()));
-    Some((header?, after))
+    let header = header.ok_or_else(|| format!("{} has no header", at.path))?;
+    let before = usize::try_from(at.records).unwrap_or(usize::MAX);
+    let lines = records.split_off(before.min(records.len()));
+    Ok(LogTail { header, lines, cut })
+}
+
+/// `bytes` without a last line that has no newline and does not parse, and whether there was
+/// one: a record a crash or power loss cut off in the middle of its write. A record counts once
+/// its newline is written (decision 0016, section 14), so that line alone is dropped, as
+/// write-ahead logs (SQLite's, PostgreSQL's) drop a torn last record; a line that does not
+/// parse anywhere else makes the log unreadable.
+fn whole_records(bytes: &[u8]) -> (&[u8], bool) {
+    let end = bytes.iter().rposition(|b| *b == b'\n').map_or(0, |i| i + 1);
+    let (head, last) = bytes.split_at(end);
+    let last = std::str::from_utf8(last);
+    if last.is_ok_and(|l| l.trim().is_empty() || ScriptLine::parse(l).is_ok()) {
+        (bytes, false)
+    } else {
+        (head, true)
+    }
 }
 
 /// The lines to replay after `autosave`, or why there are none to read.
 fn tail(autosave: &Path, m: &Marker) -> Result<Vec<LogRecord>, CommandError> {
     let session = session_of(autosave);
     log_lines(m.log.as_ref(), m.log_run, session.as_ref())
-        .map(|(_, lines)| lines)
-        .ok_or_else(|| CommandError {
+        .map(|t| t.lines)
+        .map_err(|why| CommandError {
             hint: Some("pass replay: false to recover the autosave alone".into()),
             ..error(
                 ErrorCode::Precondition,
-                "the command log after the autosave cannot be read",
+                format!("the command log after the autosave cannot be read: {why}"),
             )
         })
 }
@@ -395,6 +456,6 @@ pub(crate) fn newest_autosave(
     let folder = super::autosave::folder(config, &file.name(), file.id.as_ref()?);
     let (_, newest) = copies(&folder).pop()?;
     let log = log.display().to_string();
-    let (_, lines) = log_lines(Some(&log), run, session_of(&newest).as_ref())?;
-    Some((newest, lines))
+    let tail = log_lines(Some(&log), run, session_of(&newest).as_ref()).ok()?;
+    Some((newest, tail.lines))
 }

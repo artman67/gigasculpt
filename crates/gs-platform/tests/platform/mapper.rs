@@ -173,8 +173,16 @@ fn mouse_buttons_and_wheel_in_physical_pixels() {
     );
 }
 
+/// A click on the close button asks to close (the window may ask about unsaved changes first);
+/// SDL's quit, from the system (a signal, the session ending), quits at once, but on macOS,
+/// where Cmd+Q is how a person quits, it asks too. A file dropped on the window is its path.
 #[test]
 fn window_events_that_matter_and_no_others() {
+    let dropped = Event::DropFile {
+        timestamp: 0,
+        window_id: 1,
+        filename: "/a folder/head.gss".into(),
+    };
     let got = map(
         &[
             window(WindowEvent::Resized(10, 10)),
@@ -184,9 +192,15 @@ fn window_events_that_matter_and_no_others() {
             window(WindowEvent::Exposed),
             window(WindowEvent::CloseRequested),
             Event::Quit { timestamp: 0 },
+            dropped,
         ],
         1.0,
     );
+    let quit = if cfg!(target_os = "macos") {
+        Input::Close
+    } else {
+        Input::Quit
+    };
     assert_eq!(
         got,
         vec![
@@ -195,7 +209,8 @@ fn window_events_that_matter_and_no_others() {
             Input::Resized,
             Input::PointerGone,
             Input::Close,
-            Input::Close,
+            quit,
+            Input::Dropped("/a folder/head.gss".into()),
         ]
     );
 }

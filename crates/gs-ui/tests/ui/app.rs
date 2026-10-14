@@ -6,7 +6,8 @@ use std::ffi::OsString;
 use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
 
-use gs_ui::app::{shell, wants_window};
+use clap::Parser;
+use gs_ui::app::{WindowArgs, run, shell, wants_window};
 
 fn args(list: &[&str]) -> Vec<OsString> {
     list.iter().map(OsString::from).collect()
@@ -26,6 +27,40 @@ fn no_arguments_or_window_open_the_window() {
     assert!(!wants_window(&args(&["gigasculpt", "serve", "--headless"])));
     assert!(!wants_window(&args(&["gigasculpt", "--help"])));
     assert!(!wants_window(&args(&["gigasculpt", "serve", "window"])));
+}
+
+/// `gigasculpt PATH`, as a file manager runs it on a double-click, opens the window; a file
+/// that is not there, a folder, or a file GigaSculpt does not read is refused, saying why,
+/// before any window opens (decision 0016, section 17, amended 2026-10-13).
+#[test]
+fn a_file_alone_opens_the_window_and_one_it_cannot_open_is_refused_first() {
+    assert!(wants_window(&args(&["gigasculpt", "head.gss"])));
+    assert!(wants_window(&args(&["gigasculpt", "window", "head.gss"])));
+    let dir = config("command-line");
+    let notes = dir.join("notes.txt");
+    std::fs::write(&notes, "a note").unwrap_or_else(|e| panic!("{e}"));
+    let refusals = [
+        (dir.join("gone.gss"), "there is no file"),
+        (dir.clone(), "is a folder"),
+        (notes, "is not a scene"),
+    ];
+    for (file, says) in refusals {
+        // Were it not refused, the window would close at once, alone on its own session.
+        let line = [
+            "gigasculpt",
+            "--session",
+            "command-line",
+            "--close-after",
+            "0",
+        ];
+        let line = line
+            .map(OsString::from)
+            .into_iter()
+            .chain([file.into_os_string()]);
+        let o = WindowArgs::try_parse_from(line).unwrap_or_else(|e| panic!("{e}"));
+        let refused = run(&o).err().unwrap_or_default();
+        assert!(refused.contains(says), "{says}: {refused}");
+    }
 }
 
 /// A fresh configuration folder for this run.

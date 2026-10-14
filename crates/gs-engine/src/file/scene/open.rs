@@ -107,8 +107,8 @@ impl Command for FileOpen {
     }
 
     /// Turns `recent` into the path it names. Only reads the small list and looks the file
-    /// up, because the window asks this of its Open last button after every call; the job
-    /// hashes the file (`run`).
+    /// up, because the window dry-runs each File > Open recent row it draws after every call;
+    /// the job hashes the file (`run`).
     fn pin(&mut self, cx: &Ctx) -> Result<(), CommandError> {
         let Some(n) = self.recent.take() else {
             return match self.path {
@@ -279,5 +279,6 @@ fn open_file(
 pub(crate) fn exists(path: &Path) -> Result<(), CommandError> {
     std::fs::metadata(path)
         .map(drop)
-        .map_err(|e| io_error(&path.display().to_string(), &e))
+        .map_err(|e| io_error(&path.display().to_string(), &e))?;
+    crate::file::not_a_folder(path)
 }

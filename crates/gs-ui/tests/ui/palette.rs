@@ -20,12 +20,13 @@ fn the_palette_key_opens_it_typing_finds_a_command_and_enter_runs_it() {
     h.run();
     let first = {
         let studio = h.state().host.lock();
-        studio.shell.palette.matches(&studio.shell.catalog)[0]
-            .name
-            .clone()
+        let panels = studio.shell.panels();
+        let rows = (panels.iter().filter(|p| p.id == "palette")).flat_map(|p| &p.widgets);
+        let mut rows = rows.filter(|w| w.role == "list item");
+        rows.next().map(|w| w.label.clone())
     };
-    assert_eq!(first, "primitive.sphere", "the best match");
-    h.get_by_label("primitive.sphere");
+    // The control a person presses leads, Header > Add's Sphere (review 0009, C12).
+    assert_eq!(first.as_deref(), Some("Sphere"), "the best match");
     h.key_press(Key::Enter);
     h.run();
     assert!(
@@ -255,12 +256,12 @@ fn the_toggle_shows_its_state_and_has_no_key_unless_bound() {
 fn keys_stay_with_the_open_palette_even_when_its_field_loses_focus() {
     let mut h = harness(Rig::new());
     h.state_mut().ok(&agent(), "primitive.cube", json!({}));
-    h.state_mut().ok(&window(), "ui.palette", json!({}));
+    h.state_mut()
+        .ok(&window(), "ui.palette", json!({ "query": "zzqx" }));
     h.run();
-    // A click on the scene tray's History title row, which folds its section and runs nothing,
-    // away from the palette (along the top).
-    let title = h.get_by_label("History").rect();
-    let away = egui::pos2(title.right() - 10.0, title.center().y);
+    // A click on what the palette says, which runs nothing, away from its field: a click
+    // outside the palette shuts it (review 0009, C9).
+    let away = h.get_by_label("No command matches.").rect().center();
     for pressed in [true, false] {
         h.event(Event::PointerButton {
             pos: away,

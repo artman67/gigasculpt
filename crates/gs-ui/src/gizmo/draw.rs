@@ -6,7 +6,7 @@ use std::collections::BTreeSet;
 
 use egui::{Color32, Pos2, Rect, Shape, Stroke, StrokeKind, vec2};
 use gs_core::camera::Camera;
-use gs_core::gizmo::{DeformerHandles, Kind, handles};
+use gs_core::gizmo::{DeformerHandle, DeformerHandles, Kind, handles};
 
 use super::{GizmoPrefs, PenPress, Tool};
 use crate::theme::{Colors, theme};
@@ -42,7 +42,8 @@ pub fn draw(
     let at = |p: &[f32; 2]| rect.min + vec2(p[0], p[1]) / ppp;
     let deforming = tool.deforming.as_ref().filter(|_| tool.on);
     let shown = deforming.map(|d| d.shown(camera, size, style));
-    let hot = (shown.as_ref()).and_then(|s| tool.hot_deformer(s, style, hover));
+    let hot =
+        (shown.as_ref()).and_then(|s| tool.hot_deformer(s, style, hover).map(DeformerHandle::name));
     let mut lit = None;
     if let Some((_, pose)) = tool.drawn() {
         let drawn = handles(&pose, camera, size, style);

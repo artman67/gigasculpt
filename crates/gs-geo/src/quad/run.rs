@@ -1,7 +1,7 @@
 //! Finding the program and running its two steps (decision 0038, sections 1 and 2): a program
-//! folder counts only with the right stamp; each step runs as a child process, inside
-//! bubblewrap when it is installed, with the environment cleared but for what Windows needs to
-//! start a program ([`KEPT`]), its output to a log in the
+//! folder counts only with the right stamp; each step runs as a child process, on Linux inside
+//! bubblewrap when it is installed, on macOS and Windows with no sandbox, with the environment
+//! cleared but for what Windows needs to start a program ([`KEPT`]), its output to a log in the
 //! job folder, and checked every 20 ms for cancel and the time limit. A step ended by a signal
 //! is refused, after one more run when the signal was SIGKILL (amended 2026-10-13).
 
@@ -95,15 +95,25 @@ impl Program {
     }
 }
 
-/// Where the program is looked for (decision 0038, section 1): only `set` (`GS_QUADWILD`) when
-/// it is set; else `quadwild/` in `beside` (the running binary's folder), then
-/// `quadwild/PIN/program` in `cache` (`gs_protocol::cache_dir`).
-pub fn places(set: Option<OsString>, beside: Option<&Path>, cache: Option<&Path>) -> Vec<PathBuf> {
+/// Where the program is looked for on `system` (decision 0038, section 1): only `set`
+/// (`GS_QUADWILD`) when it is set; else `quadwild/` in `beside` (the running binary's folder,
+/// where a release puts it), on macOS also `Resources/quadwild` beside that folder (a release
+/// app's `Contents/Resources`), then `quadwild/PIN/program` in `cache` (`gs_protocol::cache_dir`).
+pub fn places(
+    system: System,
+    set: Option<OsString>,
+    beside: Option<&Path>,
+    cache: Option<&Path>,
+) -> Vec<PathBuf> {
     if let Some(dir) = set {
         return vec![PathBuf::from(dir)];
     }
+    let app = beside
+        .filter(|_| system == System::MacOs)
+        .and_then(Path::parent);
     let cached = cache.map(|c| pinned(c).join("program"));
     (beside.map(|b| b.join("quadwild")).into_iter())
+        .chain(app.map(|c| c.join("Resources").join("quadwild")))
         .chain(cached)
         .collect()
 }
@@ -113,27 +123,24 @@ fn pinned(cache: &Path) -> PathBuf {
     cache.join("quadwild").join(PIN)
 }
 
-/// How to get the program when it is missing on `system`, `cache` being the cache folder: on
-/// Linux, the scripts that build it there; elsewhere it is not shipped yet.
+/// How to get the program when it is missing on `system`, `cache` being the cache folder: a
+/// download carries it; from source, the scripts build it there (from Git Bash on Windows).
 pub fn fix(system: System, cache: Option<&Path>) -> String {
-    let dir = cache.map(pinned);
-    if system == System::Linux {
-        let dir = dir.map_or_else(|| "a folder".into(), |d| d.display().to_string());
-        return format!(
-            "build it with third_party/quadwild/fetch.sh DIR and third_party/quadwild/build.sh \
-             DIR, DIR being {dir}, or set GS_QUADWILD to a program folder built for {PIN}"
-        );
-    }
-    let put = dir.map(|d| format!(", or put that folder at {}", d.join("program").display()));
+    let dir = cache.map_or_else(|| "a folder".into(), |d| pinned(d).display().to_string());
+    let shell = if system == System::Windows {
+        " from Git Bash"
+    } else {
+        ""
+    };
     format!(
-        "the program is not shipped for this system yet: set GS_QUADWILD to a program folder \
-         built for {PIN}{}",
-        put.unwrap_or_default()
+        "every GigaSculpt download carries it; from source, build it with \
+         third_party/quadwild/fetch.sh DIR and third_party/quadwild/build.sh DIR{shell}, DIR \
+         being {dir}, or set GS_QUADWILD to a program folder built for {PIN}"
     )
 }
 
 /// `bwrap` in one of the folders of `path` (`PATH`), if it is installed. Bubblewrap is Linux's
-/// alone: elsewhere the steps run with no sandbox.
+/// alone: elsewhere the steps run with no sandbox (decision 0038, section 2).
 pub fn bwrap_in(path: Option<OsString>) -> Option<PathBuf> {
     let path = path.filter(|_| cfg!(target_os = "linux"))?;
     std::env::split_paths(&path)

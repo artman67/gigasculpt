@@ -9,31 +9,43 @@ Everything here is in the File menu, which shows a shorter name for some items (
 scene as, Open recent for Open a recent scene).
 
 - **New scene** (Ctrl+N) starts an empty scene with no file.
-- **Open scene** (Ctrl+O) opens a scene, or a Part file, in place of this scene.
+- **Open scene** (Ctrl+O) opens a scene, or a Part file, in place of this scene. Picking a mesh
+  file imports it instead.
 - **Open a recent scene** lists the last 10 scenes you opened or saved, newest first. A file that
   has been moved or deleted shows dimmed.
 - **Save** (Ctrl+S) writes the scene to its own file and keeps the old one beside it as a backup
   (`head.backup.gss` for `head.gss`). A scene that was never saved opens Save scene as instead.
 - **Save scene as** (Ctrl+Shift+S) writes the scene to a file you choose, which becomes its own
-  file from then on.
-- **Save next numbered** writes the scene under the next number after its file's name, so
-  `head_001` becomes `head_002`, and that becomes its own file. Use it to keep every stage of a
-  sculpt.
-- **Quick save** writes a numbered copy into the scene's autosave folder and leaves its own file
-  alone.
-- **Revert to saved** opens the scene's own file again, dropping every change since you saved.
+  file from then on. A name typed without `.gss` gets it: `head` saves `head.gss`. To write an
+  OBJ, PLY or STL file, use Export a file.
+- **Save next numbered** (Ctrl+Alt+S) writes the scene under the next number after its file's
+  name, so `head_001` becomes `head_002`, and that becomes its own file. Use it to keep every
+  stage of a sculpt.
+- **Quick save** (9) writes a numbered copy into the scene's autosave folder and leaves its own
+  file alone.
+- **Revert to saved** (Ctrl+Alt+R) opens the scene's own file again, dropping every change since
+  you saved. It asks first: the palette opens with a **Revert to saved** button, which you click
+  (or press Enter) to go ahead. It is gray until the scene has a file of its own.
 
 Save scene as, Open scene, Save Part file, Import a file and Export a file open your system's
-own file browser to ask for the file.
+own file browser to ask for the file, and so do Save and Save next numbered on a scene that has
+no file yet, and Save next Part file the first time. Where it cannot show, GigaSculpt asks in a
+box of its own instead; given a folder with no file name after it, the box stays open and asks
+you to type one.
 
-The window's title names the scene's file and shows when there are unsaved changes. New scene,
-Open scene and Revert to saved ask before they drop unsaved changes, and so does closing the
-window: Save, Don't save or Cancel.
+Each save says which file it wrote on the status line, such as `Saved head.gss`, for a few
+seconds; autosave does not.
+
+The window's title names the scene's file, with a `*` in front while there are unsaved changes:
+`*head.gss - GigaSculpt`. New scene, Open scene (and Open a recent scene) and closing the window
+ask before they drop unsaved changes: **Save**, **Don't save** or **Cancel**. Save saves first,
+asking for a name if the scene has none, then goes on; Enter answers Save. With nothing unsaved
+there is no question.
 
 Two more ways to open a scene:
 
 - Drop a scene file on the window. Dropping a mesh file imports it instead.
-- Give its path when you start the app: `gigasculpt head.gss`.
+- Give its path when you start the app: `gigasculpt head.gss`. A mesh file's path imports it.
 
 Settings > Files > Open last scene opens the newest recent scene each time GigaSculpt starts.
 
@@ -69,28 +81,30 @@ If GigaSculpt stops unexpectedly, the next start shows **Recover your work**:
   scene comes back to your last step, not only to the last autosave. It shows when GigaSculpt can
   do this: the log of those steps must be there and written by the same version.
 - **Autosave only** opens the newest autosave alone.
-- **Discard** deletes that session's autosaves for good.
-- **Later** closes the question until the next start.
+- **Discard** deletes that session's autosaves for good, once you confirm with Delete.
+- **Later** closes the question until you pick **File > Recover…**, or until the next start.
+
+If Recover asks first about unsaved changes and you answer Cancel, the offer comes back.
 
 A recovered scene keeps its file's name but counts as unsaved, so save it to keep it.
 
 `gigasculpt window --no-autosave` turns off both autosave and recovery, and a session with
 autosave off keeps no recent scenes either.
 
-Telling a crashed session from one still running works on Linux only for now. On Windows and
-macOS, a second GigaSculpt window open at the same time may be offered as crashed work: choose
-Later there, not Discard.
+A second GigaSculpt window that is still open is never offered as crashed work, on any system.
 
 ## Importing and exporting
 
-**File > Import a file** reads an OBJ, PLY or STL file into the scene as new parts, in one undo
-step:
+**File > Import a file** reads an OBJ, PLY, STL, ZTL or ZPR file into the scene as new parts, in
+one undo step:
 
 - every object in the file becomes a part, named after it (or after the file);
 - face groups, UVs, vertex colors and the mask come along when the file holds them;
-- polygons with more than four corners become triangles, and normals are worked out again.
+- polygons with more than four corners become triangles, and normals are worked out again;
+- a part from a ZTL or ZPR file keeps its detail levels, with the level it was saved at active.
 
-**File > Export a file** writes one part, or every part, to an OBJ, PLY or STL file:
+**File > Export a file** writes one part, or every part, to an OBJ, PLY or STL file, chosen by
+the name's extension; a name without one writes OBJ (`out` writes `out.obj`):
 
 | Format | Keeps |
 |---|---|
@@ -144,8 +158,10 @@ folder for one run.
 - `autosave.json`: the autosave settings;
 - `recent.json`: the recent scenes;
 - `logs/`: a log of every command each session ran, one file per session, which a bug report can
-  include (see [Troubleshooting](troubleshooting.md#reporting-a-bug));
-- `sessions/`: a small file for each running window, which recovery reads. On Windows and macOS
+  include (see [Troubleshooting](troubleshooting.md#reporting-a-bug)), and beside the log of each
+  running window a small `.lock` file it holds, so tidying the folder never deletes a live log;
+- `sessions/`: two small files for each running window, which recovery reads: one names its
+  autosaves and log, and the window holds the other locked while it runs. On Windows and macOS
   this folder also holds the sockets that `gs` and the Blender add-on connect to; on Linux they
   are in `$XDG_RUNTIME_DIR/gigasculpt`.
 

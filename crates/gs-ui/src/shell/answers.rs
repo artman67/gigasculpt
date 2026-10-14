@@ -47,16 +47,39 @@ impl Shell {
         }
     }
 
-    /// `ui.palette`: opens or closes the palette, or asks for a command's arguments.
+    /// `ui.palette`: opens or closes the palette, or asks for a command's arguments (New, Open
+    /// and Recover asking about unsaved changes first). Recover with nothing given while a
+    /// session waits to be recovered shows its offer again instead (File > Recover…, review
+    /// 0009, C10). Quit closes the window as its close button does, asking first while there
+    /// are unsaved changes (review 0009, R10). The keymap's form asked for a key opens Bind a
+    /// key…, which takes the keys pressed (review 0009, C11).
     pub fn palette_request(&mut self, request: &UiPalette) -> Result<PaletteInfo, String> {
         if !self.palette.open {
             // A palette placed at the pen opens where the pointer is now, and stays there.
             self.palette.at = self.pointer;
         }
+        let bare = request.args.is_empty() && request.ask.is_empty();
+        let offered = !self.recovery.offers.is_empty();
         match &request.form {
+            _ if request.quit => {
+                self.palette
+                    .first(crate::palette::Then::Close, &self.catalog)?;
+            }
+            Some(command) if command == "file.recover" && bare && offered => {
+                self.recovery.reopen();
+            }
+            // Bind a key… asking for the key takes it pressed, not typed (review 0009, C11).
+            Some(command) if command == "ui.keymap" && asks_key(request) => {
+                self.palette.bind_key(&request.args);
+            }
+            Some(command) if crate::palette::guards(command) => {
+                let given = with_args(command, request.args.clone().into());
+                self.ask_dropping(given, &request.ask)?;
+            }
             Some(command) => {
                 let given = with_args(command, request.args.clone().into());
                 self.palette.ask(given, &self.catalog, &request.ask)?;
+                self.title_by_row(request);
             }
             None => (self.palette).set(request.open, request.query.as_deref()),
         }
@@ -69,6 +92,17 @@ impl Shell {
             rows,
             form: (self.palette.form.as_ref()).map(|f| f.step.command.clone()),
         })
+    }
+
+    /// Titles the form `request` asked for by the row that sends the same request, when one
+    /// does: File's Save… in the Part file group asks as Save Part file, not as the scene's
+    /// Save (review 0009, R5). A request no row sends keeps the command's title.
+    fn title_by_row(&mut self, request: &UiPalette) {
+        let mut rows = (self.directions.controls.sets.iter()).flat_map(|s| &s.controls);
+        let row = rows.find(|c| asks_as(c, request));
+        if let (Some(row), Some(form)) = (row, self.palette.form.as_mut()) {
+            form.retitle(&row.label);
+        }
     }
 
     /// The theme the layout state names, or the first if it names none there is.
@@ -351,7 +385,7 @@ impl Shell {
         self.state.clone_from(report.state);
         self.gizmo.heard(&self.state, &report.parts);
         self.prefs.heard |= report.commands.first().is_none_or(|c| c != "pen.input");
-        self.palette.own.clone_from(&self.state.file);
+        self.heard_scene(report.problem.is_some());
         self.preset.clone_from(&report.preset);
         self.main = report.main;
         self.reference.shown = (report.references.iter())
@@ -398,9 +432,7 @@ impl Shell {
         if self.gizmo.on && !report.commands.iter().all(window) && !self.outbox.contains(&refresh) {
             self.outbox.push(refresh);
         }
-        if let Some(problem) = report.problem {
-            self.status.problem = Some(problem.to_string());
-        }
+        self.heard_person(report, before);
         if report.role != Role::Human && !report.commands.is_empty() {
             let result = if report.ok { "done" } else { "refused" };
             self.status.agent = Some(format!(
@@ -410,4 +442,64 @@ impl Shell {
             ));
         }
     }
+
+    /// Hands the palette what it keeps of the scene (its file, active part, brush and unsaved
+    /// changes); once a save the question before unsaved changes are lost waits for lands, what
+    /// waited goes on, unless a call `failed`.
+    fn heard_scene(&mut self, failed: bool) {
+        let scene = &mut self.palette.scene;
+        scene.own.clone_from(&self.state.file);
+        scene.active.clone_from(&self.state.active);
+        scene.brush.clone_from(&self.state.brush.brush);
+        scene.unsaved = self.state.unsaved;
+        if failed {
+            self.palette.unsaved.stop();
+        }
+        match self.palette.heard(&self.catalog) {
+            Ok(Some(now)) => self.queue(now),
+            Ok(None) => {}
+            Err(problem) => self.status.says(&problem),
+        }
+    }
+
+    /// What a call that worked did to the problem line and the recovery offer: a step of the
+    /// person's that landed in History (a pen stroke) clears the line, as a step sent does
+    /// (review 0009, C2); what the report says went wrong (a pen stroke's refusal) is said; and
+    /// a recover or a discard of the person's answers its offer. A failed call's report is
+    /// passed over: a job's failure comes in a person's words through
+    /// [`Status::ended`](crate::status::Status::ended), and a call's own through its refusal.
+    fn heard_person(&mut self, report: &CallReport, before: Option<u64>) {
+        if !report.ok {
+            return;
+        }
+        let person = report.role == Role::Human;
+        if person && self.state.history.undo_id != before {
+            (self.status.problem, self.status.ended) = (None, None);
+        }
+        if let Some(problem) = report.problem {
+            self.status.says(problem);
+        }
+        for command in report.commands.iter().filter(|_| person) {
+            self.recovery.landed(command);
+        }
+    }
+}
+
+/// Whether `row` sends `request`: `ui.palette` asking for the same form, with the same
+/// arguments given and the same ones asked.
+fn asks_as(row: &Control, request: &UiPalette) -> bool {
+    let args = serde_json::to_value(&row.args).ok();
+    let sent: Option<UiPalette> = args.and_then(|a| serde_json::from_value(a).ok());
+    row.command.as_deref() == Some("ui.palette")
+        && sent.is_some_and(|s| {
+            s.form == request.form && s.args == request.args && s.ask == request.ask
+        })
+}
+
+/// Whether `request` (for the keymap's form) asks for the key to bind, not given one, and for
+/// nothing but what Bind a key… fills in: the key, the command and its arguments.
+fn asks_key(request: &UiPalette) -> bool {
+    let fills = |a: &String| ["bind", "command", "args"].contains(&a.as_str());
+    let asks = request.ask.iter().any(|a| a == "bind") && request.ask.iter().all(fills);
+    asks && !request.args.contains_key("bind")
 }

@@ -9,7 +9,7 @@ use std::thread;
 use std::time::Duration;
 
 use gs_protocol::{
-    Role, ShutdownParams, UnixStream, check_session_name, method, session_dir, socket_path,
+    Role, ShutdownParams, System, UnixStream, check_session_name, method, session_dir, socket_in,
 };
 use serde_json::{Value, json};
 
@@ -72,11 +72,13 @@ fn running() -> Result<Vec<String>, Failure> {
     Ok(names)
 }
 
-/// The socket of a session. A name that is not a valid session name is a usage error, so it
-/// can never point outside the session folder.
+/// The socket of a session. A name that is not a valid session name, or too long for its
+/// socket, is a usage error, so it can never point outside the session folder; no session
+/// folder means no session can be reached.
 fn socket(name: &str) -> Result<PathBuf, Failure> {
     check_session_name(name).map_err(Failure::Usage)?;
-    socket_path(name).map_err(Failure::Unreachable)
+    let dir = session_dir().map_err(Failure::Unreachable)?;
+    socket_in(System::HERE, &dir, name).map_err(Failure::Usage)
 }
 
 /// A fresh random stop key: 32 hex digits from the standard library's random hasher keys.

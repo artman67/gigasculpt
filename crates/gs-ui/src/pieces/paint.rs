@@ -11,7 +11,7 @@
 //! the picker's at most once a frame, a drag's when the pen lets go, the hex field's on Enter, a
 //! slider's each time it is set.
 
-use egui::{Color32, Id, Key, RichText, Sense, Stroke, StrokeKind};
+use egui::{Color32, Id, RichText, Sense, Stroke, StrokeKind};
 use gs_core::brush::Family;
 use gs_protocol::Step;
 use serde_json::{Value, json};
@@ -22,6 +22,7 @@ use super::{
 };
 use crate::direction::Control;
 use crate::record::{Recorder, Role, Widget, with_args};
+use crate::shell::escape::{To, entered};
 use crate::theme::theme;
 
 /// Each swatch's title and its key in `color.set` and, after `color.`, in `session.state`.
@@ -166,10 +167,11 @@ fn hex_field(ui: &mut egui::Ui, key: &str, value: [u8; 3], rec: &mut Recorder) -
         return None;
     }
     ui.data_mut(|d| d.remove::<String>(typed));
-    let entered = field.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter));
+    // The field's Enter as the window gives it (`shell/escape.rs`), never one meant for a
+    // dialog in front.
+    let sent = field.lost_focus() && entered(ui.ctx(), To::Field);
     let text = text.trim().trim_start_matches('#');
-    (entered && !text.is_empty())
-        .then(|| with_args("color.set", json!({ key: format!("#{text}") })))
+    (sent && !text.is_empty()).then(|| with_args("color.set", json!({ key: format!("#{text}") })))
 }
 
 /// Red, Green and Blue, 0 to 255, for the edited color `key`, each a slider on a row of its own

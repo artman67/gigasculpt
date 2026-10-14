@@ -23,7 +23,7 @@ mod wheel;
 
 pub use wheel::Turns;
 
-use egui::{Align2, Key, Pos2};
+use egui::{Align2, Pos2};
 use gs_engine::UiQuick;
 use gs_protocol::Step;
 use serde_json::json;
@@ -180,7 +180,7 @@ pub fn change(
 }
 
 /// The quick menu's egui area.
-const AREA: &str = "quick menu";
+pub(crate) const AREA: &str = "quick menu";
 
 /// Whether `ui` draws inside the quick menu, which shows the open deformer's Accept, Cancel and
 /// Reset at its head, so the Gizmo's set inside it leaves its own out.
@@ -190,8 +190,8 @@ pub(crate) fn inside(ui: &egui::Ui) -> bool {
 
 /// Draws the quick menu, or the slider it holds alone, while it is open at `at`, the menu inside
 /// the 3D view's rectangle `view` (points). Call after the 3D view, as for everything at the
-/// pen, so it lies on top. Shuts it (`at` becomes `None`) on Escape or a press outside it.
-/// Returns what its controls asked to run.
+/// pen, so it lies on top. Shuts it (`at` becomes `None`) on a press outside it; Escape shuts it
+/// too, given by the window (`shell/escape.rs`). Returns what its controls asked to run.
 pub fn menu(
     ui: &egui::Ui,
     (at, view): (&mut Option<Open>, egui::Rect),
@@ -262,11 +262,9 @@ pub fn menu(
     if alone.is_none() {
         asked.extend(swipe(ui, now));
     }
-    // After its controls, so Escape closing a slider's typing field leaves the menu open.
     let shut = ui.input(|i| {
         let origin = i.pointer.press_origin();
-        let outside = i.pointer.any_pressed() && origin.is_some_and(|p| !rect.contains(p));
-        outside || i.key_pressed(Key::Escape)
+        i.pointer.any_pressed() && origin.is_some_and(|p| !rect.contains(p))
     });
     if shut {
         *at = None;

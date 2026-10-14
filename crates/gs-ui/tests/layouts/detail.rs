@@ -9,9 +9,8 @@ use serde_json::{Value, json};
 
 use crate::rig::Ui;
 
-/// The level's ⋯ picks, in section 7's order.
-const PICKS: [&str; 6] = [
-    "Go to level…",
+/// The level's ⋯ picks, in section 7's order, under its level buttons.
+const PICKS: [&str; 5] = [
     "Delete lower",
     "Delete higher",
     "Freeze",
@@ -42,20 +41,10 @@ fn judged(ui: &mut Ui) {
     ui.settle();
 }
 
-/// The scene tray's widget labelled `label`.
-fn widget(ui: &mut Ui, label: &str) -> Value {
-    crate::pen::widget(ui, "tray", label)
-}
-
 /// Why the scene tray's widget `label` is gray; `None` while it runs.
 fn gray(ui: &mut Ui, label: &str) -> Option<String> {
-    let w = widget(ui, label);
+    let w = ui.widget("tray", label);
     (w["enabled"] == json!(false)).then(|| w["reason"].as_str().unwrap_or_default().into())
-}
-
-/// Whether the scene tray shows a widget labelled `label`.
-fn shows(ui: &mut Ui, label: &str) -> bool {
-    ui.labels("tray").iter().any(|l| l == label)
 }
 
 /// The level's ⋯ picks the scene tray shows, in its order.
@@ -80,15 +69,15 @@ fn sizes(ui: &mut Ui) -> Vec<Value> {
 #[test]
 fn the_stepper_steps_one_level_each_way_and_shows_n_of_m() {
     let mut ui = ball(3);
-    assert!(shows(&mut ui, "3 of 3"), "{:?}", ui.labels("tray"));
+    assert!(ui.lists("tray", "3 of 3"), "{:?}", ui.labels("tray"));
     ui.press("tray > ‹");
     assert_eq!(ui.state()["parts.level"], json!(2), "one level down");
-    assert!(shows(&mut ui, "2 of 3"), "{:?}", ui.labels("tray"));
+    assert!(ui.lists("tray", "2 of 3"), "{:?}", ui.labels("tray"));
     ui.press("tray > ‹");
-    assert!(shows(&mut ui, "1 of 3"), "{:?}", ui.labels("tray"));
+    assert!(ui.lists("tray", "1 of 3"), "{:?}", ui.labels("tray"));
     ui.press("tray > ›");
     assert_eq!(ui.state()["parts.level"], json!(2), "one level up");
-    assert!(shows(&mut ui, "2 of 3"), "{:?}", ui.labels("tray"));
+    assert!(ui.lists("tray", "2 of 3"), "{:?}", ui.labels("tray"));
     assert_eq!(ui.logged("level.step").len(), 3, "each tap one step");
 }
 
@@ -112,7 +101,7 @@ fn one_row(middles: &[f64]) -> bool {
 #[test]
 fn the_stepper_subdivide_and_the_level_menu_share_a_row_and_the_modes_one_under_live() {
     let mut ui = ball(3);
-    assert!(!shows(&mut ui, "Level"), "{:?}", ui.labels("tray"));
+    assert!(!ui.lists("tray", "Level"), "{:?}", ui.labels("tray"));
     let stepper = middles(&mut ui, &["‹", "3 of 3", "›", "Subdivide", "···"]);
     assert!(one_row(&stepper), "one row: {stepper:?}");
     ui.press("tray > On");
@@ -122,29 +111,30 @@ fn the_stepper_subdivide_and_the_level_menu_share_a_row_and_the_modes_one_under_
     assert!(modes[0] > live[0] + 2.0, "under Live: {modes:?} {live:?}");
 }
 
-/// At the top › is gray and at the base ‹ is, each with the words the engine gives for the
-/// step that would do nothing; a part with one level has both gray. Frozen levels and an empty
-/// scene gray both with the engine's own refusal.
+/// The highest level said for a person, for a step or a delete that would do nothing there.
+const TOP: &str = "The highest level is active: there is none above it";
+/// The lowest, likewise.
+const BASE: &str = "The lowest level is active: there is none below it";
+/// A part with one level, likewise.
+const ONE: &str = "This part has only one level";
+
+/// At the top › is gray and at the base ‹ is, each saying why in a person's words, with no
+/// part name in quotes (review 0009, Refusals-notes (2)); a part with one level has both gray.
+/// Frozen levels and an empty scene gray both with the engine's own refusal.
 #[test]
-fn the_stepper_s_ends_are_gray_with_the_engine_s_words() {
+fn the_stepper_s_ends_are_gray_with_why_in_a_persons_words() {
     let mut ui = ball(3);
-    let top = "part 'ball': the top is active, there is no level above";
-    assert_eq!(gray(&mut ui, "›").as_deref(), Some(top));
+    assert_eq!(gray(&mut ui, "›").as_deref(), Some(TOP));
     assert_eq!(gray(&mut ui, "‹"), None, "a level below");
     ui.ok("level.set", json!({ "level": 1 }));
     judged(&mut ui);
-    let base = "part 'ball': the base is active, there is no level below";
-    assert_eq!(gray(&mut ui, "‹").as_deref(), Some(base));
+    assert_eq!(gray(&mut ui, "‹").as_deref(), Some(BASE));
     assert_eq!(gray(&mut ui, "›"), None, "a level above");
     ui.ok("level.delete_higher", json!({}));
     judged(&mut ui);
-    assert!(shows(&mut ui, "1 of 1"), "{:?}", ui.labels("tray"));
+    assert!(ui.lists("tray", "1 of 1"), "{:?}", ui.labels("tray"));
     for arrow in ["‹", "›"] {
-        let why = gray(&mut ui, arrow).unwrap_or_default();
-        assert!(
-            why.starts_with("part 'ball' has one level: "),
-            "{arrow}: {why}"
-        );
+        assert_eq!(gray(&mut ui, arrow).as_deref(), Some(ONE), "{arrow}");
     }
     // Frozen: the count set aside, and the engine's refusal on both.
     let mut ui = ball(3);
@@ -159,10 +149,10 @@ fn the_stepper_s_ends_are_gray_with_the_engine_s_words() {
     // An empty scene.
     let mut ui = Ui::new();
     ui.open_only(&["detail"]);
-    assert!(shows(&mut ui, "none"), "{:?}", ui.labels("tray"));
+    assert!(ui.lists("tray", "none"), "{:?}", ui.labels("tray"));
     for arrow in ["‹", "›"] {
         let why = gray(&mut ui, arrow);
-        assert_eq!(why.as_deref(), Some("the scene has no parts"), "{arrow}");
+        assert_eq!(why.as_deref(), Some("The scene has no parts"), "{arrow}");
     }
 }
 
@@ -180,42 +170,85 @@ fn the_level_menu_lists_its_picks_in_order_runs_one_and_shuts() {
     assert_eq!(picks(&mut ui), Vec::<String>::new(), "a pick shuts it");
 }
 
-/// Each pick is gray with the engine's reason while it cannot run: with one level, Freeze, Unfreeze
-/// and both deletes; at the top, Delete higher; with the levels frozen, every pick that waits
-/// for them. Go to level… and Reconstruct lower are never gray (the engine says no to a
-/// rebuild only once it tries).
+/// The level buttons the open ⋯ shows, in order: each one's label, whether it is lit, and why
+/// it is gray if it is.
+fn levels(ui: &mut Ui) -> Vec<(String, bool, Option<String>)> {
+    let goes = |w: &Value| w["command"]["command"] == "level.set";
+    let widgets = ui.widgets("tray").into_iter().filter(goes);
+    let why = |w: &Value| w["reason"].as_str().unwrap_or_default().to_string();
+    let gray = |w: &Value| (w["enabled"] == json!(false)).then(|| why(w));
+    (widgets.map(|w| {
+        let label = w["label"].as_str().unwrap_or_default().to_string();
+        (label, w["selected"] == json!(true), gray(&w))
+    }))
+    .collect()
+}
+
+/// Review 0009, R6: the level's ⋯ offers each level as a button, the active one lit, and a
+/// tap goes to that level and shuts it, with nothing to type (decision 0025, amended
+/// 2026-10-14). With the levels frozen the buttons are gray with the engine's reason.
+#[test]
+fn the_level_menu_goes_to_a_level_by_its_button() {
+    let mut ui = ball(3);
+    ui.press("tray > ···");
+    judged(&mut ui);
+    let lit = |n: &str| (n.to_string(), n == "3", None);
+    assert_eq!(
+        levels(&mut ui),
+        ["1", "2", "3"].map(lit),
+        "the top is active"
+    );
+    assert!(!ui.lists("tray", "Go to level…"), "no level to type");
+    ui.press("tray > 2");
+    assert_eq!(ui.state()["parts.level"], json!(2), "level 2 is active");
+    assert_eq!(ui.logged("level.set").len(), 1, "one step");
+    assert!(
+        crate::header::panel(&mut ui, "palette").is_none(),
+        "nothing to type"
+    );
+    assert_eq!(levels(&mut ui), Vec::new(), "the pick shut the menu");
+    ui.ok("level.freeze", json!({}));
+    ui.press("tray > ···");
+    judged(&mut ui);
+    let shown = levels(&mut ui);
+    assert!(!shown.is_empty(), "the levels show while frozen");
+    for (label, _, why) in shown {
+        assert!(why.is_some_and(|w| w.contains("frozen")), "{label} is gray");
+    }
+}
+
+/// Each pick is gray with the reason while it cannot run: with one level, Freeze and Unfreeze
+/// and both deletes, each in a person's words with what to do where there is something
+/// ((Rough-tray-notes) (1): Freeze and Unfreeze read in the engine's words, "part 'ball' is
+/// not frozen"); at the top, Delete higher; with the levels frozen, every pick that waits for
+/// them. Reconstruct lower is never gray (the engine says no to a rebuild only once it tries).
 #[test]
 fn a_level_pick_that_cannot_run_is_gray_with_the_reason() {
     let mut ui = ball(1);
     ui.press("tray > ···");
     judged(&mut ui);
-    let one = "part 'ball' has one level: there are no levels to freeze";
+    let one = "This part has only one level, so there is none to freeze. Subdivide adds levels.";
     assert_eq!(gray(&mut ui, "Freeze").as_deref(), Some(one));
-    let thawed = "part 'ball' is not frozen";
+    let thawed = "This part has no frozen levels to bring back. Freeze sets them aside first.";
     assert_eq!(gray(&mut ui, "Unfreeze").as_deref(), Some(thawed));
     for pick in ["Delete lower", "Delete higher"] {
-        let why = gray(&mut ui, pick).unwrap_or_default();
-        assert!(
-            why.starts_with("part 'ball' has one level: "),
-            "{pick}: {why}"
-        );
+        assert_eq!(gray(&mut ui, pick).as_deref(), Some(ONE), "{pick}");
     }
-    for pick in ["Go to level…", "Reconstruct lower"] {
-        assert_eq!(gray(&mut ui, pick), None, "{pick}");
-    }
+    assert_eq!(gray(&mut ui, "Reconstruct lower"), None);
     ui.ok("level.subdivide", json!({}));
     judged(&mut ui);
     assert_eq!(gray(&mut ui, "Freeze"), None, "with two levels");
-    let top = "part 'ball': the top is active, there is no level above";
-    assert_eq!(gray(&mut ui, "Delete higher").as_deref(), Some(top));
+    assert_eq!(gray(&mut ui, "Delete higher").as_deref(), Some(TOP));
     assert_eq!(gray(&mut ui, "Delete lower"), None, "a level below");
     ui.ok("level.freeze", json!({}));
     judged(&mut ui);
     assert_eq!(gray(&mut ui, "Unfreeze"), None, "frozen");
-    for pick in ["Delete lower", "Delete higher", "Freeze"] {
+    for pick in ["Delete lower", "Delete higher"] {
         let why = gray(&mut ui, pick).unwrap_or_default();
         assert!(why.contains("frozen"), "{pick}: {why}");
     }
+    let again = "This part's levels are frozen already. Unfreeze brings them back.";
+    assert_eq!(gray(&mut ui, "Freeze").as_deref(), Some(again));
 }
 
 #[test]
@@ -230,26 +263,26 @@ fn live_s_choice_size_and_merge_show_only_while_live_is_on() {
         "Merge length",
     ];
     assert!(
-        shows(&mut ui, "Live") && shows(&mut ui, "On"),
+        ui.lists("tray", "Live") && ui.lists("tray", "On"),
         "{:?}",
         ui.labels("tray")
     );
     for label in hidden {
-        assert!(!shows(&mut ui, label), "{label} while Live is off");
+        assert!(!ui.lists("tray", label), "{label} while Live is off");
     }
     ui.press("tray > On");
     assert_eq!(ui.state()["live_detail.on"], json!(true), "the switch");
     for label in hidden {
         assert!(
-            shows(&mut ui, label),
+            ui.lists("tray", label),
             "{label} while on: {:?}",
             ui.labels("tray")
         );
     }
     ui.ok("live_detail.set", json!({ "combined": false }));
     ui.settle();
-    assert!(shows(&mut ui, "Merge"), "Merge's switch stays");
-    assert!(!shows(&mut ui, "Merge length"), "its length goes with it");
+    assert!(ui.lists("tray", "Merge"), "Merge's switch stays");
+    assert!(!ui.lists("tray", "Merge length"), "its length goes with it");
 }
 
 /// One Size slider shows at a time, the chosen measure's, setting the mode with the size: a
@@ -309,5 +342,5 @@ fn subdivide_opens_the_adjust_panel_with_its_smooth_uvs_field() {
     let labels = ui.labels("adjust");
     let uvs = labels.iter().any(|l| l.eq_ignore_ascii_case("smooth uvs"));
     assert!(uvs, "{labels:?}");
-    assert!(!shows(&mut ui, "Subdivide with smooth UVs"));
+    assert!(!ui.lists("tray", "Subdivide with smooth UVs"));
 }

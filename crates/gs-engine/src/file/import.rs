@@ -428,6 +428,7 @@ impl FileImport {
         doc: &mut DocTxn,
         job: Option<&JobCell>,
     ) -> Result<Imported, CommandError> {
+        super::not_a_folder(std::path::Path::new(&self.path))?;
         let format = Format::resolve(self.format, &self.path)?;
         for (value, path) in [(self.scale, "/scale"), (self.fit_size, "/fit_size")] {
             if !(value.is_finite() && value > 0.0) {

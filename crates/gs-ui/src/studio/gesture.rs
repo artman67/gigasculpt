@@ -215,7 +215,7 @@ impl Studio {
     fn finish(&mut self, ending: Result<Step, String>) {
         match ending {
             Ok(step) => self.shell.queue(step),
-            Err(problem) => self.shell.status.problem = Some(problem),
+            Err(problem) => self.shell.status.says(&problem),
         }
     }
 

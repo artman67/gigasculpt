@@ -10,8 +10,6 @@
 
 use std::collections::BTreeSet;
 
-use gs_protocol::Role;
-
 use super::stale;
 use super::work::{Done, Output};
 use crate::document::{Document, Part, PartChange, Reads};
@@ -85,10 +83,9 @@ impl Engine {
         if let Some(seen) = self.seen.get_mut(&origin.client_id) {
             *seen = self.rev;
         }
-        // The window got the job's id at once; a failure reaches it through its status line.
-        if let (Role::Human, Err((_, e))) = (origin.role, &reply) {
-            self.state.sculpt.problem = Some(format!("{}: {}", cell.title, e.message));
-        }
+        // The window got the job's id at once and follows it: a failure reaches it whole
+        // (`JobWatch::refusal`), said in a person's words, or asked for when it names an
+        // argument the step lacks (decision 0016, section 17).
         let response = self.respond(&origin, &call, concurrent_changes, reply);
         cell.end(response);
         self.jobs.release();

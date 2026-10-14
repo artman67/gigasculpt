@@ -4,14 +4,15 @@
 //! did, how big the scene is and how much memory the app holds, the session, and the agents'
 //! pause toggle. What does not fit is cut short.
 
-use egui::{Align, FontSelection, Layout, RichText, TextWrapMode, WidgetText};
+use egui::{Align, FontSelection, Layout, RichText};
 use gs_engine::server::JobWatch;
 use gs_engine::{Shows, StateValues};
-use gs_protocol::Step;
+use gs_protocol::{CommandError, Step};
 use serde_json::json;
 
 use crate::keymap::Keymap;
 use crate::record::{Recorder, Role, Widget, with_args};
+use crate::shell::refusals::sentence;
 use crate::theme::theme;
 
 /// The status line's height, in points.
@@ -25,7 +26,8 @@ pub struct Status {
     pub rev: u64,
     /// What an agent did last: who, which commands, and whether it worked.
     pub agent: Option<String>,
-    /// The last thing that went wrong in the window.
+    /// The last thing that went wrong in the window, as a person reads it (see [`Status::says`]).
+    /// The person's next step clears it (`Shell::take_commands`).
     pub problem: Option<String>,
     /// What the window waits for, first on the line: the key to bind to a control.
     pub prompt: Option<String>,
@@ -41,6 +43,30 @@ pub struct Status {
     pub waiting: Option<Step>,
     /// The window's job while it runs, which the bar at the start of the line shows.
     pub busy: Option<Busy>,
+    /// The window's job that ended refused, and its step, for the next frame to say as a refusal
+    /// at once is said (`Shell::refused`); not one that asks for an argument, which
+    /// `app::commands` asks for.
+    pub ended: Option<(Option<Step>, CommandError)>,
+    /// Which file a save wrote (`Saved head.gss`), and until when the line says it, by egui's
+    /// clock (review 0009, R11).
+    pub saved: Option<(String, f64)>,
+}
+
+impl Status {
+    /// How long the line says which file a save wrote, in seconds (review 0009, R11).
+    pub const SAVED_FOR: f64 = 4.0;
+
+    /// Puts `problem` on the line, as a sentence starts.
+    pub fn says(&mut self, problem: &str) {
+        self.problem = Some(sentence(problem));
+    }
+
+    /// Says for a moment that a save wrote `path`, from `now` (seconds, egui's clock).
+    pub fn wrote(&mut self, path: &std::path::Path, now: f64) {
+        let name = path.file_name().unwrap_or(path.as_os_str());
+        let text = format!("Saved {}", name.to_string_lossy());
+        self.saved = Some((text, now + Self::SAVED_FOR));
+    }
 }
 
 /// The window's job while it runs (decision 0010 as amended 2026-10-13): what the bar at the
@@ -52,23 +78,38 @@ pub struct Busy {
     pub done: Option<f32>,
     /// What it is doing now, where its command says.
     pub stage: Option<String>,
+    /// The step it runs, if the window asked for it: a refusal that asks for an argument
+    /// reaches the window as a question (`app::commands`).
+    pub step: Option<Step>,
 }
 
 impl Busy {
     pub fn new(job: JobWatch) -> Self {
         let (done, stage) = job.progress();
-        Self { job, done, stage }
+        Self {
+            job,
+            done,
+            stage,
+            step: None,
+        }
     }
 }
 
 /// Reads the window's job again, each pass of the window's loop: true when the bar changed, so
-/// the window draws it again. The bar goes once the job ends; its result or its failure reaches
-/// the line through the call report, as every call's does.
+/// the window draws it again. The bar goes once the job ends; its refusal waits in
+/// [`Status::ended`] to be said in a person's words, unless it asks for an argument.
 pub fn follow(status: &mut Status) -> bool {
     let Some(busy) = &mut status.busy else {
         return false;
     };
     if busy.job.ended() {
+        let step = busy.step.take();
+        let asks = |e: &CommandError| {
+            let args = step.as_ref().map(|s| &s.args);
+            args.is_some_and(|a| gs_engine::errors::asks(e, a).is_some())
+        };
+        let refused = busy.job.refusal().filter(|e| !asks(e));
+        status.ended = refused.map(|e| (step, e));
         status.busy = None;
         return true;
     }
@@ -242,12 +283,7 @@ fn bar(line: &mut Line, busy: &Busy) -> Option<Step> {
     line.rec.widget(widget, cancel.rect);
     line.rec.hint(&hint);
     if let Some(stage) = &busy.stage {
-        let mut letters = stage.chars();
-        let first = letters.next().map(|c| c.to_uppercase().collect::<String>());
-        line.label(
-            format!("{}{}", first.unwrap_or_default(), letters.as_str()).into(),
-            None,
-        );
+        line.label(sentence(stage).into(), None);
     }
     line.gap();
     cancel.clicked().then_some(step)
@@ -280,10 +316,20 @@ fn line(line: &mut Line, status: &Status, state: &StateValues, sculpt: &[String]
         line.label(moved.into(), None);
         line.gap();
     }
+    if let Some((text, until)) = &status.saved {
+        let left = until - line.ui.input(|i| i.time);
+        if left > 0.0 {
+            line.label(text.into(), None);
+            line.gap();
+            let left = std::time::Duration::from_secs_f64(left);
+            line.ui.ctx().request_repaint_after(left);
+        }
+    }
     let agent = status.agent.as_deref().unwrap_or("no agent activity");
     line.label(format!("Agent: {agent}").into(), None);
+    // As a sentence starts, whoever set it (decision 0025, section 2, amended 2026-10-14).
     if let Some(problem) = &status.problem {
-        let text = RichText::new(format!("Problem: {problem}"));
+        let text = RichText::new(format!("Problem: {}", sentence(problem)));
         line.label(text.color(refused), None);
     }
     line.gap();
@@ -352,11 +398,7 @@ impl Line<'_, '_> {
         if gap {
             ui.separator();
         }
-        let wrap = Some(TextWrapMode::Extend);
-        let wide = (WidgetText::from(text.clone()))
-            .into_galley(ui, wrap, f32::INFINITY, FontSelection::Default)
-            .size()
-            .x;
+        let wide = crate::text::width(ui, text.clone(), FontSelection::Default);
         let fits = wide <= ui.available_width();
         let widget = Widget::plain(text.text(), Role::Label);
         let label = egui::Label::new(text);

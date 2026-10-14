@@ -2,7 +2,7 @@
 
 use std::time::Duration;
 
-use gs_platform::{Input, Platform, WindowOptions};
+use gs_platform::{Answer, Dialog, Dialogs, Filter, Input, Pick, Platform, WindowOptions};
 use raw_window_handle::{HandleError, HasDisplayHandle, HasWindowHandle};
 use sdl3::event::{Event, WindowEvent};
 use sdl3::keyboard::{Keycode, Mod, Scancode};
@@ -31,6 +31,34 @@ fn the_offscreen_window_reads_events_sizes_and_the_clock() {
     text_input_toggles(&mut platform);
     queued_events_arrive(&mut platform);
     the_clock_is_sdls_event_clock(&platform);
+    the_title_is_set(&platform);
+    a_dialog_that_cannot_show_answers_that_it_failed(&platform);
+}
+
+fn the_title_is_set(platform: &Platform) {
+    platform.set_title("*head.gss - GigaSculpt");
+    let title = platform.title();
+    assert_eq!(title, "*head.gss - GigaSculpt", "the title as set");
+}
+
+/// With no dialog driver SDL can use, the answer is a failure that says why, at once, and the
+/// window asks in its own form instead.
+fn a_dialog_that_cannot_show_answers_that_it_failed(platform: &Platform) {
+    sdl3::hint::set("SDL_FILE_DIALOG_DRIVER", "none");
+    let dialogs = Dialogs::default();
+    let dialog = Dialog {
+        pick: Pick::Save,
+        filters: vec![Filter {
+            name: "GigaSculpt scene".into(),
+            pattern: "gss".into(),
+        }],
+        folder: std::env::home_dir(),
+        name: Some("Untitled.gss".into()),
+    };
+    dialogs.show(platform, &dialog);
+    let answers = dialogs.answers();
+    let failed = matches!(&answers[..], [Answer::Failed(why)] if why.contains("driver"));
+    assert!(failed, "a failure naming the driver: {answers:?}");
 }
 
 fn handles_stay_on_the_window_thread(platform: &Platform) {

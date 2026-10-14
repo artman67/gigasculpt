@@ -404,7 +404,8 @@ fn a_turn_snaps_with_shift_and_logs_the_mask_and_mirror_it_was_sent_with() {
     );
     let after = w.hash();
 
-    // With radial symmetry on, the window refuses a drag that would not mirror, and says why.
+    // With radial symmetry on, the window refuses a drag that would not mirror, and says why
+    // and what to do in a person's words ((Rough-tray-notes) (1)).
     let radial = json!({ "symmetry": { "radial": { "axis": "y", "count": 4 } } });
     w.ok("brush.set", radial);
     let held = arrow(&mut w);
@@ -420,7 +421,11 @@ fn a_turn_snaps_with_shift_and_logs_the_mask_and_mirror_it_was_sent_with() {
         .problem
         .clone()
         .unwrap_or_default();
-    assert!(problem.contains("radial symmetry"), "{problem}");
+    assert!(problem.starts_with("Radial symmetry"), "{problem}");
+    for what_to_do in ["Symmetry menu", "hold Ctrl"] {
+        assert!(problem.contains(what_to_do), "{problem}");
+    }
+    assert!(!problem.contains("transforms"), "{problem}");
 }
 
 /// The X arrow's drag from 70% of the way out, `f` of the arrow's length further.

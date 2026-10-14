@@ -9,7 +9,7 @@ use serde_json::json;
 use super::{NewPart, half, place_below, report, strip};
 use crate::command::PartArg;
 use crate::document::{Props, VertexOrder, pinned};
-use crate::{Command, Ctx, Example, register_command};
+use crate::{Command, Ctx, Example, Unavailable, register_command};
 
 /// What `part.split` cuts a part by.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
@@ -85,6 +85,10 @@ impl Command for PartSplit {
             .after("level.subdivide", json!({}))
             .fails_with(ErrorCode::Precondition),
         ]
+    }
+
+    fn check(&self, cx: &Ctx) -> Result<(), Unavailable> {
+        crate::level::check_one_level(cx, self.part.as_ref(), "a split", false)
     }
 
     fn run(self, cx: &mut Ctx) -> Result<Pieces, CommandError> {

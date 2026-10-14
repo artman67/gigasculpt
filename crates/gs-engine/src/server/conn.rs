@@ -3,6 +3,7 @@
 //! a line the engine dropped.
 
 use std::io::{self, BufRead, BufReader, Read, Write};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Sender};
 
 use gs_protocol::UnixStream;
@@ -20,18 +21,20 @@ enum Line {
 }
 
 /// Serves connection `conn` until the client leaves, the line limit is broken, or the engine
-/// stops. Always tells the engine the connection is gone.
+/// stops (`stop`, which a wait for a line checks at each of the stream's read timeouts). Always
+/// tells the engine the connection is gone.
 pub(super) fn serve(
     conn: u64,
     stream: UnixStream,
     mut writer: UnixStream,
     tasks: &Sender<Task>,
     max_line: usize,
+    stop: &AtomicBool,
 ) {
     let mut reader = BufReader::new(stream);
     let mut buf = Vec::new();
     loop {
-        let reply = match read_line(&mut reader, max_line, &mut buf) {
+        let reply = match read_line(&mut reader, max_line, &mut buf, stop) {
             Ok(Line::End) | Err(_) => break,
             Ok(Line::TooLong) => {
                 send(&mut writer, &rpc::too_large(max_line)).ok();
@@ -75,11 +78,25 @@ fn send(writer: &mut UnixStream, reply: &str) -> io::Result<()> {
     writer.write_all(format!("{reply}\n").as_bytes())
 }
 
-/// Reads one line of at most `max` bytes into `buf`, without its line break.
-fn read_line(reader: &mut impl BufRead, max: usize, buf: &mut Vec<u8>) -> io::Result<Line> {
+/// Reads one line of at most `max` bytes into `buf`, without its line break. A read that times
+/// out keeps what it got and reads on, unless the session is stopping.
+fn read_line(
+    reader: &mut impl BufRead,
+    max: usize,
+    buf: &mut Vec<u8>,
+    stop: &AtomicBool,
+) -> io::Result<Line> {
     buf.clear();
     let limit = u64::try_from(max).unwrap_or(u64::MAX).saturating_add(1);
-    if Read::take(&mut *reader, limit).read_until(b'\n', buf)? == 0 {
+    loop {
+        let room = limit.saturating_sub(buf.len() as u64);
+        match Read::take(&mut *reader, room).read_until(b'\n', buf) {
+            Ok(_) => break,
+            Err(e) if timed_out(&e) && !stop.load(Ordering::SeqCst) => {}
+            Err(e) => return Err(e),
+        }
+    }
+    if buf.is_empty() {
         return Ok(Line::End);
     }
     if buf.last() == Some(&b'\n') {
@@ -91,4 +108,12 @@ fn read_line(reader: &mut impl BufRead, max: usize, buf: &mut Vec<u8>) -> io::Re
         return Ok(Line::TooLong);
     }
     Ok(Line::Read)
+}
+
+/// A read gave up at the stream's read timeout: `WouldBlock` on Unix, `TimedOut` on Windows.
+fn timed_out(e: &io::Error) -> bool {
+    matches!(
+        e.kind(),
+        io::ErrorKind::WouldBlock | io::ErrorKind::TimedOut
+    )
 }

@@ -26,8 +26,9 @@ pub use mesh::{
     corners, face_triangles, quad_diagonal, quad_triangles,
 };
 pub use paths::{
-    Env, System, cache_dir, cache_dir_in, check_session_name, config_dir, config_dir_in, free_path,
-    session_dir, session_dir_in, socket_path, socket_path_in, state_dir, state_dir_in,
+    Env, System, cache_dir, cache_dir_in, check_session_name, check_socket_path, config_dir,
+    config_dir_in, free_path, session_dir, session_dir_in, socket_in, socket_path, socket_path_in,
+    state_dir, state_dir_in,
 };
 pub use pen::{PenSample, PenTool};
 pub use repro::{

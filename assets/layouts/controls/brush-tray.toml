@@ -184,8 +184,9 @@ controls = [
 # brush writes the brush the pen strokes with, every setting changed for it, to a preset file,
 # asking before it replaces one; Load brush reads one back. Each opens its command's form for
 # the file, starting in the folder of the last brush file. Reset to defaults drops every
-# setting changed for the brush; Copy settings to asks for a brush and gives it those settings
-# (`{ state = ... }` is filled from `session.state` when it runs), the pen keeping its brush.
+# setting changed for the brush. Under these, Copy settings to offers every other brush as a
+# button that gives it those settings, the pen keeping its brush, drawn in code (gs-ui
+# pieces/head.rs `copies`; the palette still takes `brush.set` with `for` typed).
 [[set]]
 name = "brush-file"
 title = "Brush file"
@@ -193,5 +194,4 @@ controls = [
   { label = "Save brush…", command = "ui.palette", args = { form = "brush.save" }, hint = "Writes this brush, with every change made to it, to a preset file." },
   { label = "Load brush…", command = "ui.palette", args = { form = "brush.load" }, hint = "Reads a preset file into this brush." },
   { label = "Reset to defaults", command = "brush.set", args = { reset = true }, hint = "Puts every setting of this brush back as it ships." },
-  { label = "Copy settings to…", command = "ui.palette", args = { form = "brush.set", args = { settings = { state = "brush.settings" } }, ask = ["for"] }, hint = "Gives another brush every setting changed on this one." },
 ]

@@ -12,7 +12,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Condvar, Mutex, MutexGuard, PoisonError};
 use std::time::Duration;
 
-use gs_protocol::{CmdResponse, JobReport, Outcome};
+use gs_protocol::{CmdResponse, CommandError, JobReport, Outcome};
 use serde_json::Value;
 
 /// One job.
@@ -98,6 +98,14 @@ impl JobCell {
     /// True once the job ended: committed, failed or cancelled.
     pub fn ended(&self) -> bool {
         self.lock().response.is_some()
+    }
+
+    /// The error the job ended with, once it failed, without taking its result.
+    pub fn error(&self) -> Option<CommandError> {
+        match &self.lock().response.as_ref()?.outcome {
+            Outcome::Error(e) => Some(e.clone()),
+            Outcome::Ok(_) => None,
+        }
     }
 
     /// How far the job got and what it is doing, as its thread last said, without taking the

@@ -16,12 +16,15 @@ use crate::palette::Form;
 use crate::pieces::Now;
 use crate::record::{Recorder, Role as Shown, Widget, with_args};
 use crate::shell::Shell;
+use crate::shell::escape::{To, entered};
 use crate::theme::theme;
 
 /// The panel's width, in points.
 const WIDTH: f32 = 260.0;
 /// Its section's id in the layout's folded list.
 const FOLD_ID: &str = "adjust";
+/// The panel's egui window, which Escape and Enter order by (`shell/escape.rs`).
+pub(crate) const WINDOW: &str = "adjust";
 /// The pinned arguments that read the view or the pointer: a step with one runs again from what
 /// the view was when it ran (a bare `view` only names a view).
 const VIEWED: [&str; 4] = ["camera", "viewport", "pivot", "point"];
@@ -79,6 +82,17 @@ enum Change {
 }
 
 impl Adjust {
+    /// Whether the panel shows.
+    pub(crate) fn shows(&self) -> bool {
+        self.open && self.panel.is_some()
+    }
+
+    /// Escape, given by the window (`shell/escape.rs`) with the pointer over the panel and
+    /// nothing in front of it: closes it, keeping the step as it is.
+    pub(crate) fn escape(&mut self) {
+        self.open = false;
+    }
+
     /// Hands on what a door asked to run, remembering each command until its call is heard:
     /// the one place a run from a menu, the palette or a key passes (section 1 of the
     /// amendment).
@@ -177,8 +191,7 @@ impl Adjust {
 
     /// Draws the panel while it shows, in `view`'s lower corner away from the pen (section 12):
     /// its title row, the line about the view, then its fields, scrolling past the view's
-    /// height. Escape with the pointer over it closes it. Returns what it asked to run and the
-    /// fold it asked for.
+    /// height. Returns what it asked to run and the fold it asked for.
     pub fn show(
         &mut self,
         ui: &egui::Ui,
@@ -204,7 +217,7 @@ impl Adjust {
         let folded = now.layout.is_folded(FOLD_ID);
         let room = (view.height() - 2.0 * inset).max(0.0);
         let shown = egui::Window::new("Adjust")
-            .id(egui::Id::new("adjust"))
+            .id(egui::Id::new(WINDOW))
             .title_bar(false)
             .resizable(false)
             .collapsible(false)
@@ -227,12 +240,7 @@ impl Adjust {
         let Some(shown) = shown else {
             return asked;
         };
-        let rect = shown.response.rect;
-        rec.fit(rect);
-        let over = (ui.ctx().pointer_latest_pos()).is_some_and(|p| rect.contains(p));
-        if over && ui.input(|i| i.key_pressed(egui::Key::Escape)) {
-            self.open = false;
-        }
+        rec.fit(shown.response.rect);
         asked
     }
 }
@@ -312,7 +320,14 @@ impl Panel {
         }
         let idle = self.change.is_none();
         let before = self.form.chosen.clone();
-        let enter = ui.input(|i| i.key_pressed(egui::Key::Enter));
+        // Enter as the window gives it (`shell/escape.rs`): to a typed field of the panel's, or
+        // to the panel under the pointer; one in another field (the brush's Hex) is that
+        // field's. Read before the fields draw, as egui lets go of a field on Enter there.
+        let ctx = ui.ctx();
+        let ours = (ctx.memory(egui::Memory::focused))
+            .and_then(|id| ctx.read_response(id))
+            .is_some_and(|r| r.layer_id == ui.layer_id());
+        let enter = (ours && entered(ctx, To::Field)) || entered(ctx, To::Adjust);
         let outer = rec.listing();
         // The room is given, not left to the window, which offers only what it had last frame.
         let fields = |ui: &mut egui::Ui| {
@@ -384,7 +399,7 @@ impl Shell {
             Some(true) if adjust.panel.as_ref().is_some_and(|p| Some(p.id) == newest) => {
                 adjust.open = true;
             }
-            Some(true) => self.status.problem = Some("Nothing to adjust".into()),
+            Some(true) => self.status.says("Nothing to adjust"),
             Some(false) => adjust.open = false,
             None => {}
         }

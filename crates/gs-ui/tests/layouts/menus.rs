@@ -44,6 +44,7 @@ const MENUS: [(&str, &[&str]); 8] = [
             "Remesh visible",
             "Delete",
             "This part",
+            "Delete",
             "Others",
             "Hidden",
             "All",
@@ -101,7 +102,7 @@ const MENUS: [(&str, &[&str]); 8] = [
             "Grow",
             "Ctrl+Shift+X",
             "Shrink",
-            "Ctrl+Shift+S",
+            "Ctrl+Shift+C",
             "Invert",
             "Whole",
             "Shells",
@@ -348,12 +349,13 @@ fn an_axis_row_runs_the_axis_pressed() {
 
 /// Section 3's Part menu with no active part, as amended for H4 (item 4): decision 0033 keeps a
 /// part active while the scene has one, so none is active only in an empty scene, where each
-/// one-part row is gray with the engine's reason, as the scene tray's were, and a tap runs
-/// nothing and opens no form asking which part. With a part they run on the active one.
+/// one-part row is gray with the engine's reason, as the scene tray's were, said as a sentence
+/// (decision 0025, section 6, amended 2026-10-14), and a tap runs nothing and opens no form
+/// asking which part. With a part they run on the active one.
 #[test]
 fn the_part_menu_with_no_part_is_gray_with_the_engines_reason_and_asks_nothing() {
     let mut ui = Ui::new();
-    let why = json!("the scene has no parts");
+    let why = json!("The scene has no parts");
     open(&mut ui, "Part");
     for label in [
         "Duplicate",
@@ -417,12 +419,12 @@ fn voxel_mode_shows_the_active_parts_switch_lit() {
 }
 
 /// Section 2's A menu and rule 7: in an empty scene an item of each menu, and an axis of Mirror
-/// and weld, is gray with the engine's reason as its hint; with a part it can run, and its hint
-/// says what it does (section 11).
+/// and weld, is gray with the engine's reason as its hint, said as a sentence; with a part it
+/// can run, and its hint says what it does (section 11).
 #[test]
 fn an_item_whose_command_cannot_run_now_is_gray_and_its_hint_says_why() {
     let mut ui = Ui::new();
-    let why = json!("the scene has no parts");
+    let why = json!("The scene has no parts");
     for (title, label) in [
         ("Mesh", "Voxel Remesh"),
         ("Mesh", "X"),

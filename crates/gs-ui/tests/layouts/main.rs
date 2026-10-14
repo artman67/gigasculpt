@@ -124,3 +124,49 @@ mod detail;
 
 // H7 (2026-10-13): the header fits a narrow view (decision 0060 as amended for H7).
 mod header_fit;
+
+// Views (2026-10-13): the 3D view names the side it shows (review 0009, C5).
+mod view_name;
+
+// Files (2026-10-13): a path typed into a file form is the path that runs, every file action
+// asks the system's file dialog, the form standing in where none can show, and the window's
+// title, close question, dropped files and command line (decision 0016, section 17, amended
+// 2026-10-13).
+mod dialogs;
+mod paths;
+mod window;
+
+// Paste (2026-10-14): copy, cut and paste in a text field go through the system clipboard, and
+// outside one the same keys stay the keymap's (review 0009, B1).
+mod clipboard;
+
+// Refusals (2026-10-14): what a person sees when the engine says no (decision 0025, section 2,
+// amended 2026-10-14; review 0009, C1, C2, C4 and C6).
+mod refusals;
+
+// Escape (2026-10-14): one Escape closes one thing, the one on top (decision 0025, section 5,
+// amended 2026-10-14).
+mod escape;
+
+// Rough-forms (2026-10-14): a form's life ends when it is answered (decision 0025, section 2,
+// amended 2026-10-14).
+mod sent;
+
+// Rough-forms (2026-10-14): how a form asks, and a question's Enter and Replace (review 0009,
+// R3, R5, R7, R8, R13 and R15).
+mod asking;
+
+// Rough-forms (2026-10-14): File > Quit, Ctrl+Q and Delete (review 0009, R10 and R12).
+mod quitting;
+
+// Rough-forms (2026-10-14): Bind a key as one gesture (review 0009, C11).
+mod bind_gesture;
+
+// UI-words (2026-10-14): a row that cannot run now is gray with why before it is tapped
+// (review 0009, R4; decision 0025, section 6), and a refusal reads as a person's sentence
+// wherever it comes from (decision 0025, section 2).
+mod gray_rows;
+mod refused_words;
+// UI-keys (2026-10-14): an arrow, Enter or Tab goes to the one thing in front (decision 0025,
+// section 5, amended 2026-10-14).
+mod front;

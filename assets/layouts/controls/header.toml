@@ -9,8 +9,10 @@
 # work; Open and a recent scene ask before they drop unsaved changes, and a first Save asks a
 # name: the engine's refusal names what it lacks and the window asks for it (decision 0016,
 # section 17). Open recent lists `file.recent`'s scenes, the set `recent`, newest first: its
-# first row is the scene saved last. The Part file group writes the active part alone. The
-# bridge to Blender comes last, as a side feature.
+# first row is the scene saved last. Recover… shows the recovery offer again (decision 0016,
+# section 11), dimmed while there is none. The Part file group writes the active part alone. The
+# bridge to Blender comes next, as a side feature, and Quit last, asking first as closing the
+# window does (review 0009, R10).
 [[set]]
 name = "file"
 title = "File"
@@ -18,8 +20,9 @@ controls = [
   { label = "New scene", short = "New", command = "ui.palette", args = { form = "file.new", ask = ["discard_changes"] }, hint = "Starts an empty scene with no file, asking first while there are unsaved changes. Key: Ctrl+N." },
   { label = "Open scene", short = "Open", command = "ui.palette", args = { form = "file.open", ask = ["path"] }, hint = "Opens a scene or Part file in place of this scene, asking first while there are unsaved changes. Key: Ctrl+O." },
   { label = "Open a recent scene", short = "Open recent", options = "recent", hint = "The scenes opened or saved lately, newest first: the first is the one saved last." },
+  { label = "Recover a session that closed", short = "Recover", command = "ui.palette", args = { form = "file.recover" }, hint = "Shows again the offer to recover the work of a session that closed without saving, put away with Later." },
   { label = "Save", command = "file.save", separator = true, hint = "Writes the scene to its own file, keeping the old one as a backup; a scene with no file yet asks for a name. Key: Ctrl+S." },
-  { label = "Save scene as", short = "Save as", command = "ui.palette", args = { form = "file.save", ask = ["path"] }, hint = "Writes the scene to a file you name, which becomes its own file from then on." },
+  { label = "Save scene as", short = "Save as", command = "ui.palette", args = { form = "file.save", ask = ["path"] }, hint = "Writes the scene to a file you name, which becomes its own file from then on. Key: Ctrl+Shift+S." },
   { label = "Save next numbered", short = "Save next", command = "file.save_next", hint = "Writes the scene under the next number after its own file's name, head_001 then head_002, which becomes its own file. Key: Ctrl+Alt+S. (Blender: Save Incremental.)" },
   { label = "Quick save", command = "file.quick_save", hint = "Writes a numbered copy to the scene's autosave folder, leaving its own file alone. Key: 9." },
   { label = "Revert to saved", short = "Revert", command = "ui.palette", args = { form = "file.revert" }, hint = "Opens the scene's own file again, dropping every change since it was saved. Key: Ctrl+Alt+R." },
@@ -29,6 +32,7 @@ controls = [
   { label = "Export a file", short = "Export", command = "ui.palette", args = { form = "file.export" }, hint = "Writes one part, or every part, to an OBJ, PLY or STL file." },
   { label = "Send to Blender", short = "Send", group = "Blender", command = "exchange.write", args = { folder = "to-blender" }, hint = "Writes every part for Blender: Get from GigaSculpt in the add-on loads what it wrote." },
   { label = "Read from Blender", short = "Read", group = "Blender", command = "exchange.read", args = { folder = "from-blender" }, hint = "Brings in what Send to GigaSculpt in the add-on wrote, as new parts in one undo step." },
+  { label = "Quit", command = "ui.palette", args = { quit = true }, hint = "Closes GigaSculpt, asking first while there are unsaved changes, as closing the window does. Key: Ctrl+Q (Cmd+Q on macOS)." },
 ]
 
 # File > Open recent's list (decision 0016, section 17, item 7): a row to each of
@@ -94,7 +98,7 @@ controls = [
   { label = "Show unmasked", short = "Unmasked", group = "Show", command = "visibility.show", args = { select = { by = "unmasked" } }, hint = "Shows the unmasked faces again." },
   { label = "Show all", short = "All", group = "Show", command = "visibility.show_all", hint = "Shows every face." },
   { label = "Grow visible area", short = "Grow", group = "Area", command = "visibility.grow", hint = "Shows one more ring of faces around what is visible. Key: Ctrl+Shift+X." },
-  { label = "Shrink visible area", short = "Shrink", group = "Area", command = "visibility.shrink", hint = "Hides the outer ring of the visible faces. Key: Ctrl+Shift+S." },
+  { label = "Shrink visible area", short = "Shrink", group = "Area", command = "visibility.shrink", hint = "Hides the outer ring of the visible faces. Key: Ctrl+Shift+C." },
   { label = "Invert visibility", short = "Invert", group = "Area", command = "visibility.invert", hint = "Hidden faces show and visible ones hide." },
   { label = "Show whole shells", short = "Shells", group = "Whole", command = "visibility.grow", args = { to = "shells" }, hint = "Shows every face of any separate piece that is partly visible. Key: Ctrl+Shift+A." },
   { label = "Show whole groups", short = "Groups", group = "Whole", command = "visibility.grow", args = { to = "groups" }, hint = "Shows every face of any face group that is partly visible. Key: Ctrl+Shift+Q." },
@@ -157,7 +161,7 @@ controls = [
   { label = "Merge down", short = "Down", group = "Merge", command = "part.merge_down", hint = "Joins the active part and the one below it into one part in its place. A part with detail levels is refused." },
   { label = "Merge visible", short = "Visible", group = "Merge", command = "part.merge_visible", hint = "Merges every part that shows into one new part at the end of the list; the parts stay as they are." },
   { label = "Remesh visible", group = "Merge", command = "part.remesh", hint = "Voxel remeshes every part that shows together into one new part of even quads at the end of the list; the parts stay as they are." },
-  { label = "Delete", short = "This part", group = "Delete", command = "part.delete", hint = "Deletes the active part; the one after it becomes active, else the one before. One undo brings it back." },
+  { label = "Delete", short = "This part", group = "Delete", command = "part.delete", hint = "Deletes the active part; the one after it becomes active, else the one before. One undo brings it back. Key: Delete." },
   { label = "Delete others", short = "Others", group = "Delete", command = "part.delete", args = { scope = "others" }, hint = "Deletes every part but the active one, in one undo step." },
   { label = "Delete hidden", short = "Hidden", group = "Delete", command = "part.delete", args = { scope = "hidden" }, hint = "Deletes every part whose eye is off and that does not show, never the active part, in one undo step." },
   { label = "Delete all", short = "All", group = "Delete", command = "part.delete", args = { scope = "all" }, hint = "Deletes every part, leaving the scene empty, in one undo step." },

@@ -11,7 +11,7 @@ use gs_engine::Shows;
 use gs_protocol::Step;
 
 use super::sliders::setting;
-use super::{Now, controls_of};
+use super::{Now, controls_of, detail, head};
 use crate::direction::Control;
 use crate::keymap::picked;
 use crate::record::{Recorder, Role, Widget};
@@ -114,11 +114,26 @@ fn options(
         if set == recent::SET {
             return recent::rows(ui, now, rec);
         }
-        // The Gizmo tool's ⋯ starts with its operators, drawn in code (Alt changes them).
-        let first = (set == crate::gizmo::MENU).then(|| crate::gizmo::menu(ui, now, rec));
+        // Drawn in code: the Gizmo tool's ⋯ starts with its operators (Alt changes them), the
+        // level's with its levels, and the brush's ends with the brushes to copy to.
+        let first = match set {
+            crate::gizmo::MENU => crate::gizmo::menu(ui, now, rec),
+            detail::LEVELS => choices(ui, "Go to level", &detail::levels(now), now, rec),
+            _ => None,
+        };
         let shown = listed.iter().filter(|c| c.shown(&now.state));
         let asked = shown.map(|c| control(ui, c, true, now, rec));
-        asked.fold(first.flatten(), Option::or)
+        let asked = asked.fold(first, Option::or);
+        if set != head::FILE {
+            return asked;
+        }
+        asked.or(choices(
+            ui,
+            "Copy settings to",
+            &head::copies(now),
+            now,
+            rec,
+        ))
     });
     rec.list(listing);
     let picked = picked.and_then(|p| p.inner);
@@ -126,6 +141,28 @@ fn options(
         Popup::close_id(ui.ctx(), id);
     }
     picked
+}
+
+/// `title` over `picks` as buttons on rows no wider than the menu, picked rather than typed
+/// (review 0009, R6); nothing while there are none. Returns what was picked.
+fn choices(
+    ui: &mut egui::Ui,
+    title: &str,
+    picks: &[Control],
+    now: &Now,
+    rec: &mut Recorder,
+) -> Option<Step> {
+    if picks.is_empty() {
+        return None;
+    }
+    super::label(ui, RichText::new(title).small().weak(), rec);
+    let wide = ui.min_rect().width().max(ui.spacing().menu_width);
+    let rows = ui.horizontal_wrapped(|ui| {
+        ui.set_max_width(wide);
+        let asked = picks.iter().map(|c| control(ui, c, true, now, rec));
+        asked.fold(None, Option::or)
+    });
+    rows.inner
 }
 
 /// True while a press on `button` has been held past the longest click (egui's, so letting go
@@ -267,7 +304,8 @@ pub fn pressed_as(
         (Some(_), false) => (Some(colors.text_off), Some(Color32::TRANSPARENT)),
         // On: lit, with dark text. egui would paint it with the text selection's colors.
         (None, true) => (Some(colors.on_lit), Some(colors.lit)),
-        (None, false) => (None, None),
+        // A button that deletes reads in the warning color (review 0009).
+        (None, false) => (crate::theme::deletes(&step).then(|| colors.warning()), None),
     };
     let shown = faced(ui, (face, label), colored, (held.is_none(), lit));
     let brush = brush_tip(&step, now, held.or(idle));

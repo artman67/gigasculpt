@@ -262,14 +262,16 @@ fn color(ui: &mut egui::Ui, form: &mut Form, name: &str, rec: &mut Recorder) {
 }
 
 /// A value typed: a path, a name, a number with no ends, a list of numbers. The form's first
-/// such field takes the keyboard when it opens; typing drops a word chosen beside it.
+/// such field takes the keyboard when it opens, what it starts with selected, but for a path's
+/// folder, which a name is typed after; typing drops a word chosen beside it.
 fn typed(ui: &mut egui::Ui, form: &mut Form, name: &str, focus: &mut bool, rec: &mut Recorder) {
     let hint = (form.args.get(name)).map_or_else(String::new, |a| a.hint.clone());
     let mut all = form.fields.iter_mut().chain(form.more.iter_mut());
     let Some((_, text)) = all.find(|(n, _)| n == name) else {
         return;
     };
-    if field(ui, text, (friendly(name), &hint), focus, rec) {
+    let select = !crate::palette::path::named(name);
+    if field(ui, text, (friendly(name), &hint), (focus, select), rec) {
         form.chosen.remove(name);
     }
 }
@@ -299,7 +301,8 @@ fn three(ui: &mut egui::Ui, form: &mut Form, name: &str, focus: &mut bool, rec: 
         for ((column, part), axis) in each {
             column.horizontal(|ui| {
                 ui.label(axis);
-                changed |= field(ui, part, (format!("{title} {axis}"), &hint), focus, rec);
+                let named = (format!("{title} {axis}"), hint.as_str());
+                changed |= field(ui, part, named, (&mut *focus, false), rec);
             });
         }
     });
@@ -329,17 +332,27 @@ fn parts(text: &str, shows: Option<&Value>) -> [String; 3] {
 }
 
 /// A line to type into, recorded as a text field labelled `label` that says `hint` on hover,
-/// taking the keyboard when `focus` is set. Returns whether its text changed.
+/// taking the keyboard when `focus` is set, with what it holds then selected when `select`, to
+/// type over (a part's name, review 0009, R15). Returns whether its text changed.
 fn field(
     ui: &mut egui::Ui,
     text: &mut String,
     (label, hint): (String, &str),
-    focus: &mut bool,
+    (focus, select): (&mut bool, bool),
     rec: &mut Recorder,
 ) -> bool {
-    let field = ui.add(egui::TextEdit::singleline(text).desired_width(f32::INFINITY));
+    let shown = egui::TextEdit::singleline(text)
+        .desired_width(f32::INFINITY)
+        .show(ui);
+    let field = shown.response;
     if std::mem::take(focus) {
         field.request_focus();
+        if select {
+            let mut state = shown.state;
+            let all = egui::text::CCursorRange::select_all(&shown.galley);
+            state.cursor.set_char_range(Some(all));
+            state.store(ui.ctx(), field.id);
+        }
     }
     rec.widget(Widget::plain(label, Role::TextField), field.rect);
     if !hint.is_empty() {

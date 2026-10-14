@@ -139,17 +139,23 @@ pub fn socket_path(name: &str) -> Result<PathBuf, String> {
     socket_path_in(System::HERE, &|name| std::env::var_os(name), name)
 }
 
-/// The socket of session `name` on `system` in `env`: `<session folder>/<name>.sock`. Refuses
-/// names that are not a valid session name, so no name can point outside the session folder,
-/// and names whose socket path would not fit in the system's socket address, before any bind.
+/// The socket of session `name` on `system` in `env`: `<session folder>/<name>.sock`, as
+/// [`socket_in`] checks it.
 pub fn socket_path_in(system: System, env: Env, name: &str) -> Result<PathBuf, String> {
     check_session_name(name)?;
-    let dir = session_dir_in(system, env)?;
+    socket_in(system, &session_dir_in(system, env)?, name)
+}
+
+/// The socket of session `name` in the session folder `dir` on `system`: `<dir>/<name>.sock`.
+/// Refuses names that are not a valid session name, so no name can point outside the session
+/// folder, and names whose socket path would not fit in the system's socket address, before
+/// any bind or connect, naming the longest name that fits. Both are mistakes in the name.
+pub fn socket_in(system: System, dir: &Path, name: &str) -> Result<PathBuf, String> {
+    check_session_name(name)?;
     let path = dir.join(format!("{name}.sock"));
-    let (bytes, limit) = (path.as_os_str().len(), crate::socket::longest_path(system));
-    if bytes <= limit {
+    let Some((bytes, limit)) = over_limit(system, &path) else {
         return Ok(path);
-    }
+    };
     let fits = match name.len().checked_sub(bytes - limit) {
         Some(n) if n > 0 => format!("names of up to {n} characters fit"),
         _ => "no name fits; set XDG_RUNTIME_DIR to a shorter folder".to_string(),
@@ -160,6 +166,25 @@ pub fn socket_path_in(system: System, env: Env, name: &str) -> Result<PathBuf, S
         path.display(),
         dir.display()
     ))
+}
+
+/// Refuses a socket path given as is (`--socket`) that would not fit in `system`'s socket
+/// address, before any bind or connect, as a session name too long for its socket is refused.
+pub fn check_socket_path(system: System, path: &Path) -> Result<(), String> {
+    match over_limit(system, path) {
+        None => Ok(()),
+        Some((bytes, limit)) => Err(format!(
+            "socket {} is too long: it is {bytes} bytes, and sockets take at most {limit} bytes \
+             here; give a shorter path",
+            path.display()
+        )),
+    }
+}
+
+/// The length of socket path `path` in bytes and `system`'s limit, when it is over the limit.
+fn over_limit(system: System, path: &Path) -> Option<(usize, usize)> {
+    let (bytes, limit) = (path.as_os_str().len(), crate::socket::longest_path(system));
+    (bytes > limit).then_some((bytes, limit))
 }
 
 /// A session name is one or more ASCII letters, digits, `-` and `_`.

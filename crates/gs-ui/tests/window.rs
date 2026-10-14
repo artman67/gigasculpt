@@ -412,17 +412,22 @@ fn drive(agent: &mut Agent, dir: &Path) {
 
 /// The agent taps the interface with the pen; the window runs what was tapped as the human.
 fn window_runs_its_own_commands(agent: &mut Agent) {
-    // Nothing was undone, so redo has nothing to do and fails.
-    let open = agent.ok("ui.palette", &json!({ "query": "history.redo" }));
-    assert_eq!(open["matches"][0], json!("history.redo"), "palette search");
+    // Nothing is frozen, so unfreeze fails. (Redo with nothing to redo shows nothing, as its
+    // button is already gray: review 0009, R2.)
+    let open = agent.ok("ui.palette", &json!({ "query": "level.unfreeze" }));
+    assert_eq!(
+        open["matches"][0],
+        json!("level.unfreeze"),
+        "palette search"
+    );
     let d = agent.ok("ui.describe", &json!({}));
-    agent.tap(&widget(&d, "palette", "history.redo"));
+    agent.tap(&widget(&d, "palette", "level.unfreeze"));
     // The window answers taps on its next frames, which a busy machine delays: wait up to three
     // minutes for each change (it ends as soon as the change shows; one minute ran out at a load
     // average of 351).
     let shown = (0..9000).any(|_| {
         std::thread::sleep(Duration::from_millis(20));
-        agent.status().iter().any(|l| l.starts_with("Problem: E_"))
+        (agent.status().iter()).any(|l| l.starts_with("Problem: This part has no frozen levels"))
     });
     assert!(
         shown,

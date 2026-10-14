@@ -8,7 +8,7 @@
 use std::f32::consts::FRAC_1_SQRT_2;
 
 use egui::epaint::Mesh;
-use egui::{Color32, Id, Key, Pos2, Rect, Sense, Stroke, StrokeKind, Vec2, pos2, vec2};
+use egui::{Color32, Id, Pos2, Rect, Sense, Stroke, StrokeKind, Vec2, pos2, vec2};
 use gs_core::Vec3;
 use gs_core::camera::Camera;
 use gs_engine::PenReads;
@@ -19,6 +19,7 @@ use super::hover;
 use super::paint::{edited_key, hex};
 use crate::record::{Recorder, Role, Widget, with_args};
 use crate::shell::Shell;
+use crate::shell::escape::{To, given};
 use crate::theme::theme;
 
 /// The wheel's greatest width in points.
@@ -358,7 +359,8 @@ pub(super) fn dragged(
 ) -> ([u8; 3], Option<[u8; 3]>) {
     let id = Id::new(("paint swatch drag", key));
     let (ending, going) = (shown.drag_stopped(), shown.dragged());
-    let (escape, alt) = ui.input(|i| (i.key_pressed(Key::Escape), i.modifiers.alt));
+    // Escape given to the pen's press (`shell/escape.rs`).
+    let (escape, alt) = (given(ui.ctx(), To::Drag), ui.input(|i| i.modifiers.alt));
     let mut given_up = ui.data(|d| d.get_temp::<bool>(id)).unwrap_or(false);
     given_up |= (going || ending) && escape;
     ui.data_mut(|d| {

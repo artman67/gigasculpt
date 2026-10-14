@@ -6,7 +6,11 @@ use gs_platform::{Input, Modifiers};
 use gs_protocol::{ErrorCode, Step};
 use serde_json::{Value, json};
 
-use crate::rig::{Ui, key};
+use crate::header::drag;
+use crate::region::middle;
+use crate::rig::{Ui, held, key};
+use crate::scene::form;
+use crate::shelf::rect;
 
 /// The palette's rows for `query`, as `ui.palette` reports them.
 fn rows(ui: &mut Ui, query: &str) -> Vec<Value> {
@@ -377,15 +381,26 @@ fn the_scene_keys_run_what_the_scene_buttons_run_and_the_buttons_show_them() {
         ..Modifiers::default()
     };
     let ctrl_alt = Modifiers { alt: true, ..ctrl };
-    // New and Revert open the form their buttons open, so a key alone never drops work.
-    for (k, held, form) in [("N", ctrl, "file.new"), ("R", ctrl_alt, "file.revert")] {
-        ui.tap(k, held);
-        let open = ui.ok("ui.palette", json!({}));
-        assert_eq!(open["form"], json!(form), "{k}: {open}");
-        ui.ok("ui.palette", json!({ "open": false }));
-        // A frame lets go of the form's field, as the window's next frame does.
-        ui.settle();
-    }
+    // A key alone never drops work: with nothing to lose, Ctrl+N starts a new scene at once;
+    // with unsaved changes it asks first (review 0009, C8). Revert opens its form.
+    ui.tap("N", ctrl);
+    assert_eq!(
+        ui.logged("file.new").len(),
+        1,
+        "nothing to lose: New at once"
+    );
+    ui.ok("primitive.sphere", json!({ "subdivisions": 4 }));
+    ui.tap("N", ctrl);
+    let asked = crate::scene::question("starting a new scene", "this scene");
+    assert_eq!(ui.labels("palette"), asked, "unsaved changes: New asks");
+    assert_eq!(ui.logged("file.new").len(), 1, "and runs nothing yet");
+    ui.ok("ui.palette", json!({ "open": false }));
+    ui.tap("R", ctrl_alt);
+    let open = ui.ok("ui.palette", json!({}));
+    assert_eq!(open["form"], json!("file.revert"), "{open}");
+    ui.ok("ui.palette", json!({ "open": false }));
+    // A frame lets go of the form's field, as the window's next frame does.
+    ui.settle();
     // Ctrl and Alt let go: held, a press on a button aims at it for a key (bind_click.rs).
     ui.input(&[], Modifiers::default());
     // The scene's buttons are the header's File items (decision 0060, section 3).
@@ -461,4 +476,66 @@ fn ctrl_h_and_shift_p_run_what_show_mask_and_floor_run_and_both_show_the_keys() 
         ui.ok("ui.palette", json!({ "open": false }));
         ui.settle();
     }
+}
+
+/// Review 0009, C12 (Rough-forms, 2026-10-14): Space, then typing "save", lists the rows a
+/// person presses (File's Save, Save scene as, Quick save) before any command id.
+#[test]
+fn typing_save_lists_the_save_rows_before_any_command_id() {
+    let mut ui = Ui::new();
+    ui.tap("Space", Modifiers::default());
+    ui.input(&[Input::Text("save".into())], Modifiers::default());
+    let rows: Vec<String> = (ui.widgets("palette").iter())
+        .filter(|w| w["role"] == "list item")
+        .filter_map(|w| Some(w["label"].as_str()?.to_string()))
+        .collect();
+    let id = rows
+        .iter()
+        .position(|r| r.contains('.') && !r.contains(' '));
+    for save in ["Save", "Save scene as", "Quick save"] {
+        let at = rows.iter().position(|r| r == save);
+        assert!(at.is_some(), "{save} is listed: {rows:?}");
+        assert!(id.is_none_or(|id| at < Some(id)), "{save} first: {rows:?}");
+    }
+}
+
+/// Decision 0025, section 2: the palette closes on a press elsewhere, as everything at the pen
+/// does (review 0009, C9). With the Save form open, a press in the 3D view shuts it, form and
+/// all, and starts no stroke (the same drag with it shut does); a press on a tray's button
+/// shuts it and runs nothing, as a press outside a header menu does.
+#[test]
+fn a_press_outside_the_palette_shuts_its_form_and_does_nothing_else() {
+    let mut ui = Ui::new();
+    ui.ok("primitive.sphere", json!({ "subdivisions": 16 }));
+    let undos = |ui: &mut Ui| ui.state()["history.undos"].clone();
+    let shut = |ui: &Ui| {
+        let open = ui.host.lock().shell.palette.open;
+        !open && form(ui).is_none()
+    };
+    let before = undos(&mut ui);
+    ui.tap("S", held("Ctrl"));
+    let asked = form(&ui).map(|f| f.0);
+    assert_eq!(asked.as_deref(), Some("file.save"), "Ctrl+S asks a name");
+    let [x, y] = ui.middle();
+    let [left, top, right, bottom] = ui.rect("palette");
+    let clear = !(left..right).contains(&(x - 30.0)) || !(top..bottom).contains(&y);
+    assert!(clear, "the press lands beside the form");
+    drag(&mut ui, x - 30.0, y);
+    assert!(shut(&ui), "the press shut the palette and its form");
+    assert_eq!(undos(&mut ui), before, "and started no stroke");
+    drag(&mut ui, x - 30.0, y);
+    assert_ne!(undos(&mut ui), before, "with it shut the same drag strokes");
+    let before = undos(&mut ui);
+    ui.open_only(&["history"]);
+    ui.tap("S", held("Ctrl"));
+    assert!(!shut(&ui), "Ctrl+S asks again");
+    let tray = ui.widgets("tray");
+    let undo = (tray.iter()).find(|w| w["command"]["command"] == "history.undo");
+    let [ux, uy] = middle(rect(
+        &undo.unwrap_or_else(|| panic!("Undo: {tray:?}"))["rect"],
+    ));
+    ui.tap_at(ux, uy);
+    ui.settle();
+    assert!(shut(&ui), "the press shut the palette");
+    assert_eq!(undos(&mut ui), before, "and Undo did not run");
 }

@@ -2,8 +2,9 @@
 //! [`REGIONS`] draws them in order. The order is egui's: the status line first so it spans the
 //! window, then the panels docked on their edges (trays, docked reference, Library, the header
 //! along the view's top), then the 3D view in what is left, then everything that floats over it
-//! (the header's open menu or view button's options among them). What a region asked to run joins
-//! [`Frame::asked`] in the same order. A new region is one function and one line here.
+//! (the header's open menu or view button's options among them). Before them all, the recovery
+//! dialog takes its keys, before anything that draws can see them. What a region asked to run
+//! joins [`Frame::asked`] in the same order. A new region is one function and one line here.
 
 use gs_engine::MainView;
 use gs_protocol::{Catalog, Step};
@@ -32,7 +33,8 @@ use crate::wheel::Wheel;
 type Region = fn(&mut Frame, &mut egui::Ui);
 
 /// The regions, in the order they are drawn.
-pub(super) const REGIONS: [Region; 17] = [
+pub(super) const REGIONS: [Region; 18] = [
+    recovery_keys,
     status,
     trays,
     docked_reference,
@@ -367,7 +369,13 @@ fn palette(f: &mut Frame, ui: &mut egui::Ui) {
     f.asked.extend(f.shell.adjust.offer(asked));
 }
 
-/// The offer to recover a crashed session, asked once at start.
+/// Enter for the offer to recover a crashed session, when the window gave it the press
+/// (`escape`), taken before any region draws.
+fn recovery_keys(f: &mut Frame, ui: &mut egui::Ui) {
+    f.asked.extend(f.shell.recovery.keys(ui));
+}
+
+/// The offer to recover a crashed session, asked once at start, or Discard's question.
 fn recovery(f: &mut Frame, ui: &mut egui::Ui) {
     f.asked.extend(f.shell.recovery.show(ui, &mut f.rec));
 }

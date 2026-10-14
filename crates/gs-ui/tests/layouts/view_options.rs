@@ -6,7 +6,6 @@
 use gs_platform::Modifiers;
 use serde_json::{Value, json};
 
-use crate::gizmo_deformer::shows as has;
 use crate::rig::Ui;
 
 /// The labels on the row of panel `id`'s widget labelled `label`, left to right.
@@ -73,11 +72,8 @@ fn the_floor_planes_and_fill_are_a_row_each_lit_on_what_is_in_use() {
 fn the_floor_rows_show_only_while_they_apply() {
     let mut ui = Ui::new();
     open(&mut ui, "floor", "Floor");
-    assert!(
-        has(&mut ui, "floor", "Show floor"),
-        "hidden, it can be shown"
-    );
-    assert!(!has(&mut ui, "floor", "Planes"), "hidden, its rows wait");
+    assert!(ui.lists("floor", "Show floor"), "hidden, it can be shown");
+    assert!(!ui.lists("floor", "Planes"), "hidden, its rows wait");
     ui.press("floor > Show floor");
     assert_eq!(ui.state()["view.floor"], json!(true));
     // Sliders are listed by their long labels: Elevation reads Height, Grid size Size.
@@ -89,26 +85,23 @@ fn the_floor_rows_show_only_while_they_apply() {
         "Fill",
         "Axis colors",
     ] {
-        assert!(has(&mut ui, "floor", shows), "{shows} with the floor");
+        assert!(ui.lists("floor", shows), "{shows} with the floor");
     }
     assert!(
-        !has(&mut ui, "floor", "Show floor"),
+        !ui.lists("floor", "Show floor"),
         "shown, its switch is the header's"
     );
-    assert!(
-        !has(&mut ui, "floor", "Tiles"),
-        "an endless grid has no tiles"
-    );
+    assert!(!ui.lists("floor", "Tiles"), "an endless grid has no tiles");
     ui.press("floor > Snap");
     assert!(
-        !has(&mut ui, "floor", "Elevation"),
+        !ui.lists("floor", "Elevation"),
         "snapped, its height is unused"
     );
     ui.press("floor > Snap");
-    assert!(has(&mut ui, "floor", "Elevation"), "back with Snap off");
+    assert!(ui.lists("floor", "Elevation"), "back with Snap off");
     ui.ok("view.floor", json!({ "size": 2.0 }));
     ui.settle();
-    assert!(has(&mut ui, "floor", "Tiles"), "a sized grid's tiles");
+    assert!(ui.lists("floor", "Tiles"), "a sized grid's tiles");
 }
 
 #[test]
@@ -117,15 +110,12 @@ fn the_wire_switches_share_a_row_and_opacity_shows_while_edges_are_on() {
     open(&mut ui, "wire", "Wire");
     let switches = row(&mut ui, "wire", "Edges");
     assert_eq!(switches, ["Edges", "Fill", "Density", "Dots"]);
-    assert!(has(&mut ui, "wire", "Edge opacity"));
+    assert!(ui.lists("wire", "Edge opacity"));
     ui.press("wire > Edges");
     assert_eq!(ui.state()["view.wire.line"], json!(false));
-    assert!(
-        !has(&mut ui, "wire", "Edge opacity"),
-        "no edges, no opacity"
-    );
+    assert!(!ui.lists("wire", "Edge opacity"), "no edges, no opacity");
     ui.press("wire > Edges");
-    assert!(has(&mut ui, "wire", "Edge opacity"), "back with the edges");
+    assert!(ui.lists("wire", "Edge opacity"), "back with the edges");
 }
 
 /// Whether widget `w` runs `command` with `args`, a `"flip"` among them as a true or false.

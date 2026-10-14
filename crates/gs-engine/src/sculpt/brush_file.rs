@@ -145,6 +145,8 @@ impl Command for BrushLoad {
 
     fn run(self, cx: &mut Ctx) -> Result<BrushState, CommandError> {
         let path = &self.path;
+        // A folder asks for a file name, as Open does, not the system's "Is a directory".
+        crate::file::not_a_folder(std::path::Path::new(path))?;
         let text = std::fs::read_to_string(path)
             .map_err(|e| at("/path", crate::file::io_error(path, &e)))?;
         let refused = |m: String| patch::refused("/path", format!("{path}: {m}"));

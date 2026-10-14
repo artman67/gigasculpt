@@ -95,7 +95,7 @@ impl Key {
 pub(crate) enum Step {
     /// Draw sample `k` and average it in (`k` = 0 starts over).
     Sample(u32),
-    /// Every sample is in: redraw the display from the history alone.
+    /// Every sample is in: show the last sample's picture again.
     Hold,
 }
 
@@ -129,7 +129,7 @@ impl Accumulation {
     }
 
     /// The history to read and the one to write for a frame doing `step`: a sample writes the
-    /// other one, which becomes current; a settled frame only reads.
+    /// other one, which becomes current; a settled frame writes none.
     pub fn histories(&mut self, step: Step) -> (usize, Option<usize>) {
         let read = self.current;
         if step == Step::Hold {

@@ -130,6 +130,38 @@ pub fn names_stay_in_the_session_folder() {
     );
 }
 
+/// A session name too long for its socket is a mistake in the command, not a session that
+/// cannot be reached: every command that names one exits 2 and names the longest that fits.
+pub fn a_session_name_too_long_for_its_socket_is_a_usage_error() {
+    let env = Env::new();
+    // The socket is `<runtime>/gigasculpt/<name>.sock`, and sockets take at most 103 bytes on
+    // macOS, 107 elsewhere.
+    let limit = if cfg!(target_os = "macos") { 103 } else { 107 };
+    let fits = limit - env.dir.join("gigasculpt").as_os_str().len() - "/.sock".len();
+    let long = "n".repeat(fits + 1);
+    for args in [
+        &["spawn", &long][..],
+        &["-s", &long, "query", "mesh.stats"],
+        &["-s", &long, "stop", "--key", "k"],
+    ] {
+        let out = env.gs(args);
+        assert_eq!(out.code, 2, "gs {args:?}: {}", out.stderr);
+        assert!(
+            out.stderr
+                .contains(&format!("names of up to {fits} characters fit")),
+            "names the longest that fits: {}",
+            out.stderr
+        );
+    }
+    let fits = "n".repeat(fits);
+    let out = env.gs(&["-s", &fits, "query", "mesh.stats"]);
+    assert_eq!(
+        out.code, 4,
+        "the longest that fits is only not running: {}",
+        out.stderr
+    );
+}
+
 /// M3: a session that never answers makes `gs` give up with exit code 5, not hang.
 pub fn a_stuck_session_times_out() {
     let env = Env::new();

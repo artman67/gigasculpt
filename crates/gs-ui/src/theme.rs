@@ -100,8 +100,8 @@ pub struct Colors {
     on_axis: Option<Color32>,
     #[serde(deserialize_with = "hex")]
     pub problem: Color32,
-    /// The status line's warnings (low disk space). A theme may leave it out; see
-    /// [`Colors::warning`].
+    /// The status line's warnings (low disk space), and the label of a button that deletes. A
+    /// theme may leave it out; see [`Colors::warning`].
     #[serde(default, deserialize_with = "some_hex")]
     warning: Option<Color32>,
     #[serde(deserialize_with = "hex")]
@@ -204,11 +204,25 @@ pub fn show(ctx: &egui::Context, t: &'static Theme) {
     ctx.data_mut(|d| d.insert_temp(shown_id(), t));
 }
 
+/// The commands whose buttons delete: their labels read in the warning color, as do the
+/// recovery dialog's Discard and Delete and the unsaved question's Don't save.
+const DELETES: &[&str] = &[
+    "part.delete",
+    "material.delete",
+    "level.delete_lower",
+    "level.delete_higher",
+];
+
+/// Whether a button that runs `step` deletes, so its label reads in the warning color.
+pub fn deletes(step: &gs_protocol::Step) -> bool {
+    DELETES.contains(&step.command.as_str())
+}
+
 impl Themes {
     /// Reads the user's themes, the `.toml` files in `dir`. Returns them with what was wrong: a
     /// file that does not read, or that has a shipped theme's name (so `dark` always means the
     /// shipped one), is left out; one whose text falls under the contrast floors is kept, and
-    /// named.
+    /// said once, with which colors to change ([`Theme::faint_words`]).
     pub fn load(dir: &Path) -> (Themes, Vec<String>) {
         let entries = std::fs::read_dir(dir).into_iter().flatten().flatten();
         let mut files: Vec<_> = (entries.map(|e| e.path()))
@@ -229,10 +243,7 @@ impl Themes {
             let text = std::fs::read_to_string(&path).map_err(|e| e.to_string());
             match text.and_then(|text| Theme::from_toml(&name, &text)) {
                 Ok(theme) => {
-                    let faint = theme.too_faint();
-                    if !faint.is_empty() {
-                        problems.push(format!("{shown}: {}", faint.join("; ")));
-                    }
+                    problems.extend(theme.faint_words(&shown.to_string()));
                     user.push(&*Box::leak(Box::new(theme)));
                 }
                 Err(e) => problems.push(format!("{shown}: {e}")),
@@ -285,30 +296,75 @@ impl Theme {
     /// with its ratio; empty when every pair clears.
     #[must_use]
     pub fn too_faint(&self) -> Vec<String> {
-        let c = &self.colors;
-        let pairs = [
-            ("text on panel", c.text, c.panel, 4.5),
-            ("text on header", c.text, c.header, 4.5),
-            ("text on control", c.text, c.control, 4.5),
-            ("text on hover", c.text, c.hover, 4.5),
-            ("text on pressed", c.text, c.pressed, 4.5),
-            ("text_dim on panel", c.text_dim, c.panel, 4.5),
-            ("text_dim on header", c.text_dim, c.header, 4.5),
-            ("text_dim on control", c.text_dim, c.control, 4.5),
-            ("on_lit on lit", c.on_lit, c.lit, 4.5),
-            ("on_axis on axis_x", c.on_axis(), c.axis_x, 4.5),
-            ("on_axis on axis_y", c.on_axis(), c.axis_y, 4.5),
-            ("on_axis on axis_z", c.on_axis(), c.axis_z, 4.5),
-            ("problem on panel", c.problem, c.panel, 4.5),
-            ("warning on panel", c.warning(), c.panel, 4.5),
-            ("text_off on panel", c.text_off, c.panel, 3.0),
-        ];
-        (pairs.into_iter())
-            .filter_map(|(name, fg, bg, least)| {
-                let ratio = contrast(fg, bg);
-                (ratio < least).then(|| format!("{name} is {ratio:.2} to 1, under {least}"))
+        (self.faint().into_iter())
+            .map(|(role, on, ratio, least, _)| {
+                format!("{role} on {on} is {ratio:.2} to 1, under {least}")
             })
             .collect()
+    }
+
+    /// Each pair under its floor: the role, the role it sits on, its ratio, the floor, and
+    /// whether the role is the lighter of the two.
+    fn faint(&self) -> Vec<(&'static str, &'static str, f32, f32, bool)> {
+        let c = &self.colors;
+        let (text, dim, warning) = (c.text, c.text_dim, c.warning());
+        let pairs = [
+            ("text", "panel", text, c.panel, 4.5),
+            ("text", "header", text, c.header, 4.5),
+            ("text", "control", text, c.control, 4.5),
+            ("text", "hover", text, c.hover, 4.5),
+            ("text", "pressed", text, c.pressed, 4.5),
+            ("text_dim", "panel", dim, c.panel, 4.5),
+            ("text_dim", "header", dim, c.header, 4.5),
+            ("text_dim", "control", dim, c.control, 4.5),
+            ("on_lit", "lit", c.on_lit, c.lit, 4.5),
+            ("on_axis", "axis_x", c.on_axis(), c.axis_x, 4.5),
+            ("on_axis", "axis_y", c.on_axis(), c.axis_y, 4.5),
+            ("on_axis", "axis_z", c.on_axis(), c.axis_z, 4.5),
+            ("problem", "panel", c.problem, c.panel, 4.5),
+            // The warning is also the label of a button that deletes, in each of its states.
+            ("warning", "panel", warning, c.panel, 4.5),
+            ("warning", "header", warning, c.header, 4.5),
+            ("warning", "control", warning, c.control, 4.5),
+            ("warning", "hover", warning, c.hover, 4.5),
+            ("warning", "pressed", warning, c.pressed, 4.5),
+            ("text_off", "panel", c.text_off, c.panel, 3.0),
+        ];
+        (pairs.into_iter())
+            .filter_map(|(role, on, fg, bg, least)| {
+                let ratio = contrast(fg, bg);
+                let lighter = luminance(fg) > luminance(bg);
+                (ratio < least).then_some((role, on, ratio, least, lighter))
+            })
+            .collect()
+    }
+
+    /// What the window says at start of a user's theme, from the file `shown`, whose text
+    /// falls under the floors (Refusals-notes (6)): that it still loads, and each role once,
+    /// with which way to change it, its worst ratio and what it is faint on. `None` when every
+    /// pair clears.
+    fn faint_words(&self, shown: &str) -> Option<String> {
+        // Each role: what it is faint on, its worst ratio, the floor, and whether it is lighter.
+        let mut roles: Vec<(&str, Vec<&str>, f32, f32, bool)> = Vec::new();
+        for (role, on, ratio, least, lighter) in self.faint() {
+            let Some(r) = roles.iter_mut().find(|r| r.0 == role) else {
+                roles.push((role, vec![on], ratio, least, lighter));
+                continue;
+            };
+            r.1.push(on);
+            if ratio < r.2 {
+                (r.2, r.4) = (ratio, lighter);
+            }
+        }
+        let each: Vec<String> = (roles.iter())
+            .map(|(role, on, ratio, least, lighter)| {
+                let way = if *lighter { "lighter" } else { "darker" };
+                let on = listed(on);
+                format!("{role} {way} ({ratio:.2} to 1 at worst, on {on}; it needs {least})")
+            })
+            .collect();
+        let make = (!each.is_empty()).then(|| listed(&each))?;
+        Some(format!("{shown} still loads; to read well, make {make}"))
     }
 
     /// Sets `style` to this theme: sizes for a pen on a 4K monitor at 1.25 scale (16-point text,
@@ -365,8 +421,8 @@ impl Colors {
         self.on_axis.unwrap_or(better)
     }
 
-    /// The status line's warnings (decision 0016, section 17, item 9): the theme's `warning`, or
-    /// `problem` for a theme without one.
+    /// The status line's warnings (decision 0016, section 17, item 9), and the label of a button
+    /// that deletes ([`deletes`]): the theme's `warning`, or `problem` for a theme without one.
     #[must_use]
     pub fn warning(&self) -> Color32 {
         self.warning.unwrap_or(self.problem)
@@ -470,6 +526,16 @@ pub fn fonts() -> FontDefinitions {
 pub fn contrast(a: Color32, b: Color32) -> f32 {
     let (l1, l2) = (luminance(a), luminance(b));
     (l1.max(l2) + 0.05) / (l1.min(l2) + 0.05)
+}
+
+/// `items` as a person lists them: "a", "a and b", "a, b and c".
+fn listed<S: AsRef<str>>(items: &[S]) -> String {
+    let items: Vec<&str> = items.iter().map(AsRef::as_ref).collect();
+    match items.split_last() {
+        Some((last, [])) => (*last).to_string(),
+        Some((last, rest)) => format!("{} and {last}", rest.join(", ")),
+        None => String::new(),
+    }
 }
 
 /// WCAG 2's relative luminance of an opaque sRGB color.

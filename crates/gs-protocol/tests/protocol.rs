@@ -3,16 +3,18 @@
 //! a face's corners are read, and a quad split, one way.
 
 use std::ffi::OsString;
-use std::io::{BufRead, BufReader, Write};
+use std::io::{BufRead, BufReader, ErrorKind, Write};
 use std::net::Shutdown;
 use std::path::PathBuf;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use gs_protocol::{
     Env, Length, NO_VERTEX, RpcRequest, RunParams, ScriptLine, System, UnixListener, UnixStream,
-    arity, cache_dir, cache_dir_in, check_session_name, config_dir, config_dir_in, corners,
-    face_triangles, free_path, rpc_code, session_dir, session_dir_in, socket_path, socket_path_in,
-    state_dir, state_dir_in,
+    arity, cache_dir, cache_dir_in, check_session_name, check_socket_path, config_dir,
+    config_dir_in, corners, face_triangles, free_path, rpc_code, session_dir, session_dir_in,
+    socket_path, socket_path_in, state_dir, state_dir_in,
 };
 
 #[test]
@@ -307,6 +309,18 @@ fn a_session_name_too_long_for_its_socket_is_refused() {
                 && refused.contains(&format!("up to {longest} characters")),
             "{system:?}: the refusal names the limit and the longest name: {refused}"
         );
+        // A socket path given as is (`--socket`) is held to the same limit.
+        let given = dir.join(format!("{fits}.sock"));
+        assert_eq!(check_socket_path(system, &given), Ok(()), "{system:?}");
+        let refused = check_socket_path(system, &dir.join(format!("{fits}n.sock")))
+            .expect_err("one byte more is refused");
+        assert!(
+            refused.contains(&format!(
+                "{} bytes, and sockets take at most {limit}",
+                limit + 1
+            )),
+            "{system:?}: the refusal names the length and the limit: {refused}"
+        );
     }
     assert_eq!(
         socket_path("x"),
@@ -561,30 +575,83 @@ fn a_taken_path_is_numbered_on() {
 
 /// The session socket works the same way on every system: a client connects to a `.sock` file,
 /// sends a line, and reads the answer the server wrote through its stream while a clone of that
-/// stream read the request.
+/// stream read the request. A read that waits past the stream's read timeout gives up with
+/// `WouldBlock` or `TimedOut` and keeps what came before it, so a line split by a longer pause
+/// arrives whole. Then the server stops as a session does (`Shared::stopping`): with the client
+/// still connected, it sets a flag and shuts the read side of a third clone, and the thread
+/// waiting for the next line wakes at once, or at its next timeout where the shutdown does not
+/// reach a read already waiting (Windows). The shutdown comes while both ends are open, as the
+/// engine's does: macOS refuses one on a socket whose other end has closed ("not connected"),
+/// where Linux does not.
 #[test]
 fn a_session_socket_carries_a_line_each_way() {
+    const CHECK: Duration = Duration::from_millis(100);
     let dir = std::env::temp_dir().join(format!("gs-socket-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
     let path = dir.join("test.sock");
     let listener = UnixListener::bind(&path).unwrap();
-    let server = std::thread::spawn(move || {
-        let (stream, _) = listener.accept().unwrap();
-        let mut line = String::new();
-        BufReader::new(stream.try_clone().unwrap())
-            .read_line(&mut line)
-            .unwrap();
-        (&stream).write_all(line.to_uppercase().as_bytes()).unwrap();
-    });
+    let stop = Arc::new(AtomicBool::new(false));
+    let ((closer, closing), (ended, end)) =
+        (std::sync::mpsc::channel(), std::sync::mpsc::channel());
+    let server = {
+        let stop = Arc::clone(&stop);
+        std::thread::spawn(move || {
+            let (stream, _) = listener.accept().unwrap();
+            stream.set_read_timeout(Some(CHECK)).unwrap();
+            closer.send(stream.try_clone().unwrap()).unwrap();
+            let mut reader = BufReader::new(stream.try_clone().unwrap());
+            let (mut line, mut waits) = (Vec::new(), 0);
+            let read = until_stopped(&mut reader, &mut line, &stop, &mut waits);
+            assert!(matches!(read, Ok(n) if n > 0), "the first line: {read:?}");
+            (&stream).write_all(&line.to_ascii_uppercase()).unwrap();
+            let paused = waits;
+            line.clear();
+            let woke = until_stopped(&mut reader, &mut line, &stop, &mut waits);
+            ended.send((paused, woke, line)).unwrap();
+        })
+    };
     let mut client = UnixStream::connect(&path).unwrap();
     client
         .set_read_timeout(Some(Duration::from_secs(10)))
         .unwrap();
-    client.write_all(b"ping\n").unwrap();
+    client.write_all(b"pi").unwrap();
+    std::thread::sleep(CHECK * 5);
+    client.write_all(b"ng\n").unwrap();
     let mut reply = String::new();
     BufReader::new(&client).read_line(&mut reply).unwrap();
+    assert_eq!(reply, "PING\n", "the line split by a pause arrives whole");
+    stop.store(true, Ordering::SeqCst);
+    closing.recv().unwrap().shutdown(Shutdown::Read).unwrap();
+    let (paused, woke, rest) = end.recv_timeout(CHECK * 20).unwrap_or_else(|e| {
+        panic!("the waiting thread wakes promptly at the stop, not later: {e}")
+    });
     server.join().unwrap();
-    assert_eq!(reply, "PING\n");
-    client.shutdown(Shutdown::Both).unwrap();
+    assert!(paused > 0, "the pause outlasted the read timeout");
+    assert!(
+        rest.is_empty() && !matches!(woke, Ok(n) if n > 0),
+        "nothing more was read: {woke:?}"
+    );
+    drop(client);
     std::fs::remove_dir_all(&dir).ok();
+}
+
+/// Reads one line into `line` as a session's connection does, counting each timed-out read in
+/// `waits` and reading on after it until `stop` is set.
+fn until_stopped(
+    reader: &mut impl BufRead,
+    line: &mut Vec<u8>,
+    stop: &AtomicBool,
+    waits: &mut u32,
+) -> std::io::Result<usize> {
+    loop {
+        match reader.read_until(b'\n', line) {
+            Err(e) if matches!(e.kind(), ErrorKind::WouldBlock | ErrorKind::TimedOut) => {
+                *waits += 1;
+                if stop.load(Ordering::SeqCst) {
+                    return Err(e);
+                }
+            }
+            read => return read,
+        }
+    }
 }

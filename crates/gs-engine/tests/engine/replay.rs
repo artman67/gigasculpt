@@ -177,8 +177,9 @@ fn a_restart_keeps_the_earlier_log() {
 }
 
 /// The standard log folder stays bounded (decision 0016, section 14): a session start deletes
-/// the oldest closed logs beyond the limit, whole, and keeps a log another session is still
-/// writing however old it is. Its own log lands in the folder under its session name and pid.
+/// the oldest closed logs beyond the limit, whole, with the lock file a crash left beside one,
+/// and keeps a log another session is still writing (it holds the lock beside it) however old
+/// it is. Its own log lands in the folder under its session name and pid.
 #[test]
 fn a_session_start_prunes_the_oldest_closed_logs() {
     let state = log_path("unused").with_file_name("state");
@@ -197,8 +198,10 @@ fn a_session_start_prunes_the_oldest_closed_logs() {
         made("c-3.jsonl", 3),
     ];
     let oldest = [made("d-4.jsonl", 4), made("e-5.jsonl", 5)];
+    let left = made("d-4.jsonl.lock", 4);
     let live = made("live-6.jsonl", 6);
-    let writer = std::fs::File::open(&live).unwrap_or_else(|e| panic!("{e}"));
+    let writer = std::fs::File::open(made("live-6.jsonl.lock", 6));
+    let writer = writer.unwrap_or_else(|e| panic!("{e}"));
     writer.try_lock().unwrap_or_else(|e| panic!("{e}"));
     let mut config = EngineConfig::default().with_standard_log(state.clone());
     if let Some(standard) = config.standard_log.as_mut() {
@@ -210,12 +213,34 @@ fn a_session_start_prunes_the_oldest_closed_logs() {
     let kept = |p: &PathBuf| p.exists();
     assert!(newest.iter().all(kept), "the newest three stay");
     assert!(!oldest.iter().any(kept), "the oldest closed ones go");
+    assert!(!left.exists(), "with the lock file a crash left beside one");
     assert!(live.exists(), "a log being written stays");
     let name = format!("main-{}.jsonl", std::process::id());
     assert_eq!(own, logs.join(name), "the session's own log");
     assert_eq!(log_records(&own).1.len(), 1, "and it writes there");
     drop((s, writer));
     remove(&state);
+}
+
+/// Decision 0063: the lock that tells pruning a log is still being written is on a file beside
+/// it, `<log>.lock`, not on the log. Locks on Windows are mandatory, so one on the log stopped
+/// every other reader there: a recovery in another session, a bug bundle, `gs run` replaying
+/// it. Here another handle can even lock the log while it is written. A clean stop removes the
+/// lock file.
+#[test]
+fn a_log_being_written_is_locked_beside_it_not_on_it() {
+    let log = log_path("beside");
+    let mut s = seeded(0, Some(log.clone()));
+    s.ok("primitive.cube", json!({}));
+    let reader = std::fs::File::open(&log).unwrap_or_else(|e| panic!("{e}"));
+    assert!(reader.try_lock().is_ok(), "nothing locks the log itself");
+    drop(reader);
+    let beside = log.with_file_name("beside.jsonl.lock");
+    let lock = std::fs::File::open(&beside).unwrap_or_else(|e| panic!("{e}"));
+    assert!(lock.try_lock().is_err(), "the lock beside it is held");
+    drop((lock, s));
+    assert!(!beside.exists(), "and goes with a clean stop");
+    remove(&log);
 }
 
 /// M5: pausing changes who may edit, not the scene, so it is not logged and a log from a

@@ -42,16 +42,20 @@ fn binds(path: &std::path::Path) -> usize {
 }
 
 /// Catalog `interface.keymap`: "binding a key to a command and pressing it runs the command".
-/// Settings > Keys' Bind a key… asks for the key, the command and its arguments; a free key
-/// bound runs its command with them, and a command that does not exist is refused by name.
+/// Settings > Keys' Bind a key… asks what the key runs (then takes the keys pressed:
+/// `bind_gesture.rs`); typed, as an agent binds, a free key bound runs its command with its
+/// arguments, and a command that does not exist is refused by name.
 #[test]
 fn a_free_key_bound_runs_its_command() {
     let mut ui = Ui::new();
     ui.ok("primitive.sphere", json!({ "subdivisions": 4 }));
     keys_page(&mut ui);
     ui.press("settings > Bind a key…");
-    let asks = ["bind", "command", "args"].map(String::from).to_vec();
-    assert_eq!(form(&ui), Some(("ui.keymap".into(), asks)));
+    let asked = ui.labels("palette");
+    assert!(
+        asked.iter().any(|l| l == "Pick what the key runs"),
+        "{asked:?}"
+    );
     ui.ok("ui.palette", json!({ "open": false }));
     // A frame without the form, so its field lets go of the keyboard.
     ui.settle();
@@ -87,12 +91,13 @@ fn a_taken_key_names_its_holder_and_moves_once_replace_is_confirmed() {
         json!({ "bind": "Ctrl+D", "command": "file.quick_save" }),
     ));
     ui.settle();
+    // The question says why itself, alone: no problem line beside it (review 0009).
+    let asked = ui.labels("palette");
+    // By its title, not its id (review 0009).
+    let named = "Ctrl+D runs Subdivide in the window";
+    assert!(asked.iter().any(|l| l.contains(named)), "{asked:?}");
     let problem = ui.host.lock().shell.status.problem.clone();
-    let named = "Ctrl+D runs Subdivide (level.subdivide) in the window";
-    assert!(
-        problem.as_deref().is_some_and(|p| p.contains(named)),
-        "{problem:?}"
-    );
+    assert_eq!(problem, None, "the question shows alone");
     assert_eq!(
         form(&ui),
         Some(("ui.keymap".into(), vec!["replace".into()]))
@@ -121,7 +126,7 @@ fn a_taken_key_names_its_holder_and_moves_once_replace_is_confirmed() {
     let b = json!({ "bind": "B", "command": "ui.library", "args": { "open": true } });
     let (code, message) = ui.err("ui.keymap", b.clone());
     assert_eq!(code, ErrorCode::Precondition);
-    let holder = "B S T runs Set brush (brush.set brush = \"Draw\") in the window";
+    let holder = "B S T runs Draw in the window";
     assert!(message.contains(holder), "{message}");
     let mut replace = b;
     replace["replace"] = json!(true);
