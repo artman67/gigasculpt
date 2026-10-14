@@ -1,0 +1,12 @@
+about = "A sphere roughened by a seeded jitter: fine shape detail that zebra stripes magnify."
+view = "front"
+looks = ["zebra", "clay"]
+closed = true
+
+[[step]]
+command = "primitive.sphere"
+args = { subdivisions = 16 }
+
+[[step]]
+command = "mesh.jitter"
+args = { amount = "0.5%", seed = 7 }

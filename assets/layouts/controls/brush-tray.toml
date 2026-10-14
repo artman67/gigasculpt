@@ -1,0 +1,197 @@
+# GigaSculpt controls: the Brush tray's sets. Each tray's sets are a file in this folder, and a
+# layout may show any set by its name, whichever file holds it. The format, field by field:
+# docs/reference/controls.md.
+
+# The Gizmo tool's tray (decision 0027, section 11; decision 0060, section 6): Basics holds the
+# brush's Size as the Reach a soft drag reaches to, then this set: Softness, a drag's falloff
+# (-100, rigid, unless changed), the steps a turn snaps to while Shift is held, and Mask,
+# whether the mask holds points back in a drag. Pose holds Lock, Sticky and Follow mask (the
+# gizmo goes to the unmasked centre whenever it moves), which belong to the part's gizmo, as
+# buttons of their own (gs-ui gizmo/pose.rs), then the Deformers, drawn in code (gs-ui
+# gizmo/deformer.rs, decision 0041 as amended for DF7b): a picker, the open deformer's
+# settings, and Accept, Cancel and Reset. Every call's numbers come from the part's box, which a
+# controls file cannot say. The gizmo's size on screen is in Settings > Cursor.
+[[set]]
+name = "gizmo"
+title = "Gizmo"
+controls = [
+  { label = "Gizmo softness", short = "Softness", command = "ui.gizmo", args = { falloff = "drag" }, shows = "gizmo.falloff", range = [-100.0, 100.0], hint = "How a drag fades out toward Reach's edge: -100 moves the part rigidly, higher softens it." },
+  { label = "Snap 5°", short = "5°", line = "Snap", command = "ui.gizmo", args = { snap = 72 }, shows = "gizmo.snap", on = 72, hint = "With Shift held, a turn snaps to steps of 5°." },
+  { label = "Snap 15°", short = "15°", line = "Snap", command = "ui.gizmo", args = { snap = 24 }, shows = "gizmo.snap", on = 24, hint = "With Shift held, a turn snaps to steps of 15°." },
+  { label = "Snap 45°", short = "45°", line = "Snap", command = "ui.gizmo", args = { snap = 8 }, shows = "gizmo.snap", on = 8, hint = "With Shift held, a turn snaps to steps of 45°." },
+  { label = "Mask holds back", short = "Mask", line = "", command = "ui.gizmo", args = { mask = "flip" }, shows = "gizmo.mask", hint = "Masked points stay where they are while a drag moves the part." },
+]
+
+# The Gizmo tool's header (decision 0060, section 6): gs-ui pieces/head.rs draws the tool's name,
+# then this set, its ⋯. The ⋯ lists Mesh to axis and Reset orientation, drawn in code (gs-ui
+# gizmo/pose.rs: each moves or turns the part with its gizmo, or with Alt held only the gizmo),
+# then `gizmo-menu`.
+[[set]]
+name = "gizmo-head"
+title = "Gizmo"
+controls = [
+  { label = "Gizmo options", short = "···", options = "gizmo-menu", hint = "Mesh to axis, Reset orientation and To unmasked center." },
+]
+
+[[set]]
+name = "gizmo-menu"
+title = "Gizmo options"
+controls = [
+  { label = "To unmasked center", command = "gizmo.place", args = { rule = "unmasked_center" }, hint = "Moves the gizmo to the middle of the visible points the mask leaves free, keeping its turn." },
+]
+
+# Which way the brush works before Alt (brush-settings.add-subtract): Add or Subtract, stored per
+# brush in this session as its setting `mode`, in Basics (decision 0060, section 6). Alt flips
+# it for one stroke and the cursor says what Alt does (Alt: Add on a Subtract brush).
+[[set]]
+name = "mode"
+title = "Mode"
+controls = [
+  { label = "Add", command = "brush.set", args = { settings.mode = "add" }, shows = "brush.mode", on = "add", hint = "Add builds the surface up; Subtract carves it in. Alt held flips it while you sculpt. (Blender: Direction.)" },
+  { label = "Subtract", command = "brush.set", args = { settings.mode = "subtract" }, shows = "brush.mode", on = "subtract", hint = "Add builds the surface up; Subtract carves it in. Alt held flips it while you sculpt. (Blender: Direction.)" },
+]
+
+# Tip's switches (decision 0060 section 6; decision 0059 section 4), which gs-ui curve.rs draws
+# where they sit: Exact (the tip's accurate curve) beside Edit shape… in the tray, and Curve By
+# Pen in the Edit shape popover under the heading Pressure shape, its Zero Curve and Pen Curve
+# under it while it is on. The popover's profile picker is drawn by the editor: a pick sends
+# `points = null`, which a controls file cannot hold.
+[[set]]
+name = "curve"
+title = "Tip"
+controls = [
+  { label = "Exact", command = "brush.set", args = { settings.tip.accurate_curve = "flip" }, shows = "brush.tip.accurate_curve", hint = "Reads a custom shape exactly instead of from a table: finer detail, a little slower." },
+  { label = "Curve By Pen", command = "brush.set", args = { settings.tip.curve_by_pen = "flip" }, shows = "brush.tip.curve_by_pen", hint = "pressure blends the falloff from the Zero Curve, at no pressure, to the profile, at full, as the Pen Curve says" },
+]
+
+# Stroke (decision 0060 section 6; decision 0025 section 3, decision 0036 section 4): the stroke
+# types on one row, each lit while it is the brush's and drawn disabled, the engine's reason on
+# hover, where the brush's kernel cannot run it. Spacing is the dab spacing in brush diameters:
+# at 1, round stamps just touch. Stabilize is how far the dab trails the pen on a string, in
+# brush radii; 0 is off, and L turns it on and off. Steady, only while Stabilize is on, is the
+# string's extra lag, how much of the old point each move keeps (0 to 0.99). The types' short
+# labels read [Dots|Rect|Free|Slide]: Drag Dot's is the verb its hint uses, since "Dot" read as
+# Dots; two to a row in the narrowest tray (decision 0060, amended 2026-10-13).
+[[set]]
+name = "stroke"
+title = "Stroke"
+controls = [
+  { label = "Dots", line = "", command = "brush.set", args = { stroke = "dots" }, shows = "brush.stroke", on = "dots", hint = "A dab every few pixels along the drag." },
+  { label = "Drag Rect", short = "Rect", line = "", command = "brush.set", args = { stroke = "drag_rect" }, shows = "brush.stroke", on = "drag_rect", hint = "One stamp you size and turn by dragging." },
+  { label = "Freehand", short = "Free", line = "", command = "brush.set", args = { stroke = "freehand" }, shows = "brush.stroke", on = "freehand", hint = "Follows the pen with no gaps." },
+  { label = "Drag Dot", short = "Slide", line = "", command = "brush.set", args = { stroke = "drag_dot" }, shows = "brush.stroke", on = "drag_dot", hint = "One stamp you slide into place." },
+  { label = "Spacing", command = "brush.set", args = { settings.stroke.spacing = "drag" }, shows = "brush.spacing", range = [0.01, 4.0], hint = "The gap between dabs, as a share of the size. Lower is smoother and slower. (Was Step.)" },
+  { label = "Stabilize", command = "brush.set", args = { settings.stroke.smoothing.radius = "drag" }, shows = "brush.smoothing", range = [0.0, 4.0], hint = "The brush trails the pen on a string this long, so lines come out steady; 0 is off. Key: L flips it. (Blender: Stabilize Stroke.)" },
+  { label = "Steady", command = "brush.set", args = { settings.stroke.smoothing.factor = "drag" }, shows = "brush.smoothing_factor", range = [0.0, 0.99], while = "brush.smoothing", hint = "How firmly the string holds the brush back. Shows while Stabilize is on." },
+]
+
+# Alpha (decision 0060 section 6, item 5; decision 0058): gs-ui pieces/alpha.rs draws the
+# alpha's picture and the recent ones as the picker row, then this set: + (user alphas wait for
+# phase B4), None (white, the alpha that leaves the tip as it is) and Alpha's ⋯ on a row, then
+# Turn, which leans each dab's print toward its first axis by an angle (was Tilt Brush), and
+# Follow, which turns a dab's first axis toward the path, 100 exactly along it (was Align To
+# Path), each on a row of its own. `alpha.pick` with `index` or `restore` is the palette's.
+[[set]]
+name = "alpha"
+title = "Alpha"
+controls = [
+  { label = "Load alpha…", short = "+", line = "", later = "user alphas, phase B4", hint = "Loads an image file as an alpha." },
+  { label = "No alpha", short = "None", line = "", command = "brush.set", args = { alpha = "white" }, hint = "No alpha: a plain round tip." },
+  { label = "Alpha options", short = "···", line = "", options = "alpha-more", hint = "Hold turn and Map detail." },
+  { label = "Turn", command = "brush.set", args = { settings.tip.tilt = "drag" }, shows = "brush.tip.tilt", range = [-90.0, 90.0], hint = "Turns the alpha, in degrees." },
+  { label = "Follow", command = "brush.set", args = { settings.tip.align = "drag" }, shows = "brush.tip.align", range = [0.0, 100.0], hint = "How much the alpha turns to follow the stroke's direction; 0 keeps its turn." },
+]
+
+# Alpha's ⋯: Hold turn lays every dab's first axis along the stroke's first step (was Constant
+# Tilt); Map detail is how coarse a level of the alpha a dab reads, 0 the full picture (was
+# Adaptive Map Size). Its hint says which way it runs, where decision 0060's section 11 has it
+# backwards.
+[[set]]
+name = "alpha-more"
+title = "Alpha options"
+controls = [
+  { label = "Hold turn", command = "brush.set", args = { settings.tip.constant_tilt = "flip" }, shows = "brush.tip.constant_tilt", hint = "Keeps the alpha's turn fixed on screen as the surface curves." },
+  { label = "Map detail", command = "brush.set", args = { settings.tip.alpha.adaptive = "drag" }, shows = "brush.tip.alpha.adaptive", range = [0.0, 1.0], hint = "How coarsely the alpha is sampled for a large brush: 0 keeps every detail, higher is faster." },
+]
+
+# Paint (decision 0039, section 11, as amended 2026-10-12 in step P8a; decision 0060 section 6,
+# item 7), after Alpha. gs-ui pieces/paint.rs draws the section: this set's first control, Swap,
+# between the Main and Secondary swatches and its second, Paint's ⋯, after them; then, while the
+# edited color is open, the picker, the hex field and Red, Green and Blue (the piece's own); then
+# the rest of the set in its order with short labels: Color Strength, as a percentage while the
+# brush paints, Gradient and Alternate on a row, and the brush's Color switch. Fill sends the
+# brush's Color Strength: `{ state = ... }` is filled from `session.state` when it runs, and left
+# out while that value is null (a brush that paints nothing: the engine's 1).
+[[set]]
+name = "paint"
+title = "Paint"
+controls = [
+  { label = "Swap colors", short = "Swap", command = "color.set", args = { swap = true }, hint = "Swap colors: Main and Secondary trade places" },
+  { label = "Paint options", short = "···", options = "paint-more", hint = "Fill part and Fill visible." },
+  { label = "Color Strength", short = "Strength", command = "brush.set", args = { settings.paint.color_strength = "drag" }, shows = "brush.paint.color_strength", range = [0.0, 1.0], percent = true, hint = "Color Strength: how far a whole stroke can change the color, and how much of Main a Fill mixes in" },
+  { label = "Gradient", command = "color.set", args = { gradient = "flip" }, shows = "color.gradient", hint = "a stroke paints Main at its centre and Secondary at its rim" },
+  { label = "Alternate", command = "color.set", args = { alternate = "flip" }, shows = "color.alternate", hint = "Alt paints Secondary" },
+]
+
+# Paint's ⋯: Fill part (was Fill Color) and Fill visible.
+[[set]]
+name = "paint-more"
+title = "Paint options"
+controls = [
+  { label = "Fill part", command = "paint.fill", args = { strength = { state = "brush.paint.color_strength" } }, hint = "Paints the active part Main, at the brush's Color Strength." },
+  { label = "Fill visible", command = "paint.fill", args = { every = true, strength = { state = "brush.paint.color_strength" } }, hint = "Paints every part that shows Main, at the brush's Color Strength." },
+]
+
+# Depth (decision 0053, section 8, amended 2026-10-12; decision 0060 section 6, item 6), the
+# brush tray's last section, shut at first, its title then saying Imbed and Gravity: Imbed
+# raises a plane brush's sphere above the surface in radii (other brushes refuse it); Mask, the
+# Depth Mask, keeps the brush to a band along the surface's normal, from Inner Depth below the
+# sphere to Outer Depth above it, which show only while it is on; Infinite lets it reach
+# without end along the view, or along the model axes switched on beside it; then Gravity, a
+# pull after every dab, and while it is not 0 its direction along a model axis. gs-ui
+# pieces/placement.rs draws the section: Brush Placement above these, the Depth Curve under
+# Outer Depth while the mask is on, and X, Y and Z beside Infinite's switch while it is on, each
+# sending the whole `depth.axes` triple.
+[[set]]
+name = "depth"
+title = "Depth"
+controls = [
+  { label = "Imbed", command = "brush.set", args = { settings.depth.imbed = "drag" }, shows = "brush.depth.imbed", range = [-1.0, 1.0], hint = "Moves the brush into the surface (plus) or out of it (minus), in brush radii." },
+  { label = "Depth Mask", short = "On", line = "Mask", command = "brush.set", args = { settings.depth.mask = "flip" }, shows = "brush.depth.mask", hint = "Limits the brush to a shell between Inner and Outer, so it cannot cut deeper." },
+  { label = "Inner Depth", short = "Inner", command = "brush.set", args = { settings.depth.inner = "drag" }, shows = "brush.depth.inner", range = [-1.0, 0.0], while = "brush.depth.mask", hint = "How far under and over the surface the brush reaches while Mask is on." },
+  { label = "Outer Depth", short = "Outer", command = "brush.set", args = { settings.depth.outer = "drag" }, shows = "brush.depth.outer", range = [0.0, 1.0], while = "brush.depth.mask", hint = "How far under and over the surface the brush reaches while Mask is on." },
+  { label = "Infinite Depth", short = "On", line = "Infinite", command = "brush.set", args = { settings.depth.infinite = "flip" }, shows = "brush.depth.infinite", hint = "The brush reaches through the whole model along the chosen axes." },
+  { label = "Gravity", command = "brush.set", args = { settings.post.gravity = "drag" }, shows = "brush.post.gravity", range = [-1.0, 1.0], hint = "Pulls each dab toward the chosen direction; 0 is off." },
+  { label = "Down", line = "", command = "brush.set", args = { settings.post.gravity_dir = [0.0, -1.0, 0.0] }, shows = "brush.post.gravity_dir", on = [0.0, -1.0, 0.0], while = "brush.post.gravity", hint = "Which way Gravity pulls. Shows while Gravity is not 0." },
+  { label = "Up", line = "", command = "brush.set", args = { settings.post.gravity_dir = [0.0, 1.0, 0.0] }, shows = "brush.post.gravity_dir", on = [0.0, 1.0, 0.0], while = "brush.post.gravity", hint = "Which way Gravity pulls. Shows while Gravity is not 0." },
+  { label = "Left", line = "", command = "brush.set", args = { settings.post.gravity_dir = [-1.0, 0.0, 0.0] }, shows = "brush.post.gravity_dir", on = [-1.0, 0.0, 0.0], while = "brush.post.gravity", hint = "Which way Gravity pulls. Shows while Gravity is not 0." },
+  { label = "Right", line = "", command = "brush.set", args = { settings.post.gravity_dir = [1.0, 0.0, 0.0] }, shows = "brush.post.gravity_dir", on = [1.0, 0.0, 0.0], while = "brush.post.gravity", hint = "Which way Gravity pulls. Shows while Gravity is not 0." },
+  { label = "Back", line = "", command = "brush.set", args = { settings.post.gravity_dir = [0.0, 0.0, -1.0] }, shows = "brush.post.gravity_dir", on = [0.0, 0.0, -1.0], while = "brush.post.gravity", hint = "Which way Gravity pulls. Shows while Gravity is not 0." },
+  { label = "Front", line = "", command = "brush.set", args = { settings.post.gravity_dir = [0.0, 0.0, 1.0] }, shows = "brush.post.gravity_dir", on = [0.0, 0.0, 1.0], while = "brush.post.gravity", hint = "Which way Gravity pulls. Shows while Gravity is not 0." },
+]
+
+# The brush tray's header (decision 0060, section 6): gs-ui pieces/head.rs draws the brush's
+# name, which opens the brush picker, then this set, the brush's ⋯ listing Brush file's
+# controls.
+[[set]]
+name = "head"
+title = "Brush"
+controls = [
+  { label = "Brush file", short = "···", options = "brush-file", hint = "Save this brush, load one, put it back as it ships, or copy its settings to another brush." },
+]
+
+# Brush file (decision 0018, "Saving a brush"; decision 0060, section 6), the brush's ⋯: Save
+# brush writes the brush the pen strokes with, every setting changed for it, to a preset file,
+# asking before it replaces one; Load brush reads one back. Each opens its command's form for
+# the file, starting in the folder of the last brush file. Reset to defaults drops every
+# setting changed for the brush; Copy settings to asks for a brush and gives it those settings
+# (`{ state = ... }` is filled from `session.state` when it runs), the pen keeping its brush.
+[[set]]
+name = "brush-file"
+title = "Brush file"
+controls = [
+  { label = "Save brush…", command = "ui.palette", args = { form = "brush.save" }, hint = "Writes this brush, with every change made to it, to a preset file." },
+  { label = "Load brush…", command = "ui.palette", args = { form = "brush.load" }, hint = "Reads a preset file into this brush." },
+  { label = "Reset to defaults", command = "brush.set", args = { reset = true }, hint = "Puts every setting of this brush back as it ships." },
+  { label = "Copy settings to…", command = "ui.palette", args = { form = "brush.set", args = { settings = { state = "brush.settings" } }, ask = ["for"] }, hint = "Gives another brush every setting changed on this one." },
+]

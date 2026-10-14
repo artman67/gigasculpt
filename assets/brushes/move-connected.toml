@@ -1,0 +1,29 @@
+# Move Connected: like Move, but only what is joined to the grab point along edges within the
+# brush radius, weighed by distance along those edges.
+version = 1
+name = "Move Connected"
+id = "brush.move-connected"
+family = "Move"
+strength = 1.0
+claims = ["local", "masked_unchanged", "mirror_symmetric", "drag_idempotent", "reference"]
+
+[kernel]
+type = "move"
+select = "connected"
+
+[tip]
+profile = "smooth"
+
+[stroke]
+class = "drag"
+
+[pressure]
+strength = [[0, 1], [1, 1]]
+# A flat size curve of its own: a drag sizes its grab by the first sample's pressure, light at
+# touch down, so the session's size curve passes this brush by (decision 0036).
+size = [[0, 1], [1, 1]]
+
+# Backface masking stays off for the Move family: it would stop the drag from grabbing points
+# that face away (catalog brush-settings.auto-masking).
+[automask]
+backface = 0.0

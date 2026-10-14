@@ -1,0 +1,55 @@
+# The interface's look (decision 0025, section 6): every color, type size and spacing, by role.
+# Colors are sRGB, written #rrggbb or #rrggbbaa (alpha not premultiplied). The neutral grays step
+# evenly in CIE lightness (L*), noted after each. Sizes are in points. The other themes give
+# every color and may leave out `type` and `spacing`, which keeps these.
+
+title = "Dark"
+
+[colors]
+panel = "#282828"      # L* 16: trays, shelf, the header's view buttons' options and status line
+header = "#303030"     # L* 20: section title rows
+control = "#3b3b3b"    # L* 25: a button or slider at rest
+hover = "#474747"      # L* 30: under the pointer
+pressed = "#525252"    # L* 35: while pressed; selected text and palette rows
+lit = "#dadada"        # L* 87: a toggle that is on (the brush in use, a mirror axis, the look)
+on_lit = "#1f1f1f"     # L* 12: text on lit
+text = "#e2e2e2"       # L* 90: labels
+text_dim = "#ababab"   # L* 70: group labels, values and units
+text_off = "#848484"   # L* 55: disabled and waiting controls
+edge = "#1b1b1b"       # L* 10: lines between regions
+backdrop = "#00000096" # behind what is drawn over the model: the wheel's band, the figure's disc
+smooth = "#6ec8ff"     # the held keys (ARCHITECTURE 9): Shift smooths
+mask = "#f0d246"       # Ctrl masks
+subtract = "#ff6e5a"   # Alt subtracts
+axis_x = "#e65050"     # the axis figure
+axis_y = "#78c85a"
+axis_z = "#508cf0"
+on_axis = "#000000"    # the figure's letters on the axis colors; a theme without it takes on_lit
+                       # or text, whichever reads better on its faintest axis color
+problem = "#ff6e5a"    # a refused command in the status line: subtract's red, both mean careful
+warning = "#f0d246"    # low disk space in the status line: an amber, 9.8 to 1 on panel; a theme
+                       # without it takes problem
+pen = "#aac8ff"        # the ring marking the pen while it hovers over the view
+pen_down = "#ffc478"   # and while it touches
+brush = "#ffe6be"      # the brush's rings and lines beside the pen while no key is held
+pivot = "#ff78c8"      # the dot the view turns about, while it turns
+live_union = "#78c85a"      # Live Boolean: a moved Add part's outline (decision 0057, section 9)
+live_difference = "#ff6e5a" # a Subtract's walls and its cutter's outline
+live_intersect = "#508cf0"  # an Intersect's walls and its cutter's outline
+live_issue = "#e040fb"      # Show Issues' faces
+live_coplanar = "#f0b432"   # Show Coplanar's faces
+
+[type]
+small = 13   # group labels, the figure's letters
+body = 16    # labels and buttons
+heading = 21 # window titles
+mono = 15
+
+[spacing]
+control = 32     # the least height of a control: a pen target
+button = [10, 6] # inside a button, across and down
+item = [8, 6]    # between items in a row, and between rows
+section = 12     # between sections of a tray
+margin = 8       # inside a tray's or shelf's edge
+radius = 4       # corners of controls and windows; regions have none
+slider = 150     # a slider's length

@@ -1,0 +1,39 @@
+# The light theme (decision 0025, section 13): the dark theme's gray ladder mirrored, each CIE
+# lightness L* becoming 105 minus it, so every step the dark theme has is kept; 105 is the offset
+# at which each text role still clears its contrast floor (4.5 to 1, 3 for text_off). The on
+# state is dark. The canvas colors are the dark theme's, judged against the model; `problem` is
+# status-line text, so it is a dark red here. Type and spacing are the dark theme's.
+
+title = "Light"
+
+[colors]
+panel = "#dfdfdf"      # L* 89: trays, shelf, the header's view buttons' options and status line
+header = "#d4d4d4"     # L* 85: section title rows
+control = "#c6c6c6"    # L* 80: a button or slider at rest
+hover = "#b9b9b9"      # L* 75: under the pointer
+pressed = "#ababab"    # L* 70: while pressed; selected text and palette rows
+lit = "#2c2c2c"        # L* 18: a toggle that is on
+on_lit = "#ebebeb"     # L* 93: text on lit
+text = "#262626"       # L* 15: labels
+text_dim = "#525252"   # L* 35: group labels, values and units
+text_off = "#777777"   # L* 50: disabled and waiting controls
+edge = "#f1f1f1"       # L* 95: lines between regions
+backdrop = "#ffffff96" # behind what is drawn over the model: white at 150/255
+smooth = "#6ec8ff"
+mask = "#f0d246"
+subtract = "#ff6e5a"
+axis_x = "#e65050"
+axis_y = "#78c85a"
+axis_z = "#508cf0"
+on_axis = "#000000"
+problem = "#b3261e"    # a refused command in the status line: 4.9 to 1 on panel
+warning = "#735400"    # low disk space in the status line: a dark amber, 5.3 to 1 on panel
+pen = "#aac8ff"
+pen_down = "#ffc478"
+brush = "#ffe6be"
+pivot = "#ff78c8"
+live_union = "#78c85a"
+live_difference = "#ff6e5a"
+live_intersect = "#508cf0"
+live_issue = "#e040fb"
+live_coplanar = "#f0b432"

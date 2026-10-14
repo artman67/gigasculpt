@@ -1,0 +1,17 @@
+# Reflected Map (catalog item material.reflected-map). A standard material: a preset of the shared
+# material model (gs-render shading), lit by a captured studio; in phase 1 it draws as every look
+# does (decision 0043, step (c)). Format: material.look-recipe. Values are the material's, never
+# tuned toward a picture; any key left out is OpenPBR's default.
+name = "Reflected Map"
+catalog_id = "material.reflected-map"
+kind = "standard"
+# A captured studio, an image, for the catalog's "reflection of a texture": a guess.
+environment = "photo-studio-01"
+
+# Silver (physicallybased.info, CC0, research 11, 2): the most neutral measured metal, for the
+# catalog's "strong environment reflection" (a dielectric reflects 4% head on). No edge tint: the
+# repo holds none for silver. Polished: roughness 0.05, a guess.
+[material]
+base_color = [0.991, 0.985, 0.974]
+base_metalness = 1.0
+specular_roughness = 0.05

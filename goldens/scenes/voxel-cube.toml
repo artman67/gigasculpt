@@ -1,0 +1,12 @@
+about = "Voxel Remesh turns a cube into an even quad surface with softened edges and corners."
+view = "iso"
+looks = ["zebra", "clay"]
+closed = true
+
+[[step]]
+command = "primitive.cube"
+args = { subdivisions = 2 }
+
+[[step]]
+command = "mesh.voxel_remesh"
+args = { resolution = 24 }

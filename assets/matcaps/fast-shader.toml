@@ -1,0 +1,14 @@
+# Fast Shader (catalog item material.fast-shader). A standard material: a preset of the shared
+# material model (gs-render shading), lit by the studio environment; in phase 1 it draws as every
+# look does (decision 0043, step (c)). Format: material.look-recipe. Values are the material's,
+# never tuned toward a picture; any key left out is OpenPBR's default.
+name = "Fast Shader"
+catalog_id = "material.fast-shader"
+kind = "standard"
+environment = "studio"
+
+# Lambert only (research 11, 13.3): no specular lobe. OpenPBR's default base color, 0.8, since a
+# standard material takes its color from paint.
+[material]
+base_color = [0.8, 0.8, 0.8]
+specular_weight = 0.0

@@ -1,0 +1,8 @@
+# Soft Round: a smooth bell, 1 at the center falling to 0 at the rim (catalog alpha.starter-tips).
+# Our own recipe, drawn by gs-core's alpha generator (decision 0018).
+name = "Soft Round"
+catalog_id = "alpha.starter-tips"
+
+[[layer]]
+shape = "profile"
+points = { points = [[0, 1], [0.2, 0.95], [0.5, 0.5], [0.8, 0.05], [1, 0]], smooth = true }

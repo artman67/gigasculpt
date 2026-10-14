@@ -1,0 +1,14 @@
+# MatCap Green Clay (catalog item material.matcap-green-clay). A physical look: the shared material model (gs-render
+# shading), lit by the studio environment and baked into a MatCap. Format: material.look-recipe.
+# Colors in brackets are linear; values are the material's, never tuned toward a picture.
+name = "MatCap Green Clay"
+catalog_id = "material.matcap-green-clay"
+environment = "studio"
+
+# Dark olive-green modeling clay. No measured entry: the albedo of a dark green-gray dyed
+# clay and the roughness of measured plasticine (0.5), a physically plausible choice for the
+# maintainer to judge once.
+[material]
+base_color = [0.08, 0.09, 0.06]
+specular_roughness = 0.5
+specular_ior = 1.5

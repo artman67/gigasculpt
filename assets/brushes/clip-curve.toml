@@ -1,0 +1,17 @@
+# Clip Curve: a gesture. The engine passes the curve's points (on a plane facing the camera,
+# Alt taps already turned into points) at stroke end; everything on the shadow side is pushed
+# onto the surface the curve sweeps along the view, through the whole model, obeying the mask.
+version = 1
+name = "Clip Curve"
+id = "brush.clip-curve"
+family = "Carve"
+strength = 1.0
+claims = ["masked_unchanged"]
+
+[kernel]
+type = "plane"
+gain = 1.0
+
+[stroke]
+class = "gesture"
+shape = "curve"

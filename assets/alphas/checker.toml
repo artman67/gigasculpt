@@ -1,0 +1,11 @@
+# Checker: 8 by 8 hard-edged squares, white at the top left, so a stamp shows exactly how a brush
+# copies its picture: with Clay's mid value 0, a Drag Rect stamp raises the white squares and
+# leaves the black ones (catalog brush.clay, decision 0051). Our own recipe, drawn by gs-core's
+# alpha generator (decision 0018).
+name = "Checker"
+catalog_id = "brush.clay"
+size = 256
+
+[[layer]]
+shape = "checker"
+cells = 8

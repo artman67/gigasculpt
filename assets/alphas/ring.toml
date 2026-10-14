@@ -1,0 +1,11 @@
+# Ring: a donut peaking at three quarters of the radius (catalog alpha.starter-tips). A band as
+# wide as its edge rises straight to 1 at its middle and falls straight back. Our own recipe,
+# drawn by gs-core's alpha generator (decision 0018).
+name = "Ring"
+catalog_id = "alpha.starter-tips"
+
+[[layer]]
+shape = "ring"
+radius = 0.75
+width = 0.3
+edge = 0.3

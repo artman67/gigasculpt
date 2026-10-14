@@ -1,0 +1,12 @@
+# MatCap Gray (catalog item material.matcap-gray). A physical look: the shared material model (gs-render
+# shading), lit by the studio environment and baked into a MatCap. Format: material.look-recipe.
+# Colors in brackets are linear; values are the material's, never tuned toward a picture.
+name = "MatCap Gray"
+catalog_id = "material.matcap-gray"
+environment = "studio"
+
+# An 18% gray card (physicallybased.info, CC0): matte, neutral, the photographer's middle gray.
+[material]
+base_color = [0.18, 0.18, 0.18]
+specular_roughness = 0.9
+specular_ior = 1.5

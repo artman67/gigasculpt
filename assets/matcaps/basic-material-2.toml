@@ -1,0 +1,15 @@
+# Basic Material 2 (catalog item material.basic-material-2). A standard material: a preset of the
+# shared material model (gs-render shading), lit by the studio environment; in phase 1 it draws as
+# every look does (decision 0043, step (c)). Format: material.look-recipe. Values are the
+# material's, never tuned toward a picture; any key left out is OpenPBR's default.
+name = "Basic Material 2"
+catalog_id = "material.basic-material-2"
+kind = "standard"
+environment = "studio"
+
+# The catalog's "wider, lower highlight": roughness 0.5, the roughness of the measured plasticine
+# (physicallybased.info, research 11, 2), a guess for "semi-matte". Otherwise Basic Material.
+[material]
+base_color = [0.8, 0.8, 0.8]
+specular_roughness = 0.5
+specular_ior = 1.5

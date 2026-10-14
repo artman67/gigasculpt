@@ -1,0 +1,15 @@
+# Toy Plastic (catalog item material.toy-plastic). A standard material: a preset of the shared
+# material model (gs-render shading), lit by the studio environment; in phase 1 it draws as every
+# look does (decision 0043, step (c)). Format: material.look-recipe. Values are the material's,
+# never tuned toward a picture; any key left out is OpenPBR's default.
+name = "Toy Plastic"
+catalog_id = "material.toy-plastic"
+kind = "standard"
+environment = "studio"
+
+# A glossy dielectric: the middle of research 11's band (roughness 0.1 to 0.25, IOR 1.5). Where
+# in the band is a guess.
+[material]
+base_color = [0.8, 0.8, 0.8]
+specular_roughness = 0.175
+specular_ior = 1.5

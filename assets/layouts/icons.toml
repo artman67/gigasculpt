@@ -1,0 +1,116 @@
+# Which control shows which icon (decision 0025, section 13). Each entry names a command and the
+# arguments a control runs it with, exactly as the control set writes them ("flip" included), and
+# an icon, a file in assets/icons/ (Lucide; see its CREDITS). A control takes the first entry with
+# its command and exactly its arguments, so the same command shows the same icon wherever it is
+# drawn, and no control set changes. An entry with `options` instead names a header options
+# button by its id. The icon is tinted with the label's color. It sits alone, the label on
+# hover, at the header's pen end and on the Reference View's bar (decision 0060 as amended for
+# H5); elsewhere beside the label. Two buttons are not in a control set: the Library's Close,
+# `ui.library` with `open = false`, and each tile's Pin, written here as `ui.library` with
+# `pin = "@tile"` whether it pins or unpins.
+
+# The header's view buttons (controls/strip.toml `view`, workbench.toml `[header]`). Level and
+# Floor keep their words.
+[[icon]]
+command = "view.frame"
+icon = "scan"
+
+[[icon]]
+command = "view.lens"
+args = { projection = "toggle" }
+icon = "box"
+
+[[icon]]
+command = "view.look"
+args = { flip_wireframe = true }
+icon = "grid-3x3"
+
+[[icon]]
+command = "view.lock"
+icon = "lock"
+
+[[icon]]
+command = "part.isolate"
+args = { parts = ["@active"] }
+icon = "focus"
+
+[[icon]]
+options = "look"
+icon = "sun"
+
+# The Reference View's bar (controls/reference.toml); its Look takes Look's icon above.
+[[icon]]
+command = "view.frame"
+args = { view = "reference" }
+icon = "scan"
+
+[[icon]]
+command = "view.look"
+args = { view = "reference", flip_wireframe = true }
+icon = "grid-3x3"
+
+[[icon]]
+command = "reference.next"
+icon = "chevron-right"
+
+[[icon]]
+command = "reference.close"
+icon = "x"
+
+# The shelf's Tools and Quick groups (controls/shelf.toml `tools` and `recall`).
+[[icon]]
+command = "ui.gizmo"
+args = { tool = "flip" }
+icon = "move-3d"
+
+[[icon]]
+command = "brush.set"
+args = { previous = true }
+icon = "arrow-left-right"
+
+[[icon]]
+command = "ui.wheel"
+args = { open = true }
+icon = "chart-pie"
+
+[[icon]]
+command = "ui.palette"
+icon = "search"
+
+[[icon]]
+command = "ui.library"
+args = { open = "flip" }
+icon = "library-big"
+
+# The Library drawer's Close and Pin.
+[[icon]]
+command = "ui.library"
+args = { open = false }
+icon = "x"
+
+[[icon]]
+command = "ui.library"
+args = { pin = "@tile" }
+icon = "pin"
+
+# Header > File > Blender (controls/header.toml `file`).
+[[icon]]
+command = "exchange.write"
+args = { folder = "to-blender" }
+icon = "send"
+
+[[icon]]
+command = "exchange.read"
+args = { folder = "from-blender" }
+icon = "import"
+
+# The theme steps (controls/settings.toml `theme`).
+[[icon]]
+command = "ui.layout"
+args = { theme_step = -1 }
+icon = "chevron-left"
+
+[[icon]]
+command = "ui.layout"
+args = { theme_step = 1 }
+icon = "chevron-right"

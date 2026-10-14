@@ -1,0 +1,32 @@
+# GigaSculpt controls: the Brush shelf's sets. Each tray's sets are a file in this folder, and
+# a layout may show any set by its name, whichever file holds it. The format, field by field:
+# docs/reference/controls.md.
+
+[[set]]
+name = "recall"
+title = "Quick"
+controls = [
+  { label = "Previous brush", short = "Back", command = "brush.set", args = { previous = true }, hint = "Goes back to the brush used before this one; a second tap comes back. Key: Backtick." },
+  { label = "Brush wheel", short = "Wheel", command = "ui.wheel", args = { open = true }, hint = "Opens the brush wheel at the pointer, where one swipe toward a brush picks it. Key: F2, held." },
+  { label = "Search commands", short = "Find", command = "ui.palette", hint = "Opens the command palette, which finds any command or setting by its name and runs it. Key: Space. (Blender: Menu Search.)" },
+  { label = "Library", command = "ui.library", args = { open = "flip" }, shows = "layout.library", hint = "Shows or hides the Library along the bottom of the 3D view: brushes, alphas, materials, environments, layouts and themes. Key: Comma." },
+]
+
+# The gizmo tool (decision 0027, section 11): while it is on, the pen drives the gizmo instead of
+# sculpting. Its settings are the brush tray's `gizmo` set.
+[[set]]
+name = "tools"
+title = "Tools"
+controls = [
+  { label = "Gizmo", command = "ui.gizmo", args = { tool = "flip" }, shows = "gizmo.tool", hint = "The gizmo tool: while lit, the pen moves, turns and scales a part by the gizmo's handles instead of sculpting, and a press on the model puts the gizmo there." },
+]
+
+# What each brush family's button says on hover (the shared widget `families`, decision 0025 as
+# amended for Shelf-family): which family it is and what opening it does.
+[families]
+Build = "The Build brushes, which add form: Draw, Clay and their kin. A tap picks the one shown; a held press, a right click or a tap while it is lit opens the family to pick another."
+Carve = "The Carve brushes, which cut in or take away: creases, pinches, trims and clips. A tap picks the one shown; a held press, a right click or a tap while it is lit opens the family to pick another."
+Move = "The Move brushes, which drag what is under the pen. A tap picks the one shown; a held press, a right click or a tap while it is lit opens the family to pick another."
+Smooth = "The Smooth brushes, which even the surface out. The one shown is the brush Shift smooths with; a tap, a held press or a right click opens the family to put another there."
+Mask = "The Mask brushes, which mask, hide and select instead of changing shape. A tap picks the one shown; a held press, a right click or a tap while it is lit opens the family to pick another."
+Paint = "The Paint brushes, which paint the surface instead of changing shape. A tap picks the one shown; a held press, a right click or a tap while it is lit opens the family to pick another."

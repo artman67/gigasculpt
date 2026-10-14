@@ -1,0 +1,24 @@
+[package]
+name = "gs-geo"
+description = "One-shot geometry algorithms as pure functions: voxel remesh, reprojection, repair, decimation, booleans, quad remesh."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+# The closest point of a triangle, which voxel remesh measures by (gs-core's shared math).
+gs-core.workspace = true
+gs-protocol.workspace = true
+gs-par.workspace = true
+libm.workspace = true
+meshopt = "=0.6.2"
+manifold-rust = { version = "=0.16.0", default-features = false, features = ["parallel"] }
+
+[dev-dependencies]
+gs-testkit.workspace = true
+libm.workspace = true
+
+[lints]
+workspace = true

@@ -1,0 +1,28 @@
+[package]
+name = "gs-core"
+description = "Mesh storage, brush kernels and presets, stroke pipeline, symmetry, masks, undo storage, detail levels, live detail."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+# Names presets and alpha pictures by the hash of their content (decision 0018).
+blake3.workspace = true
+gs-par.workspace = true
+gs-protocol.workspace = true
+libm.workspace = true
+serde.workspace = true
+# Names the key a brush settings patch of the wrong shape stops on (decision 0018).
+serde_path_to_error.workspace = true
+toml.workspace = true
+# Saves a brush preset by editing its file's text, so comments and key order survive and an
+# unchanged brush saves back byte for byte (decision 0018, "Saving a brush").
+toml_edit.workspace = true
+
+[dev-dependencies]
+gs-testkit.workspace = true
+
+[lints]
+workspace = true

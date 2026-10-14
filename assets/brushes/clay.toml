@@ -1,0 +1,28 @@
+# Clay: a plain area-normal push made for alphas, no side effects, stamping the grainy round
+# tip (alpha.starter-tips).
+version = 1
+name = "Clay"
+id = "brush.clay"
+family = "Build"
+strength = 0.25
+claims = ["local", "masked_unchanged", "mirror_symmetric", "spacing_invariant", "rate_invariant", "reference"]
+
+[kernel]
+type = "offset"
+terms = [{ dir = "area_normal", gain = 0.4 }]
+
+[tip]
+profile = "smooth"
+
+[tip.alpha]
+image = "grainy-round"
+
+[sampling]
+normal_radius = 0.5
+position_radius = 0.5
+accumulate = false
+
+[stroke]
+class = "dab"
+spacing = 0.1
+tap = 0.5

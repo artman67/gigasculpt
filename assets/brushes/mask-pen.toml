@@ -1,0 +1,22 @@
+# Mask Pen: paints the mask toward 1 (Alt toward 0). The mask itself never holds it back.
+version = 1
+name = "Mask Pen"
+id = "brush.mask-pen"
+family = "Mask"
+strength = 1.0
+claims = ["local", "mirror_symmetric", "spacing_invariant", "rate_invariant", "reference"]
+
+[kernel]
+type = "attribute"
+column = "mask"
+op = "set"
+value = 1.0
+gain = 8.0
+
+[tip]
+profile = "smooth"
+
+[stroke]
+class = "dab"
+spacing = 0.1
+tap = 0.5

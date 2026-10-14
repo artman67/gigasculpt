@@ -1,0 +1,15 @@
+# MatCap Chrome A (catalog item material.matcap-chrome-a). A physical look: the shared material model (gs-render
+# shading), lit by the studio environment and baked into a MatCap. Format: material.look-recipe.
+# Colors in brackets are linear; values are the material's, never tuned toward a picture.
+name = "MatCap Chrome A"
+catalog_id = "material.matcap-chrome-a"
+environment = "studio"
+
+# Chrome plating, chromium (physicallybased.info, CC0): reflectance at normal incidence and
+# F82 edge tint from its measured optical constants, polished almost to a mirror (roughness
+# 0.05, a choice for the maintainer to judge once).
+[material]
+base_color = [0.654, 0.685, 0.701]
+base_metalness = 1.0
+specular_color = [0.688, 0.728, 0.798]
+specular_roughness = 0.05

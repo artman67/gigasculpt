@@ -1,0 +1,30 @@
+# GigaSculpt controls: the Reference View's bar. Each tray's sets are a file in this folder,
+# and a layout may show any set by its name, whichever file holds it. The format, field by
+# field: docs/reference/controls.md.
+
+# The Reference Views' bar (decisions 0020, 0024; in the header's style, decision 0060 as
+# amended for H5): what follows the main view, lining up the fronts, framing and the wire, then
+# the bar's Look, then `reference-views`. It acts on the active reference. The view name
+# `reference` is the window's to fill in when the control runs: the reference whose picture is
+# under the pointer, else the active one.
+[[set]]
+name = "reference"
+title = "Reference"
+controls = [
+  { label = "Turn with the view", short = "Turn", line = "Follow", command = "reference.link", args = { flip = "rotation" }, shows = "reference.link.rotation", hint = "The reference turns as the 3D view turns." },
+  { label = "Zoom with the view", short = "Zoom", line = "Follow", command = "reference.link", args = { flip = "zoom" }, shows = "reference.link.zoom", hint = "The reference's distance, lens and projection follow the 3D view's." },
+  { label = "Slide with the view", short = "Slide", line = "Follow", command = "reference.link", args = { flip = "pan" }, shows = "reference.link.pan", hint = "The point the reference looks at follows the 3D view's." },
+  { label = "Line up the fronts", short = "Align", command = "reference.align", hint = "From now on the reference shows the side the 3D view shows, its turn linked and its size and place matched to the sculpt's; turn it to match first, with Turn off." },
+  { label = "Frame the reference", short = "Frame", command = "view.frame", args = { view = "reference" }, hint = "Fits every part of the reference in its view." },
+  { label = "Reference wireframe", short = "Wire", command = "view.look", args = { view = "reference", flip_wireframe = true }, shows = "reference.wireframe", hint = "Shows the polygon edges over the reference." },
+]
+
+# The end of the Reference Views' bar, after its Look: moving on to the next open reference, and
+# closing the active one.
+[[set]]
+name = "reference-views"
+title = "Reference views"
+controls = [
+  { label = "Next reference", short = "Next", command = "reference.next", hint = "Makes the next open reference the active one, the one this bar acts on." },
+  { label = "Close the reference", short = "Close", command = "reference.close", hint = "Closes the active reference. The sculpt does not change." },
+]

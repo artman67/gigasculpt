@@ -1,0 +1,10 @@
+# Photo Studio 01: a captured light probe (gs-render shading::environment, decision 0019), a
+# photo studio photographed as an equirectangular HDR image. Metered like every environment (a
+# white diffuser facing the camera reflects 1), and turned by measurement so its dominant light
+# comes from the side of the default studio's key light. One of the probes the maintainer is
+# choosing between; the procedural studio stays the default meanwhile.
+name = "Photo Studio 01"
+
+[probe]
+image = "photo_studio_01_1k.hdr"
+source = "Sergej Majboroda, CC0, https://polyhaven.com/a/photo_studio_01"

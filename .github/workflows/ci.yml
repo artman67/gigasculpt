@@ -1,0 +1,130 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  # The property tests' size and seed, so a run is the same on every machine.
+  PROPTEST_CASES: "32"
+  PROPTEST_RNG_SEED: "20261009"
+  PROPTEST_DISABLE_FAILURE_PERSISTENCE: "true"
+
+jobs:
+  linux:
+    name: Linux (build, lints, tests)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+    env:
+      # lavapipe, the software Vulkan driver the tests draw on, two threads per test.
+      LP_NUM_THREADS: "2"
+    steps:
+      - uses: actions/checkout@v4
+
+      # SDL3's build from source (X11, Wayland and their friends), the tests' software Vulkan
+      # driver and Xvfb, and Quad Remesh's helper (git, Ninja, bubblewrap).
+      - name: System packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential cmake ninja-build pkg-config git bubblewrap \
+            libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxfixes-dev libxi-dev \
+            libxss-dev libxtst-dev libxkbcommon-dev libwayland-dev libdecor-0-dev \
+            libegl1-mesa-dev libgl1-mesa-dev libdrm-dev libgbm-dev libdbus-1-dev libudev-dev \
+            mesa-vulkan-drivers libvulkan1 xvfb
+
+      # Sessions keep their sockets in $XDG_RUNTIME_DIR, which must be private.
+      - name: Runtime folder
+        run: |
+          mkdir -m 700 -p "$RUNNER_TEMP/xdg"
+          echo "XDG_RUNTIME_DIR=$RUNNER_TEMP/xdg" >> "$GITHUB_ENV"
+
+      # Quad Remesh runs its helper inside bubblewrap, which needs unprivileged user
+      # namespaces; Ubuntu 24.04's AppArmor restricts them by default.
+      - name: Allow bubblewrap
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+
+      - name: Rust toolchain (from rust-toolchain.toml)
+        run: rustup toolchain install
+
+      - uses: Swatinem/rust-cache@v2
+
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest,cargo-deny
+
+      - name: Format
+        run: cargo fmt --all --check
+
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+
+      - name: Licenses, bans and sources
+        run: cargo deny --log-level error check licenses bans sources
+
+      - name: Build
+        run: cargo build --workspace --locked
+
+      - name: Quad Remesh helper's pin
+        id: quad
+        run: echo "pin=$(awk '$1 == "pin" { print $2 }' third_party/quadwild/sources.lock)" >> "$GITHUB_OUTPUT"
+
+      - name: Quad Remesh helper from the cache
+        id: quad-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/gigasculpt/quadwild/${{ steps.quad.outputs.pin }}/program
+          key: quadwild-${{ runner.os }}-${{ hashFiles('third_party/quadwild/**') }}
+
+      - name: Build Quad Remesh's helper
+        if: steps.quad-cache.outputs.cache-hit != 'true'
+        run: |
+          dir="$HOME/.cache/gigasculpt/quadwild/${{ steps.quad.outputs.pin }}"
+          third_party/quadwild/fetch.sh "$dir"
+          third_party/quadwild/build.sh "$dir" 4
+
+      # Every test program in tests/, each test its own process; the slow `tier2` modules are
+      # left out.
+      - name: Tests
+        run: >
+          cargo nextest run --workspace --locked --test '*' --no-fail-fast
+          -E 'not test(/(^|::)tier2::/)'
+
+  # Windows and macOS: the build, and the tests that need no graphics card. Allowed to fail
+  # until the Windows and macOS port is finished: a red mark here does not fail the run.
+  other:
+    name: ${{ matrix.os }} (build, tests without a GPU; allowed to fail until the port lands)
+    runs-on: ${{ matrix.os }}
+    continue-on-error: true
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        # windows-latest has CMake and the MSVC compiler; macos-latest (Apple silicon) needs
+        # only CMake, which it has, beside the Xcode tools.
+        os: [windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Rust toolchain (from rust-toolchain.toml)
+        run: rustup toolchain install
+
+      - uses: Swatinem/rust-cache@v2
+
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest
+
+      - name: Build
+        run: cargo build --workspace --locked
+
+      # Quad Remesh's tests (gs-geo's `quad`) need its Linux-only helper.
+      - name: Tests that need no graphics card
+        run: >
+          cargo nextest run --locked --no-fail-fast
+          -p gs-par -p gs-core -p gs-geo -p gs-io -p gs-protocol
+          -E "not binary(quad)"

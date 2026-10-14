@@ -1,0 +1,29 @@
+# Pull Out: grabs again at every dab around where the last dab left the surface and moves it
+# by the step, so one drag pulls out a long extrusion. The falloff alone tapers it, which is why
+# a flatter Falloff pulls longer before it narrows (research 10), so it adds no pinch of its
+# own. On a fixed mesh the triangles stretch; with Live Detail on, every dab refines the mesh
+# under it first, so the extrusion gets new triangles (decision 0021).
+version = 1
+name = "Pull Out"
+id = "brush.pull-out"
+family = "Move"
+strength = 1.0
+claims = ["local", "masked_unchanged", "mirror_symmetric", "rate_invariant", "reference"]
+
+[kernel]
+type = "hook"
+pinch = 0.0
+
+[tip]
+profile = "smooth"
+
+[stroke]
+class = "dab"
+spacing = 0.1
+tap = 0.5
+
+[pressure]
+strength = [[0, 1], [1, 1]]
+# A flat size curve of its own, as on the Move brushes it grabs like: the session's size curve
+# passes this brush by (decision 0036).
+size = [[0, 1], [1, 1]]

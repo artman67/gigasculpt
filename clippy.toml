@@ -1,0 +1,61 @@
+# Protected file. See docs/ARCHITECTURE.md section 8 (determinism) and 10.5.
+too-many-lines-threshold = 80
+allow-unwrap-in-tests = true
+allow-expect-in-tests = true
+doc-valid-idents = ["GigaSculpt", "MatCap", "MatCaps", ".."]
+
+disallowed-types = [
+  { path = "std::collections::HashMap", reason = "random iteration order breaks determinism; use BTreeMap or IndexMap" },
+  { path = "std::collections::HashSet", reason = "random iteration order breaks determinism; use BTreeSet or IndexSet" },
+]
+
+disallowed-methods = [
+  { path = "std::time::Instant::now", reason = "only the engine's clock module reads the clock" },
+  { path = "std::time::SystemTime::now", reason = "only the engine's clock module reads the clock" },
+  { path = "f32::sin", reason = "platform libm differs; use the shared math module" },
+  { path = "f32::cos", reason = "platform libm differs; use the shared math module" },
+  { path = "f32::tan", reason = "platform libm differs; use the shared math module" },
+  { path = "f32::exp", reason = "platform libm differs; use the shared math module" },
+  { path = "f32::ln", reason = "platform libm differs; use the shared math module" },
+  { path = "f32::powf", reason = "platform libm differs; use the shared math module" },
+  { path = "f64::sin", reason = "platform libm differs; use the shared math module" },
+  { path = "f64::cos", reason = "platform libm differs; use the shared math module" },
+  { path = "f64::tan", reason = "platform libm differs; use the shared math module" },
+  { path = "f64::exp", reason = "platform libm differs; use the shared math module" },
+  { path = "f64::ln", reason = "platform libm differs; use the shared math module" },
+  { path = "f64::powf", reason = "platform libm differs; use the shared math module" },
+  { path = "f32::sin_cos", reason = "platform libm differs; use the shared math module" },
+  { path = "f32::asin", reason = "platform libm differs; use the shared math module" },
+  { path = "f32::acos", reason = "platform libm differs; use the shared math module" },
+  { path = "f32::atan", reason = "platform libm differs; use the shared math module" },
+  { path = "f32::atan2", reason = "platform libm differs; use the shared math module" },
+  { path = "f32::sinh", reason = "platform libm differs; use the shared math module" },
+  { path = "f32::cosh", reason = "platform libm differs; use the shared math module" },
+  { path = "f32::tanh", reason = "platform libm differs; use the shared math module" },
+  { path = "f32::exp2", reason = "platform libm differs; use the shared math module" },
+  { path = "f32::exp_m1", reason = "platform libm differs; use the shared math module" },
+  { path = "f32::ln_1p", reason = "platform libm differs; use the shared math module" },
+  { path = "f32::log", reason = "platform libm differs; use the shared math module" },
+  { path = "f32::log2", reason = "platform libm differs; use the shared math module" },
+  { path = "f32::log10", reason = "platform libm differs; use the shared math module" },
+  { path = "f32::cbrt", reason = "platform libm differs; use the shared math module" },
+  { path = "f32::hypot", reason = "platform libm differs; use the shared math module" },
+  { path = "f32::powi", reason = "platform libm differs; use the shared math module" },
+  { path = "f64::sin_cos", reason = "platform libm differs; use the shared math module" },
+  { path = "f64::asin", reason = "platform libm differs; use the shared math module" },
+  { path = "f64::acos", reason = "platform libm differs; use the shared math module" },
+  { path = "f64::atan", reason = "platform libm differs; use the shared math module" },
+  { path = "f64::atan2", reason = "platform libm differs; use the shared math module" },
+  { path = "f64::sinh", reason = "platform libm differs; use the shared math module" },
+  { path = "f64::cosh", reason = "platform libm differs; use the shared math module" },
+  { path = "f64::tanh", reason = "platform libm differs; use the shared math module" },
+  { path = "f64::exp2", reason = "platform libm differs; use the shared math module" },
+  { path = "f64::exp_m1", reason = "platform libm differs; use the shared math module" },
+  { path = "f64::ln_1p", reason = "platform libm differs; use the shared math module" },
+  { path = "f64::log", reason = "platform libm differs; use the shared math module" },
+  { path = "f64::log2", reason = "platform libm differs; use the shared math module" },
+  { path = "f64::log10", reason = "platform libm differs; use the shared math module" },
+  { path = "f64::cbrt", reason = "platform libm differs; use the shared math module" },
+  { path = "f64::hypot", reason = "platform libm differs; use the shared math module" },
+  { path = "f64::powi", reason = "platform libm differs; use the shared math module" },
+]

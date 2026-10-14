@@ -1,0 +1,8 @@
+about = "A subdivided cube: flat faces, edges shaded round by their shared vertex normals, and quad diagonals that must not show."
+view = "iso"
+looks = ["zebra", "clay"]
+closed = true
+
+[[step]]
+command = "primitive.cube"
+args = { subdivisions = 4 }

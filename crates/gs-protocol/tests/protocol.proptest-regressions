@@ -1,0 +1,7 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 8be6382230ebac479d66f7be9f8cdfc5695735aa5c106a4d1b4b40f8898a9aa6 # shrinks to grid = [[2, 0, 0], [0, 0, 0], [0, 0, 1], [1, 1, 2]], axis = 0, turns = (0, 1)

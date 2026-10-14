@@ -1,0 +1,9 @@
+# Hard Round: a flat disc with a short edge (catalog alpha.starter-tips). Our own recipe, drawn
+# by gs-core's alpha generator (decision 0018).
+name = "Hard Round"
+catalog_id = "alpha.starter-tips"
+
+[[layer]]
+shape = "circle"
+radius = 0.95
+edge = 0.1

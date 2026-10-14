@@ -1,0 +1,32 @@
+# The pinned source of the Quad Remesh engine, quadwild-bimdf (decision 0038). fetch.sh
+# assembles it from these lines and checks them; build.sh builds it.
+#
+# pin: the program's version as the engine knows it (gs-geo quad::PIN). A change to any line
+# below, or to build.sh's flags, takes a new pin.
+pin e722c7e-1
+#
+# git PATH COMMIT URL: the tree of COMMIT, unpacked at PATH of the source (parents first). Blossom
+# V (libs/blossom5-cmake) is left out: it is not free software, and the build turns it off.
+git . e722c7e961982cf61db7c10812329dd0fc7d60df https://github.com/cgg-bern/quadwild-bimdf.git
+git cmake-library 12377901769280afe687eb3e98e0a02850fabc52 https://gitlab.vci.rwth-aachen.de:9000/cmake/cmake-library.git
+git libs/CoMISo e01896536ddf114fe6287c18f99839768fabbd93 https://gitlab.vci.rwth-aachen.de:9000/CoMISo/CoMISo.git
+git libs/CoMISo/src/Base 4a40a96eef1705a630ffe6d4f38ff721d2606538 https://gitlab.vci.rwth-aachen.de:9000/CoMISo/Base.git
+git libs/CoMISo/cmake-library 9515a4170bc55880e350d9d8ee1af67b77b4147d https://gitlab.vci.rwth-aachen.de:9000/cmake/cmake-library.git
+git libs/OpenMesh 8d527cd1e733889c49d14ebc7a7da9294995b3ef https://gitlab.vci.rwth-aachen.de:9000/OpenMesh/OpenMesh.git
+git libs/OpenMesh/cmake-library 3eada60fc5ecbc40e297783d43c07c69a57b2ae1 https://gitlab.vci.rwth-aachen.de:9000/cmake/cmake-library.git
+git libs/eigen bc3b39870ecb690a623a3f49149a358b95c5781d https://gitlab.com/libeigen/eigen.git
+git libs/json 55f93686c01528224f448c19128836e7df245f72 https://github.com/nlohmann/json.git
+git libs/lemon 3c6aa54c62a9b524bb9502872fa172776c1f8244 https://github.com/cgg-bern/lemon.git
+git libs/libigl f68e055b7dfb281489aa4b921fba65686ff4d456 https://github.com/libigl/libigl.git
+git libs/satsuma 4e96979ecb11bbfe8d9c05e8f8be1ecb992ca5fd https://github.com/cgg-bern/libsatsuma.git
+git libs/timekeeper f4f486648faac7c740535678b45b387078e26918 https://github.com/cgg-bern/libTimekeeper.git
+git libs/vcglib 5cae2abc2f9056785b0537dcbe156c40da2aea20 https://github.com/cnr-isti-vclab/vcglib.git
+git libs/xfield_tracer 2913b67607a2515bdc8019c582939fb32affbaa0 https://github.com/cgg-bern/xfield_tracer_fork.git
+#
+# tar PATH SHA256 URL: a release tarball, checked, unpacked at PATH. GMM's headers, which the
+# top-level CMakeLists would otherwise download during the build (its SHA224 there is
+# 8f4951901a55a1d1987d8199ed0e0b36ff2da26c870a4c3d55694a14).
+tar gmm 5206e732643f6934109028b2f173660f2c2edcb0ee269228d694acca6e22c88a https://download-mirror.savannah.gnu.org/releases/getfem/stable/gmm-5.4.2.tar.gz
+#
+# tree SHA256: every file of the assembled source, as fetch.sh's digest lists them.
+tree c4645901871e0ca8732cca362d001f078a2596e0ddb320743aa76213d7cd02a7

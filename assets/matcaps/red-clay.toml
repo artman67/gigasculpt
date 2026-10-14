@@ -1,0 +1,12 @@
+# MatCap Red Clay (catalog item material.matcap-red-clay). A physical look: the shared material model (gs-render
+# shading), lit by the studio environment and baked into a MatCap. Format: material.look-recipe.
+# Colors in brackets are linear; values are the material's, never tuned toward a picture.
+name = "MatCap Red Clay"
+catalog_id = "material.matcap-red-clay"
+environment = "studio"
+
+# Modeling clay, plasticine (physicallybased.info, CC0, a spectrophotometer measurement).
+[material]
+base_color = [0.256, 0.118, 0.091]
+specular_roughness = 0.5
+specular_ior = 1.5

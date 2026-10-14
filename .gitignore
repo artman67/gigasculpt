@@ -1,0 +1,11 @@
+# Cargo's build output, and what coverage and property-test runs leave behind.
+/target
+*.profraw
+.proptest-regressions-tmp/
+# Python's caches (the Blender add-on and its tests).
+__pycache__/
+# Editors and systems.
+.DS_Store
+*.swp
+.idea/
+.vscode/

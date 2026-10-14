@@ -1,0 +1,23 @@
+# UV Density: paints how dense Auto UV's texels are, from divide by 4 (-1) to times 4 (1); Alt
+# toward 0, the even density.
+version = 1
+name = "UV Density"
+id = "brush.uv-density"
+family = "Mask"
+strength = 1.0
+claims = ["local", "mirror_symmetric", "spacing_invariant", "rate_invariant"]
+
+[kernel]
+type = "attribute"
+column = "uv_density"
+op = "set"
+value = 1.0
+gain = 8.0
+
+[tip]
+profile = "smooth"
+
+[stroke]
+class = "dab"
+spacing = 0.1
+tap = 0.5

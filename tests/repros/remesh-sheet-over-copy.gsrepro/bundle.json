@@ -1,0 +1,16 @@
+{
+  "gigasculpt_repro": 1,
+  "engine_version": "0.0.1",
+  "catalog_hash": "8a585658958b314ac298dc132804f726387aee3a8ab6b0f35b5ae7d02b2f759b",
+  "seed": 0,
+  "start": {
+    "kind": "empty"
+  },
+  "predicate": {
+    "kind": "panic",
+    "contains": "attempt to subtract with overflow"
+  },
+  "source": "panic",
+  "lines": 3,
+  "note": "part.remesh of a sheet and its copy panicked in Surface Nets: the winding number signed the grid's outer layer inside (fixed by 4ec29ed). Minimized from 10 lines by gs repro minimize."
+}

@@ -1,0 +1,15 @@
+schema_version = "1.0.0"
+
+id = "gigasculpt_bridge"
+version = "0.1.0"
+name = "GigaSculpt Bridge"
+tagline = "Move parts between GigaSculpt and Blender, every value kept"
+maintainer = "GigaSculpt contributors"
+type = "add-on"
+
+blender_version_min = "5.2.0"
+
+license = ["SPDX:GPL-3.0-or-later"]
+
+[permissions]
+files = "Reads and writes the session's exchange folder in the cache folder"

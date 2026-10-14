@@ -1,0 +1,27 @@
+# Draw: pushes the surface out along the area normal under the brush. Its Brush Modifier
+# pinches toward the stroke when positive and inflates along each vertex normal when negative,
+# as on every Offset brush (decision 0018). Strength 0.4: one stroke raises a
+# ridge as high as Blender's Draw at its default (research 21, decision 0036).
+version = 1
+name = "Draw"
+id = "brush.draw"
+family = "Build"
+strength = 0.4
+claims = ["local", "masked_unchanged", "mirror_symmetric", "spacing_invariant", "rate_invariant", "reference"]
+
+[kernel]
+type = "offset"
+terms = [{ dir = "area_normal", gain = 0.5 }]
+
+[tip]
+profile = "smooth"
+
+[sampling]
+normal_radius = 0.5
+position_radius = 0.5
+accumulate = true
+
+[stroke]
+class = "dab"
+spacing = 0.1
+tap = 0.5

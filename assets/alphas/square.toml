@@ -1,0 +1,10 @@
+# Square: a flat square with a sharp edge, its corners just inside the dab's circle, the tip Clay
+# Build stamps with (catalog alpha.starter-tips, research 10). Our own recipe, drawn by gs-core's
+# alpha generator (decision 0018).
+name = "Square"
+catalog_id = "alpha.starter-tips"
+
+[[layer]]
+shape = "box"
+half = 0.7
+edge = 0.02

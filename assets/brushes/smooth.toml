@@ -1,0 +1,30 @@
+# Smooth: pulls each vertex toward the mean of its edge neighbours (boundary vertices toward
+# their boundary neighbours, so open edges do not shrink in). Full strength at gain 2: a gentle
+# brush that takes several strokes. Decision 0036 tried half strength at gain 32 and spacing
+# 0.025 (research 21: at gain 2 one stroke leaves three quarters of a test ripple, Blender's
+# Smooth a tenth); the maintainer judged the gentle one right by hand and it came back on
+# 2026-10-11 (decision 0036, section 1). Smooth Strong is the strong one.
+version = 1
+name = "Smooth"
+id = "brush.smooth"
+family = "Smooth"
+strength = 1.0
+claims = ["local", "masked_unchanged", "mirror_symmetric", "spacing_invariant", "rate_invariant", "reference"]
+
+[kernel]
+type = "smooth"
+mode = "uniform"
+gain = 2.0
+
+[tip]
+profile = "smooth"
+
+[stroke]
+class = "dab"
+spacing = 0.1
+tap = 0.5
+
+[live_detail]
+# The most merge allows, where the default is 0.4: with Live Detail on, Smooth thins the mesh
+# about 2 percent more as it evens it (docs/STATUS.md item 122).
+merge = 0.45

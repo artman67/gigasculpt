@@ -1,0 +1,43 @@
+[package]
+name = "gs-render"
+description = "The only crate that touches wgpu: GPU pools, culling, MatCap viewport, offscreen snapshots."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+gs-protocol.workspace = true
+gs-core.workspace = true
+gs-par.workspace = true
+# wgpu breaks its API about every 3 months (ARCHITECTURE section 2), so the version is pinned exactly.
+wgpu = "=30.0.1"
+pollster = "0.4"
+raw-window-handle.workspace = true
+bytemuck = { version = "1.25", features = ["derive"] }
+meshopt = "0.6.2"
+libm = "0.2.16"
+half = "2.7"
+png = "0.18"
+serde = { version = "1", features = ["derive"] }
+# Names the key a bad look recipe got wrong.
+serde_path_to_error.workspace = true
+toml = "1.1"
+
+[dev-dependencies]
+# A private Xvfb display for the window tests.
+gs-platform = { workspace = true, features = ["xvfb"] }
+proptest = "1.11"
+nv-flip = "0.1.2"
+libtest-mimic.workspace = true
+# The CPU's cut, which Live Boolean's peel is checked against (tests/render/peel.rs).
+gs-geo.workspace = true
+
+# Runs itself inside a private Xvfb display; see the file.
+[[test]]
+name = "surface"
+harness = false
+
+[lints]
+workspace = true

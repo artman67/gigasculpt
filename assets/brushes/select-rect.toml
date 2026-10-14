@@ -1,0 +1,22 @@
+# Select Rect: a gesture. The rectangle runs from the press to the release, corner to corner, its
+# sides square to the screen (on a plane facing the camera); `square` and `center` in the stroke
+# table keep its sides equal and grow it from the press (decision 0051). Through the whole model,
+# the faces under it stay shown and the rest are hidden; Alt hides the faces under it instead.
+# Under it means wholly inside when any face is, otherwise any face with a corner inside
+# (decision 0015).
+version = 1
+name = "Select Rect"
+id = "brush.select-rect"
+family = "Mask"
+strength = 1.0
+claims = []
+
+[kernel]
+type = "attribute"
+column = "hide"
+value = 1
+gain = 1.0
+
+[stroke]
+class = "gesture"
+shape = "rect"

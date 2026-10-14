@@ -1,0 +1,42 @@
+[package]
+name = "gs-engine"
+description = "Command trait, registry, executor, document, history, log, jobs, socket server, flight recorder."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+gs-core.workspace = true
+gs-protocol.workspace = true
+gs-geo.workspace = true
+gs-io.workspace = true
+gs-par.workspace = true
+base64.workspace = true
+blake3.workspace = true
+clap.workspace = true
+inventory.workspace = true
+jsonschema.workspace = true
+# The primitives' rings (decision 0047): sines and cosines that are the same on every platform.
+libm.workspace = true
+# Reads and writes the PNG files image.diff compares (and tests/window reads back looks).
+png = "0.18"
+schemars.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+serde_path_to_error.workspace = true
+strsim.workspace = true
+toml.workspace = true
+
+[dev-dependencies]
+gs-testkit.workspace = true
+# Runs scripts on private thread pools of different sizes (tests/engine/threads.rs).
+gs-par.workspace = true
+proptest.workspace = true
+# The real window host, for the window commands' tests (tests/window).
+gs-render.workspace = true
+gs-ui.workspace = true
+
+[lints]
+workspace = true

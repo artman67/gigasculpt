@@ -1,0 +1,34 @@
+# Sharp Crease: a narrow push inward along the area normal (the high exponent keeps it to the
+# center) and a wider pull toward the stroke line within the surface. It ships with Stroke
+# Smoothing on (research 10); the string length, half a radius, is the research's proposal
+# until it is measured. The string follows the pen's samples,
+# so the stroke depends on how densely they come where the path turns: no rate_invariant claim.
+# Strength 0.5 cuts as deep as Blender's Crease Sharp; the pull toward the line comes down to
+# 1.0 with it, or the pinch would double (research 21, decision 0036).
+version = 1
+name = "Sharp Crease"
+id = "brush.sharp-crease"
+family = "Carve"
+strength = 0.5
+claims = ["local", "masked_unchanged", "mirror_symmetric", "spacing_invariant", "reference"]
+
+[kernel]
+type = "offset"
+terms = [
+  { dir = "area_normal", gain = -0.6, exponent = 4.0 },
+  { dir = "to_center", gain = 1.0, tangent = true },
+]
+
+[tip]
+profile = "smooth"
+
+[sampling]
+normal_radius = 0.5
+position_radius = 0.5
+accumulate = true
+
+[stroke]
+class = "dab"
+spacing = 0.05
+tap = 0.5
+smoothing = { radius = 0.5 }

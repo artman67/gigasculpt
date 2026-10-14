@@ -1,0 +1,32 @@
+Icons in this folder
+
+The SVG files below are Lucide icons (https://lucide.dev, https://github.com/lucide-icons/lucide),
+version 1.55.0, copied unchanged from the tagged source archive
+https://github.com/lucide-icons/lucide/archive/refs/tags/1.55.0.tar.gz
+(5546989 bytes, sha256 f3455765317dc1a43b5747420947649b30de7309f41bd78bcf6cd2bda97f30cf).
+Lucide is under the ISC license; chevron-left, chevron-right, lock, search and x are derived
+from Feather (https://github.com/feathericons/feather) and are also under the MIT license. Both
+texts are in LICENSE, Lucide's own license file from the same archive, unchanged. Only the icons
+the interface uses are here; assets/layouts/icons.toml says which control shows which.
+
+  arrow-left-right.svg   sha256 2d64da427cbb3f14e522658459903829575b09ec15162c1a69ea6ad341a4359a
+  box.svg                sha256 511862693d914d2bf1947c9ccc513595f2a256541f5dd4f6f9ac8383cd41ac4f
+  chart-pie.svg          sha256 1ae765b638fe588b392f7da6e2c274fb438b257d936f9f4c7d548c73d5f9d8a1
+  chevron-left.svg       sha256 83b0681aa38bf55e9d52a1e4b4cced624abe1fe7678ecafda133a574f1161d93
+  chevron-right.svg      sha256 2758143d7b2434e4aa7307dfd34405c87909ff4052f21b5f3f40d45224b4f19b
+  focus.svg              sha256 d52fde05ccbd7bf629e05daeb8eadf824c85333aeca78e674db01493bc8b1f10
+  grid-3x3.svg           sha256 6c24155397cf0e751c05931bae68e67e4fe0fd58baeb7b29e9f80c90ed1d5194
+  import.svg             sha256 93e0d5fe2770620dc427d8250039d3d4ea5e3d256846ba4857b4266952476592
+  library-big.svg        sha256 3ac6431dcc422f7f05134023b4ed03fbd2b8f1cc4f6467d63acc57b47d13d92e
+  lock.svg               sha256 d2cfe60cac8deaef36442b5c8218c1e61abe18222784b2a370ea090d13fca840
+  move-3d.svg            sha256 1c76c067c9ef6922af206ca42fc275e82cb5c4413422ce284c7015d3682f55eb
+  pin.svg                sha256 55e8e5e04bcb671179fc1dd589abf09cf6a1e71301ff14eb739419cfab6011e7
+  scan.svg               sha256 c77f0e634b2451a14a262a59b61d75bbcea3994b16eeba1f5753e86b33282a4d
+  search.svg             sha256 283d371c2e433817bb9c0c8310caa6c77fa4177c0f4f1168d9c83b97af7389dc
+  send.svg               sha256 a489257f447b808ab6b258ae888fa49686885bbc30a7a2774d97a01f11f9cd5e
+  sun.svg                sha256 a3955c8b0425fcc5c9ba12d2bdd77fe53b2cd5dd05e7742a56f342e996fb2ef8
+  x.svg                  sha256 4a9cdab38fbb96162e7dace28e33f4ca0e49d8963a6162abc3d4691b7d675117
+
+To add an icon: copy its SVG from the same Lucide version unchanged, add its line here (and its
+name to the Feather sentence if LICENSE lists it as derived from Feather), name it in
+assets/layouts/icons.toml and in the list in crates/gs-ui/src/icons.rs.

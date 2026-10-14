@@ -1,0 +1,45 @@
+[package]
+name = "gs-ui"
+description = "The only crate that touches egui: the window shell, pen-first widgets, keymap, layout files."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+# The brush tip's falloff, which the curve editor draws with the engine's own formula.
+gs-core.workspace = true
+gs-engine.workspace = true
+gs-platform.workspace = true
+gs-protocol.workspace = true
+gs-render.workspace = true
+# No default features: egui's bundled fonts carry licenses the gate does not allow; the shell
+# brings its own (assets/fonts).
+egui = { workspace = true }
+clap.workspace = true
+libm.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+toml = "1.1"
+# The icons (decision 0025, section 13): SVG drawn to pixels. No default features: no text,
+# fonts or embedded pictures, which the icons do not use.
+resvg = { version = "0.48.1", default-features = false }
+
+[dev-dependencies]
+# A private Xvfb display for the window tests.
+gs-platform = { workspace = true, features = ["xvfb"] }
+base64.workspace = true
+egui_kittest = { workspace = true }
+gs-testkit.workspace = true
+png = "0.18"
+proptest.workspace = true
+libtest-mimic.workspace = true
+
+# Runs the window inside a private Xvfb display; see the file.
+[[test]]
+name = "window"
+harness = false
+
+[lints]
+workspace = true

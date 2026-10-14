@@ -1,0 +1,28 @@
+# Trim: shaves what sticks up above a plane fitted at every dab, never fills hollows, with a
+# crisp edge.
+version = 1
+name = "Trim"
+id = "brush.trim"
+family = "Carve"
+strength = 0.25
+claims = ["local", "masked_unchanged", "mirror_symmetric", "spacing_invariant", "rate_invariant", "reference"]
+
+[kernel]
+type = "plane"
+source = "dab"
+side = "above"
+gain = 6.0
+
+[tip]
+profile = "smooth"
+hardness = 0.5
+
+[sampling]
+normal_radius = 0.5
+position_radius = 0.5
+accumulate = true
+
+[stroke]
+class = "dab"
+spacing = 0.05
+tap = 0.5

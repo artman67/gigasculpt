@@ -1,0 +1,30 @@
+# Flat Polish: cuts what sticks up above a plane and leaves hollows alone (Alt fills up to it),
+# with a crisp edge, sampled over the whole brush. The plane keeps the tilt of the first press
+# for the whole stroke and reads its height at every dab (research 10: the kept tilt is
+# documented; whether the height is kept too is not stated). Exact algorithm unknown.
+version = 1
+name = "Flat Polish"
+id = "brush.flat-polish"
+family = "Smooth"
+strength = 0.2
+claims = ["local", "masked_unchanged", "mirror_symmetric", "spacing_invariant", "rate_invariant", "reference"]
+
+[kernel]
+type = "plane"
+source = "stroke_normal"
+side = "above"
+gain = 6.0
+
+[tip]
+profile = "smooth"
+hardness = 0.5
+
+[sampling]
+normal_radius = 1.0
+position_radius = 1.0
+accumulate = true
+
+[stroke]
+class = "dab"
+spacing = 0.05
+tap = 0.5

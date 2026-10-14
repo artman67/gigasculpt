@@ -1,0 +1,9 @@
+# White: full strength everywhere, the same as no alpha (catalog alpha.starter-tips). Choosing it
+# takes a brush's own alpha off (decision 0018). Our own recipe, drawn by gs-core's alpha
+# generator.
+name = "White"
+catalog_id = "alpha.starter-tips"
+
+[[layer]]
+shape = "profile"
+points = [[0, 1], [1, 1]]

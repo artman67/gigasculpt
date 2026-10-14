@@ -1,0 +1,10 @@
+# Studio Small 08: a captured light probe (gs-render shading::environment, decision 0019), a
+# small photo studio photographed as an equirectangular HDR image. Metered like every
+# environment (a white diffuser facing the camera reflects 1), and turned by measurement so its
+# dominant light comes from the side of the default studio's key light. One of the probes the
+# maintainer is choosing between; the procedural studio stays the default meanwhile.
+name = "Studio Small 08"
+
+[probe]
+image = "studio_small_08_1k.hdr"
+source = "Sergej Majboroda, CC0, https://polyhaven.com/a/studio_small_08"

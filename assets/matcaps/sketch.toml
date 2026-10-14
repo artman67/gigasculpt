@@ -1,0 +1,13 @@
+# MatCap Sketch (catalog item material.matcap-sketch). A physical look: the shared material model (gs-render
+# shading), lit by the soft-studio environment and baked into a MatCap. Format: material.look-recipe.
+# Colors in brackets are linear; values are the material's, never tuned toward a picture.
+name = "MatCap Sketch"
+catalog_id = "material.matcap-sketch"
+environment = "soft-studio"
+
+# The matte light gray of unglazed porcelain (as MatCap White Cavity) under the soft, low
+# contrast studio: the sketch looks differ by their light, not by fake shading (research 11).
+[material]
+base_color = [0.745, 0.745, 0.723]
+specular_roughness = 0.8
+specular_ior = 1.5

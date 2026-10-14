@@ -1,0 +1,15 @@
+# Basic Material (catalog item material.basic-material). A standard material: a preset of the
+# shared material model (gs-render shading), lit by the studio environment; in phase 1 it draws as
+# every look does (decision 0043, step (c)). Format: material.look-recipe. Values are the
+# material's, never tuned toward a picture; any key left out is OpenPBR's default.
+name = "Basic Material"
+catalog_id = "material.basic-material"
+kind = "standard"
+environment = "studio"
+
+# OpenPBR's default material: a dielectric of base color 0.8, IOR 1.5, roughness 0.3. That the
+# catalog's "medium width" highlight is roughness 0.3 is a guess.
+[material]
+base_color = [0.8, 0.8, 0.8]
+specular_roughness = 0.3
+specular_ior = 1.5

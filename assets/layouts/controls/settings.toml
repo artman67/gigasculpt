@@ -1,0 +1,213 @@
+# GigaSculpt controls: the settings window's sets (decision 0025, section 3). Each tray's sets
+# are a file in this folder, and a layout may show any set by its name, whichever file holds it.
+# The format, field by field: docs/reference/controls.md. Each set names its page (decision
+# 0052); every control that shows a value and runs a command is a setting the window keeps in
+# preferences.toml, finds by its label and puts back with Reset. Each set takes decision 0060's
+# compact rows (section 8): a choice of a few values is one row after its short label, a long
+# label is a short one with the sentence in its hint, and no word repeats across a set's labels.
+
+# The pen's feel for every brush (decision 0036, section 3 as amended): Lazy pressure eases each
+# sample's pressure toward the pen's, and Size, Strength and Color sensitivity scale the pressure
+# curve in effect for each toward full (100 is the curve as it is, 0 leaves pressure out, below
+# 0 runs it backwards). The eraser end strokes as the tip, or stands for held keys from its
+# first touch until it leaves range (the tablet names the end only when it touches): Shift's
+# brush, Ctrl's, Alt's way, or Ctrl's brush the other way. The pen's barrel click opens the
+# brush wheel, the command palette, the quick menu or nothing; a barrel drag always navigates.
+# Barrel button 2 (the middle mouse button too) pans, or is Shift, Ctrl or Alt while it is down
+# (interface.modifier-keys).
+[[set]]
+name = "pen"
+title = "Pen"
+page = "Pen"
+controls = [
+  { label = "Lazy pressure", command = "pen.set", args = { lazy_pressure = "drag" }, shows = "pen.lazy_pressure", range = [0.0, 1.0], hint = "Eases each moment's pressure toward the pen's, so a sudden press or lift comes in gently; 0 follows the pen at once." },
+  { label = "Size sensitivity", short = "Size", group = "Sensitivity", command = "pen.set", args = { size_sensitivity = "drag" }, shows = "pen.size_sensitivity", range = [-100.0, 100.0], hint = "How much the pen's pressure changes every brush's size: 100 is its pressure curve as it is, 0 leaves pressure out, below 0 runs it backwards." },
+  { label = "Strength sensitivity", short = "Strength", group = "Sensitivity", command = "pen.set", args = { strength_sensitivity = "drag" }, shows = "pen.strength_sensitivity", range = [-100.0, 100.0], hint = "How much the pen's pressure changes every brush's strength: 100 is its pressure curve as it is, 0 leaves pressure out, below 0 runs it backwards." },
+  { label = "Color sensitivity", short = "Color", group = "Sensitivity", command = "pen.set", args = { color_sensitivity = "drag" }, shows = "pen.color_sensitivity", range = [-100.0, 100.0], hint = "How much the pen's pressure changes how strongly paint colors: 100 is its pressure curve as it is, 0 leaves pressure out, below 0 runs it backwards." },
+  { label = "Eraser as the tip", short = "Tip", line = "Eraser", command = "ui.navigation", args = { eraser = "tip" }, shows = "navigation.eraser", on = "tip", hint = "The pen's eraser end strokes as its tip does." },
+  { label = "Eraser as Shift", short = "Shift", line = "Eraser", command = "ui.navigation", args = { eraser = "shift" }, shows = "navigation.eraser", on = "shift", hint = "The pen's eraser end strokes as if Shift were held, with Shift's brush, from its first touch until it leaves the tablet's range." },
+  { label = "Eraser as Ctrl", short = "Ctrl", line = "Eraser", command = "ui.navigation", args = { eraser = "ctrl" }, shows = "navigation.eraser", on = "ctrl", hint = "The pen's eraser end strokes as if Ctrl were held, with Ctrl's brush, from its first touch until it leaves the tablet's range." },
+  { label = "Eraser as Alt", short = "Alt", line = "Eraser", command = "ui.navigation", args = { eraser = "alt" }, shows = "navigation.eraser", on = "alt", hint = "The pen's eraser end strokes as if Alt were held, the brush's other way, from its first touch until it leaves the tablet's range." },
+  { label = "Eraser as Ctrl+Alt", short = "Ctrl+Alt", line = "Eraser", command = "ui.navigation", args = { eraser = "ctrl_alt" }, shows = "navigation.eraser", on = "ctrl_alt", hint = "The pen's eraser end strokes as if Ctrl and Alt were held, Ctrl's brush the other way, from its first touch until it leaves the tablet's range." },
+  { label = "Barrel click opens the brush wheel", short = "Wheel", line = "Click", command = "ui.navigation", args = { barrel_click = "wheel" }, shows = "navigation.barrel_click", on = "wheel", hint = "A click of the pen's barrel button opens the brush wheel at the pen; a barrel drag always moves the view." },
+  { label = "Barrel click opens the command palette", short = "Palette", line = "Click", command = "ui.navigation", args = { barrel_click = "palette" }, shows = "navigation.barrel_click", on = "palette", hint = "A click of the pen's barrel button opens the command palette; a barrel drag always moves the view." },
+  { label = "Barrel click opens the quick menu", short = "Quick", line = "Click", command = "ui.navigation", args = { barrel_click = "quick" }, shows = "navigation.barrel_click", on = "quick", hint = "A click of the pen's barrel button opens the quick menu at the pen; a barrel drag always moves the view." },
+  { label = "Barrel click does nothing", short = "None", line = "Click", command = "ui.navigation", args = { barrel_click = "none" }, shows = "navigation.barrel_click", on = "none", hint = "A click of the pen's barrel button does nothing; a barrel drag still moves the view." },
+  { label = "Barrel button 2 pans", short = "Pan", line = "Button 2", command = "ui.navigation", args = { barrel_two = "pan" }, shows = "navigation.barrel_two", on = "pan", hint = "A drag with the pen's second barrel button, or the middle mouse button, pans the view." },
+  { label = "Barrel button 2 as Shift", short = "Shift", line = "Button 2", command = "ui.navigation", args = { barrel_two = "shift" }, shows = "navigation.barrel_two", on = "shift", hint = "The pen's second barrel button, or the middle mouse button, is Shift while it is down." },
+  { label = "Barrel button 2 as Ctrl", short = "Ctrl", line = "Button 2", command = "ui.navigation", args = { barrel_two = "ctrl" }, shows = "navigation.barrel_two", on = "ctrl", hint = "The pen's second barrel button, or the middle mouse button, is Ctrl while it is down." },
+  { label = "Barrel button 2 as Alt", short = "Alt", line = "Button 2", command = "ui.navigation", args = { barrel_two = "alt" }, shows = "navigation.barrel_two", on = "alt", hint = "The pen's second barrel button, or the middle mouse button, is Alt while it is down." },
+]
+
+# The held keys. Modifier keys (interface.modifier-keys): with sticky modifier keys a tap of
+# Shift, Ctrl or Alt turns it on until the next tap, and a long hold stays momentary; what the
+# held keys do always shows on the cursor, and on the status line unless turned off. Slider keys
+# (interface.on-canvas-adjust): with sticky keys, S, U, O or any slider's key held a moment sets
+# the slider with the pointer and a tap shows it; off, the key only shows it, so the hold before
+# setting shows only while they are on.
+[[set]]
+name = "held-keys"
+title = "Held keys"
+page = "Interface"
+controls = [
+  { label = "Sticky modifier keys", short = "Modifiers", line = "Sticky", command = "ui.settings", args = { sticky_modifiers = "flip" }, shows = "settings.sticky_modifiers", hint = "A tap of Shift, Ctrl or Alt keeps it on until the next tap; a long hold still lets go with the key." },
+  { label = "Sticky slider keys", short = "Slider keys", line = "Sticky", command = "ui.settings", args = { sticky_keys = "flip" }, shows = "settings.sticky_keys", hint = "S, U, O or any slider's key held a moment sets that slider as the pointer moves, and a tap shows it; off, the key only shows it." },
+  { label = "Name held keys", command = "ui.settings", args = { status_label = "flip" }, shows = "settings.status_label", hint = "The status line says what the held keys do; the cursor always shows it." },
+  { label = "Hold before setting (seconds)", short = "Hold (s)", command = "ui.settings", args = { sticky_delay = "drag" }, shows = "settings.sticky_delay", range = [0.05, 1.0], while = "settings.sticky_keys", hint = "How long a slider's key is held, in seconds, before the pointer sets the slider." },
+]
+
+# The brush cursor (interface.cursor-ring): its Size and Softness rings lie flat on the surface
+# under the pen, or stay circles on the screen; with symmetry on, quieter rings show where it
+# repeats the dab. The gizmo's size on screen, set once, is here too (decision 0060, section 6).
+[[set]]
+name = "brush-cursor"
+title = "Brush cursor"
+page = "Cursor"
+controls = [
+  { label = "Rings on the surface", short = "On surface", line = "Rings", command = "ui.settings", args = { ring_on_surface = "flip" }, shows = "settings.ring_on_surface", hint = "The brush's Size and Softness rings lie flat on the surface under the pen; off, they stay circles on the screen." },
+  { label = "Mirrored rings", short = "Mirrored", line = "Rings", command = "ui.settings", args = { mirror_rings = "flip" }, shows = "settings.mirror_rings", hint = "With symmetry on, quieter rings show where each dab repeats." },
+  { label = "Gizmo size", command = "ui.gizmo", args = { size = "drag" }, shows = "gizmo.size", range = [10.0, 200.0], hint = "The gizmo's size on screen, in points." },
+]
+
+# How drags and the wheel move the view (decision 0017): a press on empty canvas turns it (the
+# classic scheme) or sculpts. Then how the 3D view's moves behave (`view.settings`, decision
+# 0017 as amended): what an orbit turns about, the free way or an axis of the scene (Blender's
+# Orbit Method), and what it turns and zooms about, the pivot (decision 0062, row 805: neither
+# is a button anywhere else, as Blender keeps both in Preferences > Navigation); how far an
+# orbit slides the pivot toward the middle, the step a snapping orbit lands on, whether a zoom
+# changes the camera's distance, whether a pan slides the picture by the lens, and whether a
+# right press moves the pivot. Last the speeds, in points dragged and wheel notches.
+[[set]]
+name = "navigation"
+title = "Navigation"
+page = "Navigation"
+controls = [
+  { label = "Empty press turns view", command = "ui.navigation", args = { classic = "flip" }, shows = "navigation.classic", hint = "A press on empty canvas turns the view; off, it sculpts as a press on the model does." },
+  { label = "Orbit free", short = "Free", line = "Orbit", command = "view.settings", args = { orbit = "free" }, shows = "view.orbit", on = "free", hint = "A drag turns the view about the screen's own axes, so it may tip over. (Blender: Trackball.)" },
+  { label = "Orbit about X", short = "X", line = "Orbit", command = "view.settings", args = { orbit = "x" }, shows = "view.orbit", on = "x", hint = "A drag turns the view about the scene's X axis, like a sculpture stand lying on its side. Picking it levels the view once." },
+  { label = "Orbit about Y", short = "Y", line = "Orbit", command = "view.settings", args = { orbit = "y" }, shows = "view.orbit", on = "y", hint = "A drag turns the view about the scene's up axis, a turntable keeping the horizon level, as it ships. Picking it levels the view once. (Blender: Turntable.)" },
+  { label = "Orbit about Z", short = "Z", line = "Orbit", command = "view.settings", args = { orbit = "z" }, shows = "view.orbit", on = "z", hint = "A drag turns the view about the scene's Z axis. Picking it levels the view once." },
+  { label = "Pivot at the middle of the picture", short = "Middle", line = "Pivot", command = "view.settings", args = { pivot_rule = "target" }, shows = "view.pivot", on = "target", hint = "The view turns and zooms about the point it looks at, the middle of the picture, which a pan and the wheel move; as it ships." },
+  { label = "Pivot at the last edit", short = "Last edit", line = "Pivot", command = "view.settings", args = { pivot_rule = "last-edit" }, shows = "view.pivot", on = "last-edit", hint = "The view turns and zooms about where the last stroke first touched the surface; before any stroke, the middle. (Blender: Orbit Around Selection.)" },
+  { label = "Pivot at the parts' centre", short = "Parts", line = "Pivot", command = "view.settings", args = { pivot_rule = "part" }, shows = "view.pivot", on = "part", hint = "The view turns and zooms about the centre of every part." },
+  { label = "Pivot under the pointer", short = "Pointer", line = "Pivot", command = "view.settings", args = { pivot_rule = "under-pointer" }, shows = "view.pivot", on = "under-pointer", hint = "The view turns and zooms about the surface under the press that starts the move; off the model, about the last edit. (Blender: Auto Depth.)" },
+  { label = "Recenter rate", short = "Recenter", command = "view.settings", args = { recenter_rate = "drag" }, shows = "view.recenter_rate", range = [0.0, 1.0], hint = "How far each quarter turn of an orbit slides the pivot toward the middle of the picture: 0 keeps it where it is on the screen, 1 takes it all the way." },
+  { label = "Snap orbit to 5°", short = "5°", line = "Snap", command = "view.settings", args = { snap_deg = 5 }, shows = "view.snap_deg", on = 5, hint = "A snapping orbit lands on whole steps of 5°." },
+  { label = "Snap orbit to 15°", short = "15°", line = "Snap", command = "view.settings", args = { snap_deg = 15 }, shows = "view.snap_deg", on = 15, hint = "A snapping orbit lands on whole steps of 15°." },
+  { label = "Snap orbit to 30°", short = "30°", line = "Snap", command = "view.settings", args = { snap_deg = 30 }, shows = "view.snap_deg", on = 30, hint = "A snapping orbit lands on whole steps of 30°." },
+  { label = "Snap orbit to 45°", short = "45°", line = "Snap", command = "view.settings", args = { snap_deg = 45 }, shows = "view.snap_deg", on = 45, hint = "A snapping orbit lands on whole steps of 45°." },
+  { label = "Snap orbit to 90°", short = "90°", line = "Snap", command = "view.settings", args = { snap_deg = 90 }, shows = "view.snap_deg", on = 90, hint = "A snapping orbit lands on the six axis views, as it ships." },
+  { label = "Zoom changes distance", command = "view.settings", args = { auto_distance = "flip" }, shows = "view.auto_distance", hint = "A zoom brings the camera nearer, so perspective strengthens up close; off, in perspective, it slides the camera at its distance. On anyway with the Last edit pivot." },
+  { label = "Pan by lens", command = "view.settings", args = { align_to_object = "flip" }, shows = "view.align_to_object", hint = "A pan in perspective slides the picture by the lens, so the model is seen from the same side anywhere on the screen; off, a pan moves the camera." },
+  { label = "Right press moves pivot", command = "view.settings", args = { right_drag_pivot = "flip" }, shows = "view.right_drag_pivot", hint = "A right press on the model moves the last-edit point there, which the Last edit pivot turns about; off, it does nothing." },
+  { label = "Orbit speed", short = "Turn", group = "Speed", command = "ui.navigation", args = { orbit_speed = "drag" }, shows = "navigation.orbit_speed", range = [0.1, 2.0], hint = "How far a drag turns the view for each point dragged. (Blender: Orbit Sensitivity.)" },
+  { label = "Drag zoom speed", short = "Drag zoom", group = "Speed", command = "ui.navigation", args = { dolly_speed = "drag" }, shows = "navigation.dolly_speed", range = [0.001, 0.02], hint = "How far a zoom drag moves the view for each point dragged." },
+  { label = "Wheel zoom step", short = "Wheel zoom", group = "Speed", command = "ui.navigation", args = { wheel_step = "drag" }, shows = "navigation.wheel_step", range = [0.02, 0.5], hint = "How far one notch of the mouse wheel zooms the view." },
+]
+
+# How sliders behave (interface.sliders): their values always showing or only under the pen, a
+# stop at 0 on a rail through it, and Shift taking Softness to -100, 0 and 100 (off at first).
+# Then how far one step of Strength or Softness moves (`brush.set` with `strength_step` or
+# `falloff_step`, which a key may run), kept for every brush.
+[[set]]
+name = "sliders"
+title = "Sliders"
+page = "Interface"
+controls = [
+  { label = "Show slider values", command = "ui.settings", args = { show_values = "flip" }, shows = "settings.show_values", hint = "Every slider shows its value; off, a value shows only while the pen is over its slider." },
+  { label = "Stop at the middle", command = "ui.settings", args = { center_snap = "flip" }, shows = "settings.center_snap", hint = "A drag along a rail that runs through 0 stops there a moment." },
+  { label = "Shift snaps Softness", command = "ui.settings", args = { falloff_snap = "flip" }, shows = "settings.falloff_snap", hint = "Shift held on Softness's slider takes it to -100, 0 or 100." },
+  { label = "Strength step", short = "Strength", group = "Step", command = "brush.set", args = { strength_increment = "drag" }, shows = "brush.strength_increment", range = [0.01, 0.5], hint = "How far one step moves Strength, for a key that steps it; kept for every brush." },
+  { label = "Softness step", short = "Softness", group = "Step", command = "brush.set", args = { falloff_increment = "drag" }, shows = "brush.falloff_increment", range = [1.0, 50.0], hint = "How far one step moves Softness, for a key that steps it; kept for every brush." },
+]
+
+# The brush wheel (interface.brush-wheel): how far it opens from the pen, away from the hand
+# that holds it (mirrored with the layout's hand), in points.
+[[set]]
+name = "wheel"
+title = "Brush wheel"
+page = "Interface"
+controls = [
+  { label = "Brush wheel offset", short = "Offset", command = "ui.settings", args = { wheel_offset = "drag" }, shows = "settings.wheel_offset", range = [0.0, 40.0], hint = "How far the brush wheel opens from the pen, away from the hand that holds it, in points." },
+]
+
+# The interface's size on top of the display's own scale, which it follows (decision 0025,
+# section 10). Buttons, not a slider: the window grows under the pen as the scale changes.
+[[set]]
+name = "scale"
+title = "Interface scale"
+page = "Interface"
+controls = [
+  { label = "75%", command = "ui.layout", args = { scale = 0.75 }, shows = "layout.scale", on = 0.75, hint = "Draws the interface at three quarters of the size the display asks for." },
+  { label = "100%", command = "ui.layout", args = { scale = 1.0 }, shows = "layout.scale", on = 1.0, hint = "Draws the interface at the size the display asks for, as it ships." },
+  { label = "125%", command = "ui.layout", args = { scale = 1.25 }, shows = "layout.scale", on = 1.25, hint = "Draws the interface a quarter larger than the display asks for." },
+  { label = "150%", command = "ui.layout", args = { scale = 1.5 }, shows = "layout.scale", on = 1.5, hint = "Draws the interface half again as large as the display asks for." },
+  { label = "200%", command = "ui.layout", args = { scale = 2.0 }, shows = "layout.scale", on = 2.0, hint = "Draws the interface twice the size the display asks for." },
+]
+
+# The scene tray's parts list (decision 0028, section 10): how many rows it shows before it
+# scrolls, moved here from Scene tray > Parts (decision 0060 as amended for S1, section 2).
+[[set]]
+name = "part-list"
+title = "Parts list"
+page = "Interface"
+controls = [
+  { label = "Rows shown", short = "Rows", command = "ui.settings", args = { part_rows = "drag" }, shows = "settings.part_rows", range = [1.0, 24.0], hint = "How many parts the list shows before it scrolls, 1 to 24; it never limits how many parts the scene holds." },
+]
+
+# The theme picker (decision 0025, section 13): Previous and Next step through the themes in
+# order and wrap, on a row of their own; the `themes` piece after it has a button per theme,
+# lit for the one shown.
+[[set]]
+name = "theme"
+title = "Theme"
+page = "Interface"
+controls = [
+  { label = "Previous theme", short = "Previous", line = "", command = "ui.layout", args = { theme_step = -1 }, hint = "Shows the theme before this one, wrapping to the last." },
+  { label = "Next theme", short = "Next", line = "", command = "ui.layout", args = { theme_step = 1 }, hint = "Shows the theme after this one, wrapping to the first." },
+]
+
+# Files (decision 0016, section 17): at start, with no crashed session offered back, the window
+# opens the newest recent scene (catalog interface.scene-files). The brush at start (decision
+# 0052, section 9 as amended): the brush used last, or the brush in use pinned so every start
+# has it; Pinned reads the pinned brush's name after it. Autosave (`file.autosave`, catalog
+# interface.autosave) writes a copy when Max Duration has passed since the last save of any
+# kind, or Rest Duration without input, and keeps Max files copies of each scene; a duration at
+# the top of its slider turns its own trigger off. Autosave's settings stay in the state
+# folder's autosave.json, not preferences.toml.
+[[set]]
+name = "files"
+title = "Files"
+page = "Files"
+controls = [
+  { label = "Open last scene", command = "ui.settings", args = { open_last = "flip" }, shows = "settings.open_last", hint = "At start, with no crashed session to offer back, opens the newest recent scene." },
+  { label = "Last used", line = "Brush at start", command = "ui.settings", args = { launch_brush = "last" }, shows = "startup.brush", on = "last", hint = "Each start begins with the brush used last." },
+  { label = "Pinned", line = "Brush at start", command = "ui.settings", args = { launch_brush = "current" }, names = "startup.pinned", hint = "Pins the brush in use, so each start begins with it; its name follows Pinned." },
+  { label = "Autosave Max Duration (minutes)", short = "Every (min)", group = "Autosave", command = "file.autosave", args = { max_minutes = "drag" }, shows = "autosave.max_minutes", range = [1.0, 60.0], hint = "Writes a copy when this many minutes have passed since the last save of any kind; at the top of the slider, never." },
+  { label = "Autosave Rest Duration (minutes)", short = "Idle (min)", group = "Autosave", command = "file.autosave", args = { rest_minutes = "drag" }, shows = "autosave.rest_minutes", range = [0.5, 30.0], hint = "Writes a copy after this many minutes without input; at the top of the slider, never." },
+  { label = "Autosave copies kept per scene", short = "Copies", group = "Autosave", command = "file.autosave", args = { keep = "drag" }, shows = "autosave.keep", range = [1.0, 100.0], hint = "How many copies of each scene autosave keeps; a new one replaces the oldest." },
+]
+
+# Voxel Remesh (catalog geometry.voxel-remesh, decision 0052 as amended 2026-10-12): the hole
+# closing every voxel remesh, Voxel mode switch and update takes when its call leaves it out
+# (`mesh.voxel_settings`), written into the logged call: none, or large triangles across each
+# hole's rim.
+[[set]]
+name = "voxel"
+title = "Voxel Remesh"
+page = "Geometry"
+controls = [
+  { label = "No hole closing", short = "None", line = "Hole closing", command = "mesh.voxel_settings", args = { close_holes = 0 }, shows = "voxel.close_holes", on = 0, hint = "Each voxel remesh, Voxel mode switch and update leaves a part's holes open." },
+  { label = "Hole closing by large triangles", short = "Large triangles", line = "Hole closing", command = "mesh.voxel_settings", args = { close_holes = 1 }, shows = "voxel.close_holes", on = 1, hint = "Each voxel remesh, Voxel mode switch and update first closes a part's holes with large triangles across each rim, as it ships." },
+]
+
+# The keys (decision 0060, section 7: Keys becomes Settings' Keys page): Bind a key… opens the
+# palette's form for a key and what it runs; the `keys` piece after it is the keys sheet, which
+# draws this set's controls first, then Restore defaults and every key under its context.
+[[set]]
+name = "keys"
+title = "Keys"
+page = "Keys"
+controls = [
+  { label = "Bind a key…", command = "ui.palette", args = { form = "ui.keymap", ask = ["bind", "command", "args"] }, hint = "Asks for a key and a command, then binds the key to run it; your keymap file keeps the change." },
+]

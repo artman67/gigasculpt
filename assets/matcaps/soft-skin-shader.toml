@@ -1,0 +1,20 @@
+# Soft Skin Shader (catalog item material.soft-skin-shader). A standard material: a preset of the
+# shared material model (gs-render shading), lit by the studio environment; in phase 1 it draws as
+# every look does (decision 0043, step (c)). Format: material.look-recipe. Values are the
+# material's, never tuned toward a picture; any key left out is OpenPBR's default.
+name = "Soft Skin Shader"
+catalog_id = "material.soft-skin-shader"
+kind = "standard"
+environment = "studio"
+
+# Skin type II (physicallybased.info, CC0), as MatCap Skin 4: IOR 1.4 and mean free paths of
+# 4.82, 1.69 and 1.09 mm. The base color is OpenPBR's 0.8, since a standard material takes its
+# color from paint. Roughness 0.5 as Skin 4's, a guess. No blue-tinted specular: a dielectric's
+# reflection is not tinted.
+[material]
+base_color = [0.8, 0.8, 0.8]
+specular_roughness = 0.5
+specular_ior = 1.4
+subsurface_weight = 1.0
+subsurface_radius = 4.82
+subsurface_radius_scale = [1.0, 0.351, 0.226]

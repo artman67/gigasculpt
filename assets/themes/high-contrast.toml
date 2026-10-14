@@ -1,0 +1,38 @@
+# The high-contrast theme (decision 0025, section 13): the ends of the CIE lightness (L*) scale.
+# Black panels and white text and on state; controls far enough above the panel to show their
+# edges; text_off still legible (6.7 to 1 on panel) though WCAG exempts it. The canvas colors are
+# the dark theme's, judged against the model. Type and spacing are the dark theme's.
+
+title = "High contrast"
+
+[colors]
+panel = "#000000"      # L* 0: trays, shelf, the header's view buttons' options and status line
+header = "#1b1b1b"     # L* 10: section title rows
+control = "#525252"    # L* 35: a button or slider at rest
+hover = "#5e5e5e"      # L* 40: under the pointer
+pressed = "#6a6a6a"    # L* 45: while pressed; selected text and palette rows
+lit = "#ffffff"        # L* 100: a toggle that is on
+on_lit = "#000000"     # L* 0: text on lit
+text = "#ffffff"       # L* 100: labels
+text_dim = "#c6c6c6"   # L* 80: group labels, values and units
+text_off = "#919191"   # L* 60: disabled and waiting controls
+edge = "#5e5e5e"       # L* 40: lines between regions
+backdrop = "#000000c8" # behind what is drawn over the model: black at 200/255
+smooth = "#6ec8ff"
+mask = "#f0d246"
+subtract = "#ff6e5a"
+axis_x = "#e65050"
+axis_y = "#78c85a"
+axis_z = "#508cf0"
+on_axis = "#000000"
+problem = "#ff6e5a"    # a refused command in the status line
+warning = "#f0d246"    # low disk space in the status line
+pen = "#aac8ff"
+pen_down = "#ffc478"
+brush = "#ffe6be"
+pivot = "#ff78c8"
+live_union = "#78c85a"
+live_difference = "#ff6e5a"
+live_intersect = "#508cf0"
+live_issue = "#e040fb"
+live_coplanar = "#f0b432"

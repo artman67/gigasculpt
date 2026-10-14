@@ -1,0 +1,10 @@
+# Flat Color (catalog item material.flat-color). Not a lit look: every pixel is the paint times the
+# base color, shown as stored, with no light, environment, occlusion or tone (decision 0043, step
+# (c)). It is never baked and has no settings to edit. Format: material.look-recipe.
+name = "Flat Color"
+catalog_id = "material.flat-color"
+kind = "flat"
+
+# White, so the paint shows exactly as stored and unpainted parts show white.
+[material]
+base_color = [1.0, 1.0, 1.0]

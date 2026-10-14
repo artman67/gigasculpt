@@ -1,0 +1,43 @@
+[package]
+name = "gs"
+description = "Thin GigaSculpt command-line client and MCP server."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+gs-protocol.workspace = true
+# `gs run --files` finds a file by the content hash the engine pinned.
+blake3.workspace = true
+clap.workspace = true
+schemars.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+serde_path_to_error.workspace = true
+# `gs mcp` only. rmcp releases every week or two, so it is pinned and stays inside
+# src/mcp/adapter.rs (ARCHITECTURE 7.4); the async runtime starts only inside `gs mcp`.
+rmcp = { version = "~3.5.1", default-features = false, features = ["server", "transport-io"] }
+tokio = { version = "1.53", default-features = false, features = ["rt", "macros", "sync"] }
+
+[dev-dependencies]
+# The tests run the real engine code as the session process (see tests/cli.rs), rendering
+# offscreen looks through gs-ui as the gigasculpt binary does (tests/mcp).
+gs-engine.workspace = true
+gs-ui.workspace = true
+base64.workspace = true
+libtest-mimic.workspace = true
+
+[[test]]
+name = "cli"
+path = "tests/cli/main.rs"
+harness = false
+
+[[test]]
+name = "mcp"
+path = "tests/mcp/main.rs"
+harness = false
+
+[lints]
+workspace = true

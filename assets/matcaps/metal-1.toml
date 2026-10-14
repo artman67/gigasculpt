@@ -1,0 +1,15 @@
+# MatCap Metal 1 (catalog item material.matcap-metal-1). A physical look: the shared material model (gs-render
+# shading), lit by the studio environment and baked into a MatCap. Format: material.look-recipe.
+# Colors in brackets are linear; values are the material's, never tuned toward a picture.
+name = "MatCap Metal 1"
+catalog_id = "material.matcap-metal-1"
+environment = "studio"
+
+# Polished stainless steel (physicallybased.info, CC0): reflectance at normal incidence and
+# F82 edge tint from its measured optical constants. Its roughness, a polished finish, is a
+# choice for the maintainer to judge once.
+[material]
+base_color = [0.669, 0.639, 0.598]
+base_metalness = 1.0
+specular_color = [0.789, 0.823, 0.87]
+specular_roughness = 0.15

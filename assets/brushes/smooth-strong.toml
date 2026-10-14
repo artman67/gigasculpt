@@ -1,0 +1,28 @@
+# Smooth Strong: averages over two rings of neighbours with a higher gain, so bumps go faster.
+# The two-ring reading is ours: the mode is documented by name only.
+# Gain and spacing from research 21's measures (decision 0036): it removes a test ripple
+# more than twice as well as Smooth.
+version = 1
+name = "Smooth Strong"
+id = "brush.smooth-strong"
+family = "Smooth"
+strength = 0.5
+claims = ["local", "masked_unchanged", "mirror_symmetric", "spacing_invariant", "rate_invariant", "reference"]
+
+[kernel]
+type = "smooth"
+mode = "stronger"
+gain = 24.0
+
+[tip]
+profile = "smooth"
+
+[stroke]
+class = "dab"
+spacing = 0.025
+tap = 0.5
+
+[live_detail]
+# The most merge allows, where the default is 0.4, as Smooth carries (decision 0021, section 14;
+# decision 0062).
+merge = 0.45

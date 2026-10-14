@@ -1,0 +1,30 @@
+# Paint: paints the Main color onto the surface, and the Secondary color with Alt held, leaving
+# its shape alone (decision 0039). It is Draw with its mode off and a [paint] table: mode "add"
+# paints and draws at once.
+version = 1
+name = "Paint"
+id = "brush.paint-draw"
+family = "Paint"
+strength = 1.0
+mode = "off"
+claims = ["local"]
+
+[kernel]
+type = "offset"
+terms = [{ dir = "area_normal", gain = 0.5 }]
+
+[tip]
+profile = "smooth"
+
+[sampling]
+normal_radius = 0.5
+position_radius = 0.5
+accumulate = true
+
+[stroke]
+class = "dab"
+spacing = 0.1
+tap = 0.5
+
+[paint]
+channel = "color"

@@ -1,0 +1,6 @@
+scene = "voxel-cube"
+look = "zebra"
+size = 512
+adapter = "llvmpipe (LLVM 22.1.8, 256 bits)"
+driver = "llvmpipe Mesa 26.2.2-arch1.1 (LLVM 22.1.8)"
+wgpu = "30.0.1"

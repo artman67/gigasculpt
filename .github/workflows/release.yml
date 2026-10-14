@@ -1,0 +1,161 @@
+name: Release
+
+# A tag v* (for example v0.1.0) builds the downloads and attaches them to a GitHub Release with
+# .github/release-notes.md as its text. Nothing is signed yet; the notes say how to open the
+# apps anyway. Before tagging, set [workspace.package] version in Cargo.toml to the same
+# version, as `gigasculpt --version` reads it there.
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  linux:
+    name: Linux x86_64 (.tar.gz)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      # SDL3's build from source, with the X11 and Wayland video drivers.
+      - name: System packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential cmake pkg-config \
+            libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxfixes-dev libxi-dev \
+            libxss-dev libxtst-dev libxkbcommon-dev libwayland-dev libdecor-0-dev \
+            libegl1-mesa-dev libgl1-mesa-dev libdrm-dev libgbm-dev libdbus-1-dev libudev-dev
+
+      - name: Rust toolchain (from rust-toolchain.toml)
+        run: rustup toolchain install
+
+      - name: Build
+        run: cargo build --release --locked -p gigasculpt -p gs
+
+      - name: Package
+        run: |
+          name="gigasculpt-${GITHUB_REF_NAME}-linux-x86_64"
+          mkdir -p "dist/$name"
+          cp target/release/gigasculpt target/release/gs LICENSE README.md "dist/$name/"
+          tar -C dist -czf "dist/$name.tar.gz" "$name"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux
+          path: dist/*.tar.gz
+
+  windows:
+    name: Windows x86_64 (.zip)
+    # Has CMake and the MSVC compiler.
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Rust toolchain (from rust-toolchain.toml)
+        run: rustup toolchain install
+
+      - name: Build
+        run: cargo build --release --locked -p gigasculpt -p gs
+
+      - name: Package
+        shell: pwsh
+        run: |
+          $name = "gigasculpt-$env:GITHUB_REF_NAME-windows-x86_64"
+          New-Item -ItemType Directory -Force "dist/$name" | Out-Null
+          Copy-Item target/release/gigasculpt.exe, target/release/gs.exe, LICENSE, README.md "dist/$name/"
+          Compress-Archive -Path "dist/$name" -DestinationPath "dist/$name.zip"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: dist/*.zip
+
+  macos:
+    name: macOS universal (.dmg)
+    # Apple silicon, with the Xcode tools and CMake; the Intel half is cross-compiled.
+    runs-on: macos-latest
+    env:
+      MACOSX_DEPLOYMENT_TARGET: "11.0"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Rust toolchain (from rust-toolchain.toml) and both targets
+        run: |
+          rustup toolchain install
+          rustup target add aarch64-apple-darwin x86_64-apple-darwin
+
+      - name: Build for Apple silicon
+        run: cargo build --release --locked -p gigasculpt -p gs --target aarch64-apple-darwin
+
+      - name: Build for Intel
+        run: cargo build --release --locked -p gigasculpt -p gs --target x86_64-apple-darwin
+
+      # One universal program of each, in GigaSculpt.app/Contents/MacOS, where gs finds the
+      # app beside itself.
+      - name: Package
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          app="dist/dmg/GigaSculpt.app"
+          mkdir -p "$app/Contents/MacOS"
+          for bin in gigasculpt gs; do
+            lipo -create -output "$app/Contents/MacOS/$bin" \
+              "target/aarch64-apple-darwin/release/$bin" "target/x86_64-apple-darwin/release/$bin"
+          done
+          cp .github/macos/Info.plist "$app/Contents/Info.plist"
+          plutil -replace CFBundleShortVersionString -string "$version" "$app/Contents/Info.plist"
+          plutil -replace CFBundleVersion -string "$version" "$app/Contents/Info.plist"
+          cp LICENSE README.md dist/dmg/
+          ln -s /Applications dist/dmg/Applications
+          hdiutil create -volname GigaSculpt -srcfolder dist/dmg -format UDZO \
+            "dist/gigasculpt-${GITHUB_REF_NAME}-macos.dmg"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos
+          path: dist/*.dmg
+
+  addon:
+    name: Blender add-on (.zip)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      # The add-on's files at the zip's top level, as Blender's Install from Disk expects.
+      - name: Package
+        run: |
+          mkdir -p dist
+          cd addons/blender/gigasculpt_bridge
+          zip -r "$GITHUB_WORKSPACE/dist/gigasculpt-blender-addon-${GITHUB_REF_NAME}.zip" . -x '__pycache__/*'
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: addon
+          path: dist/*.zip
+
+  publish:
+    name: GitHub Release
+    needs: [linux, windows, macos, addon]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/* \
+            --title "GigaSculpt $GITHUB_REF_NAME" \
+            --notes-file .github/release-notes.md

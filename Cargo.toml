@@ -1,0 +1,99 @@
+[workspace]
+resolver = "3"
+members = ["crates/*", "bins/*"]
+
+[workspace.package]
+version = "0.0.1"
+edition = "2024"
+license = "GPL-3.0-or-later"
+rust-version = "1.99"
+publish = false
+
+[workspace.dependencies]
+gs-protocol = { path = "crates/gs-protocol" }
+gs-engine = { path = "crates/gs-engine" }
+gs-core = { path = "crates/gs-core" }
+gs-geo = { path = "crates/gs-geo" }
+gs-io = { path = "crates/gs-io" }
+gs-par = { path = "crates/gs-par" }
+blake3 = "1.8.7"
+clap = { version = "4.6", features = ["derive", "string"] }
+inventory = "0.3.25"
+jsonschema = { version = "0.58.6", default-features = false }
+libm = "0.2.16"
+proptest = "1.11"
+rayon = "1.12"
+schemars = "1.2.2"
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0"
+serde_path_to_error = "0.1.20"
+strsim = "0.11.1"
+toml = "1.1"
+toml_edit = "0.25.15"
+gs-testkit = { path = "crates/gs-testkit" }
+# GUI shell: platform, window surface, interface.
+gs-platform = { path = "crates/gs-platform" }
+gs-render = { path = "crates/gs-render" }
+gs-ui = { path = "crates/gs-ui" }
+raw-window-handle = "0.6.2"
+sdl3 = { version = "0.20", features = ["build-from-source-static", "raw-window-handle"] }
+egui = { version = "0.36.2", default-features = false }
+egui_kittest = "0.36.2"
+base64 = "0.22.1"
+# Test programs with their own main (harness = false) list and run their cases the way the
+# standard harness does, so cargo test and cargo nextest (the gate's runner) both drive them.
+libtest-mimic = "0.8.2"
+
+# Protected: the gate rejects any change to this section or to [profile.*] made by a build agent.
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+pedantic = { level = "warn", priority = -1 }
+# Pedantic lints that are noise in numeric code:
+cast_possible_truncation = "allow"
+cast_precision_loss = "allow"
+cast_sign_loss = "allow"
+many_single_char_names = "allow"
+similar_names = "allow"
+must_use_candidate = "allow"
+missing_errors_doc = "allow"
+missing_panics_doc = "allow"
+module_name_repetitions = "allow"
+unreadable_literal = "allow"
+# Enabled on purpose (docs/research/06-testing-strategy.md, section 10.2):
+float_cmp = "warn"
+match_same_arms = "warn"
+too_many_lines = "warn"
+iter_over_hash_type = "warn"
+unwrap_used = "warn"
+expect_used = "warn"
+dbg_macro = "warn"
+todo = "warn"
+unimplemented = "warn"
+print_stdout = "warn"
+allow_attributes = "warn"
+allow_attributes_without_reason = "warn"
+undocumented_unsafe_blocks = "warn"
+let_underscore_must_use = "warn"
+missing_assert_message = "warn"
+
+[profile.dev]
+# Line numbers only. Full debug info was 97% of every test program (616 of 639 MB), written again
+# on every build by every agent, and that disk traffic froze the desktop on 2026-10-10. Backtraces
+# keep file and line.
+debug = "line-tables-only"
+
+[profile.dev.package."*"]
+# Dependencies (wgpu above all) are unusably slow unoptimized, and need no debug info.
+opt-level = 3
+debug = false
+
+[profile.test]
+# Our tests at opt-level 1 run about 5x faster than at 0 and give the same bits; overflow checks
+# and debug assertions stay on (decision 0008). The gate sets the same through the environment.
+opt-level = 1
+
+[profile.mutants]
+inherits = "test"
+debug = "none"

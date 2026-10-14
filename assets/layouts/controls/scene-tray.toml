@@ -1,0 +1,90 @@
+# GigaSculpt controls: the Scene tray's sets. Each tray's sets are a file in this folder, and a
+# layout may show any set by its name, whichever file holds it. The format, field by field:
+# docs/reference/controls.md.
+
+# Scene tray > History: each button names its step and counts the steps that way, "Undo Draw
+# stroke (3)", and is disabled with none (decision 0016, sections 16 and 17). Adjust opens the
+# adjust panel again for the newest step; with nothing to adjust the status line says so, as F9
+# does (decision 0060 as amended for H2, section 11, and for S1, section 6).
+[[set]]
+name = "history"
+title = "History"
+controls = [
+  { label = "Undo", command = "history.undo", names = "history.undo", counts = "history.undos", hint = "Takes back the newest step, which the button names with how many there are. Key: Ctrl+Z." },
+  { label = "Redo", command = "history.redo", names = "history.redo", counts = "history.redos", hint = "Brings back the step Undo took last, which the button names with how many there are. Keys: Ctrl+Shift+Z, Ctrl+Y." },
+  { label = "Adjust", command = "ui.adjust", args = { open = true }, hint = "Opens the adjust panel again for the newest step, when a menu, the palette or a key made it. Key: F9." },
+]
+
+# Scene tray > Parts, one row per part (decision 0033, section 7): what a tap on a row runs.
+# `Name` is the part's name, lit while the part is active; `Eye` is its eye, lit while the eye
+# is on; `Shift+Eye` is the eye tapped with Shift held, which gives every part's eye the state
+# the tap gives this one (catalog parts.visibility), so on a visible part it hides every part
+# but the active one and on a hidden part it shows them all; `Isolate` is the part's button in
+# the header's Isolate options, lit while the part shows. "flip" is the opposite of the row's
+# light.
+[[set]]
+name = "part-row"
+title = "Part row"
+row = true
+controls = [
+  { label = "Select", group = "Name", command = "part.select", args = { part = "@row" }, hint = "Makes this part the active one, which strokes and the Part menu work on. (Blender: Active object.)" },
+  { label = "Visible", group = "Eye", command = "part.set_visible", args = { parts = ["@row"], visible = "flip" }, hint = "Shows or hides this part, lit while it shows. Shift sets every part the same way." },
+  { label = "Visible", group = "Shift+Eye", command = "part.set_visible", args = { visible = "flip" }, hint = "Shows or hides every part: each takes the state this row's tap gives it." },
+  { label = "Paint", group = "Paint", command = "part.set_paint_visible", args = { part = "@row", visible = "flip" }, hint = "Show Paint: lit while the part's paint shows; the paint is kept while hidden. Shift sets every part the same way" },
+  { label = "Paint", group = "Shift+Paint", command = "part.set_paint_visible", args = { every = true, visible = "flip" }, hint = "Show Paint for every part: each takes the state this row's tap gives it" },
+  { label = "Isolate", group = "Isolate", command = "part.isolate", args = { parts = ["@row"] }, hint = "Shows this part alone, lit while it shows; pressing the part shown alone ends Isolate. (Blender: Local view.)" },
+]
+
+# Scene tray > Parts is the list alone, its rows the `part-row` set above, and its title names
+# the active part (decision 0060 as amended for S1, section 1). Rows shown is in Settings >
+# Interface (settings.toml's `part-list`), the list's operations are the header's Part menu and
+# a new part its Add menu (header.toml), and Isolate's one home is the view's own buttons.
+
+# Scene tray > Detail (decision 0060, section 7, as amended for S1, section 3). gs-ui
+# `pieces/detail.rs` draws the `Level` group's arrows around the active part's level and count,
+# `‹ 3 of 5 ›` with no label, so the row fits a tray of the shipped width, then the rest along
+# the same row: Subdivide (marked `adjust`, so a tap opens the adjust panel with Smooth and
+# Smooth UVs) and the level's `···`, which lists the
+# `levels` set. A level command the engine refuses now is drawn disabled with its reason
+# (decision 0030), and an arrow, Delete lower or Delete higher at its end with the engine's
+# words for that no-op. Live's settings show only while it is on: how the detail size is
+# measured (the brush's radius, pixels on screen, or scene units, which need a size, so Units
+# asks for it) on a row of their own under `Live [On]`, one Size slider for the measure in use,
+# and Merge with its length while on.
+[[set]]
+name = "detail"
+title = "Detail"
+controls = [
+  { label = "Lower level", short = "‹", group = "Level", command = "level.step", args = { by = -1 }, hint = "Steps the active part down or up its detail levels. Keys: Shift+D, D. (Blender: Multires level.)" },
+  { label = "Higher level", short = "›", group = "Level", command = "level.step", args = { by = 1 }, hint = "Steps the active part down or up its detail levels. Keys: Shift+D, D. (Blender: Multires level.)" },
+  { label = "Subdivide", command = "level.subdivide", adjust = true, hint = "Adds a level with four faces for each one (three for a triangle), smoothed. Key: Ctrl+D." },
+  { label = "Level operations", short = "···", options = "levels", adjust = true, hint = "Go to a level, delete lower or higher levels, freeze them, or rebuild a lower one." },
+  # Dimmed, with why on hover, while the brush's backface, face group or topology automask
+  # keeps Live Detail off, and still usable (decision 0021, section 3); gs-ui
+  # viewport/cursor.rs `Detail::switch` dims it by what it shows.
+  { label = "Live Detail", short = "On", line = "Live", command = "live_detail.set", args = { toggle = true }, shows = "live_detail.on", hint = "The mesh adds and removes triangles under the brush as you sculpt. Key: Backslash. (Blender: Dynamic Topology.)" },
+  { label = "Detail by brush size", short = "Brush", line = "", command = "live_detail.set", args = { mode = "brush" }, shows = "live_detail.mode", on = "brush", while = "live_detail.on", hint = "What the detail size is measured against: the brush's size, screen pixels, or scene units." },
+  { label = "Detail on screen", short = "Screen", line = "", command = "live_detail.set", args = { mode = "screen" }, shows = "live_detail.mode", on = "screen", while = "live_detail.on", hint = "What the detail size is measured against: the brush's size, screen pixels, or scene units." },
+  { label = "Detail in scene units", short = "Units", line = "", command = "ui.palette", args = { form = "live_detail.set", args = { mode = "constant" }, ask = ["size"] }, shows = "live_detail.mode", on = "constant", while = "live_detail.on", hint = "What the detail size is measured against: the brush's size, screen pixels, or scene units." },
+  { label = "Detail size (brush)", short = "Size (brush)", command = "live_detail.set", args = { mode = "brush", size = "drag" }, shows = "live_detail.size", range = [0.01, 1.0], while = { "live_detail.on" = true, "live_detail.mode" = "brush" }, hint = "How small the new triangles are, in the chosen measure: a share of the brush's radius." },
+  { label = "Detail size (pixels)", short = "Size (px)", command = "live_detail.set", args = { mode = "screen", size = "drag" }, shows = "live_detail.size", range = [2.0, 200.0], while = { "live_detail.on" = true, "live_detail.mode" = "screen" }, hint = "How small the new triangles are, in the chosen measure: pixels on screen." },
+  { label = "Detail size (units)", short = "Size (units)", command = "live_detail.set", args = { mode = "constant", size = "drag" }, shows = "live_detail.size", range = [0.001, 0.1], while = { "live_detail.on" = true, "live_detail.mode" = "constant" }, hint = "How small the new triangles are, in the chosen measure: scene units." },
+  { label = "Merge short edges", short = "On", line = "Merge", command = "live_detail.set", args = { combined = "flip" }, shows = "live_detail.combined", while = "live_detail.on", hint = "Merges short edges as you sculpt; off, Live Detail only adds triangles." },
+  { label = "Merge length", short = "Length", command = "live_detail.set", args = { merge = "drag" }, shows = "live_detail.merge", range = [0.0, 0.45], while = { "live_detail.on" = true, "live_detail.combined" = true }, hint = "Joins edges shorter than this length as you sculpt, so the mesh does not grow without end." },
+]
+
+# Scene tray > Detail > Level operations: the level's `···` lists these, in section 7's order and
+# words. Go to level… opens the palette's form for `level.set`. Delete lower at the base and
+# Delete higher at the top are held back with the engine's words, the rest disabled while the
+# engine refuses them; Reconstruct lower can only fail once it runs, on the status line.
+[[set]]
+name = "levels"
+title = "Level operations"
+controls = [
+  { label = "Go to level…", command = "ui.palette", args = { form = "level.set" }, hint = "Jumps to a level by number." },
+  { label = "Delete lower", command = "level.delete_lower", hint = "Keeps this level as the lowest; the levels under it go." },
+  { label = "Delete higher", command = "level.delete_higher", hint = "Keeps this level as the highest; the levels over it go." },
+  { label = "Freeze", command = "level.freeze", hint = "Keeps the higher levels' detail while the base is remeshed or reshaped." },
+  { label = "Unfreeze", command = "level.unfreeze", hint = "Rebuilds the frozen levels over the new base." },
+  { label = "Reconstruct lower", command = "level.reconstruct", hint = "Works out one level under the lowest from its shape." },
+]

@@ -1,0 +1,13 @@
+about = "A smooth quad sphere: shading, MatCaps and stripes over a surface with no detail."
+view = "iso"
+looks = [
+  "zebra", "matcap:gray", "matcap:red-wax", "matcap:white", "matcap:red-clay",
+  "matcap:light-brown-clay", "matcap:green-clay", "matcap:bone", "matcap:white-cavity",
+  "matcap:skin-4", "matcap:metal-1", "matcap:chrome-a", "matcap:sketch",
+  "matcap:sketch-shaded-1", "lit:gray", "lit:chrome-a", "lit:skin-4",
+]
+closed = true
+
+[[step]]
+command = "primitive.sphere"
+args = { subdivisions = 32 }

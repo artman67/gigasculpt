@@ -1,0 +1,31 @@
+# Pull Out Along Normal: Pull Out pulling out along the surface's normal where the stroke started
+# rather than across the screen. On a screen stroke the pointer lands on the plane through the
+# grab that holds that normal and faces the camera most, so dragging the way the normal points
+# on screen pulls straight out of the surface (decision 0049, section 7). The Brush Modifier
+# blends toward the screen plane: at -100 it pulls as Pull Out does. A stroke given as world
+# points goes where they are, as Pull Out's does.
+version = 1
+name = "Pull Out Along Normal"
+id = "brush.pull-out-along-normal"
+family = "Move"
+strength = 1.0
+claims = ["local", "masked_unchanged", "mirror_symmetric", "rate_invariant", "reference"]
+
+[kernel]
+type = "hook"
+pinch = 0.0
+direction = "normal"
+
+[tip]
+profile = "smooth"
+
+[stroke]
+class = "dab"
+spacing = 0.1
+tap = 0.5
+
+[pressure]
+strength = [[0, 1], [1, 1]]
+# A flat size curve of its own, as on the Move brushes it grabs like: the session's size curve
+# passes this brush by (decision 0036).
+size = [[0, 1], [1, 1]]

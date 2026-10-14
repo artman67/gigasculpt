@@ -1,0 +1,15 @@
+# MatCap White Cavity (catalog item material.matcap-white-cavity). A physical look: the shared material model (gs-render
+# shading), lit by the studio environment and baked into a MatCap. Format: material.look-recipe.
+# Colors in brackets are linear; values are the material's, never tuned toward a picture.
+name = "MatCap White Cavity"
+catalog_id = "material.matcap-white-cavity"
+environment = "studio"
+
+# Unglazed porcelain: the albedo of porcelain (physicallybased.info, CC0) with a matte bisque
+# surface instead of its glaze (roughness 0.8, within the matte plaster band), a choice for
+# the maintainer to judge once. Crease shading comes from ambient occlusion (phase 4), not
+# from a second image.
+[material]
+base_color = [0.745, 0.745, 0.723]
+specular_roughness = 0.8
+specular_ior = 1.5

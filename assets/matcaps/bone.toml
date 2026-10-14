@@ -1,0 +1,12 @@
+# MatCap Bone (catalog item material.matcap-bone). A physical look: the shared material model (gs-render
+# shading), lit by the studio environment and baked into a MatCap. Format: material.look-recipe.
+# Colors in brackets are linear; values are the material's, never tuned toward a picture.
+name = "MatCap Bone"
+catalog_id = "material.matcap-bone"
+environment = "studio"
+
+# Bone (physicallybased.info, CC0).
+[material]
+base_color = [0.793, 0.793, 0.664]
+specular_roughness = 0.9
+specular_ior = 1.5

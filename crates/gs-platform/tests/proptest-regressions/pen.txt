@@ -1,0 +1,7 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 8bfc6a5e1b8fffb125b043e3b93db173d1f27077c7f4d99843ce7c24193c0976 # shrinks to items = [Frame(Frame { pen: 1, t_ns: 2000000, events: [In, Motion(0.0, 0.0), Distance(0.0), Out] }), Mouse(0.0, 0.0)], density = 2.0

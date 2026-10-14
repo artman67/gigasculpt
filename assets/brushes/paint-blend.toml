@@ -1,0 +1,25 @@
+# Paint Blend: blends painted color with its neighbours', in linear light, leaving the shape
+# alone (decision 0039). It is Smooth with its mode off and a [paint] table; Smooth itself
+# blends color too when its settings add a [paint] table.
+version = 1
+name = "Paint Blend"
+id = "brush.paint-blend"
+family = "Paint"
+strength = 1.0
+mode = "off"
+
+[kernel]
+type = "smooth"
+mode = "uniform"
+gain = 2.0
+
+[tip]
+profile = "smooth"
+
+[stroke]
+class = "dab"
+spacing = 0.1
+tap = 0.5
+
+[paint]
+channel = "color"

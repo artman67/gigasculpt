@@ -1,0 +1,20 @@
+# Pinch: pulls vertices toward the brush center within the surface; along a stroke that
+# tightens them toward the stroke line.
+version = 1
+name = "Pinch"
+id = "brush.pinch"
+family = "Carve"
+strength = 0.25
+claims = ["local", "masked_unchanged", "mirror_symmetric", "spacing_invariant", "rate_invariant", "reference"]
+
+[kernel]
+type = "offset"
+terms = [{ dir = "to_center", gain = 2.0, tangent = true }]
+
+[tip]
+profile = "smooth"
+
+[stroke]
+class = "dab"
+spacing = 0.1
+tap = 0.5

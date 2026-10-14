@@ -1,0 +1,251 @@
+# GigaSculpt controls: the header's menus (decision 0060, sections 2 and 3). Each menu is a set,
+# named in the layout's `[header]` `menus`; a menu shows each control by its `short` label, its
+# `group`s as small headings over their items, a thin line between groups (and above a control
+# with `separator = true`), its key at the right and "…" after an item that opens the palette's
+# form first. A control's `options` name its submenu. The format, field by field:
+# docs/reference/controls.md.
+
+# File (section 3). New and Revert open the palette's form first, so a click alone never drops
+# work; Open and a recent scene ask before they drop unsaved changes, and a first Save asks a
+# name: the engine's refusal names what it lacks and the window asks for it (decision 0016,
+# section 17). Open recent lists `file.recent`'s scenes, the set `recent`, newest first: its
+# first row is the scene saved last. The Part file group writes the active part alone. The
+# bridge to Blender comes last, as a side feature.
+[[set]]
+name = "file"
+title = "File"
+controls = [
+  { label = "New scene", short = "New", command = "ui.palette", args = { form = "file.new", ask = ["discard_changes"] }, hint = "Starts an empty scene with no file, asking first while there are unsaved changes. Key: Ctrl+N." },
+  { label = "Open scene", short = "Open", command = "ui.palette", args = { form = "file.open", ask = ["path"] }, hint = "Opens a scene or Part file in place of this scene, asking first while there are unsaved changes. Key: Ctrl+O." },
+  { label = "Open a recent scene", short = "Open recent", options = "recent", hint = "The scenes opened or saved lately, newest first: the first is the one saved last." },
+  { label = "Save", command = "file.save", separator = true, hint = "Writes the scene to its own file, keeping the old one as a backup; a scene with no file yet asks for a name. Key: Ctrl+S." },
+  { label = "Save scene as", short = "Save as", command = "ui.palette", args = { form = "file.save", ask = ["path"] }, hint = "Writes the scene to a file you name, which becomes its own file from then on." },
+  { label = "Save next numbered", short = "Save next", command = "file.save_next", hint = "Writes the scene under the next number after its own file's name, head_001 then head_002, which becomes its own file. Key: Ctrl+Alt+S. (Blender: Save Incremental.)" },
+  { label = "Quick save", command = "file.quick_save", hint = "Writes a numbered copy to the scene's autosave folder, leaving its own file alone. Key: 9." },
+  { label = "Revert to saved", short = "Revert", command = "ui.palette", args = { form = "file.revert" }, hint = "Opens the scene's own file again, dropping every change since it was saved. Key: Ctrl+Alt+R." },
+  { label = "Save Part file", short = "Save", group = "Part file", command = "ui.palette", args = { form = "file.save", args = { parts = ["@active"] }, ask = ["path"] }, hint = "Writes the active part alone to a Part file, asking where. Key: Ctrl+Shift+T." },
+  { label = "Save next Part file", short = "Save next", group = "Part file", command = "file.save_next", args = { parts = ["@active"] }, hint = "Writes the active part alone under the next number after the Part file saved last, asking where to count from the first time." },
+  { label = "Import a file", short = "Import", command = "ui.palette", args = { form = "file.import" }, hint = "Reads an OBJ, PLY, STL, ZTL or ZPR file into the scene as new parts, in one undo step." },
+  { label = "Export a file", short = "Export", command = "ui.palette", args = { form = "file.export" }, hint = "Writes one part, or every part, to an OBJ, PLY or STL file." },
+  { label = "Send to Blender", short = "Send", group = "Blender", command = "exchange.write", args = { folder = "to-blender" }, hint = "Writes every part for Blender: Get from GigaSculpt in the add-on loads what it wrote." },
+  { label = "Read from Blender", short = "Read", group = "Blender", command = "exchange.read", args = { folder = "from-blender" }, hint = "Brings in what Send to GigaSculpt in the add-on wrote, as new parts in one undo step." },
+]
+
+# File > Open recent's list (decision 0016, section 17, item 7): a row to each of
+# `file.recent`'s scenes, newest first, by name with its folder's name dimmed and its path on
+# hover. A tap on a row runs this, `"@row"` being the scene's place in the list; a file moved
+# or deleted shows dimmed and cannot be picked.
+[[set]]
+name = "recent"
+title = "Recent"
+row = true
+controls = [
+  { label = "Open", command = "file.open", args = { recent = "@row" }, hint = "Opens this scene, asking first while there are unsaved changes." },
+]
+
+# Mesh (section 3, amended for H3): the operations that rebuild or change the active part, moved
+# from Scene tray > Geometry with their commands unchanged. Voxel Remesh runs at the cell size the
+# part keeps, and the adjust panel then sets another resolution (H2; decision 0062 dropped
+# Voxel Remesh…, which asked for one first). Mirror and weld is one row of its three axes, each
+# keeping the + side; the palette's form keeps the other (decision 0025, rule 13).
+[[set]]
+name = "mesh"
+title = "Mesh"
+controls = [
+  { label = "Voxel Remesh", group = "Remesh", command = "mesh.voxel_remesh", hint = "Rebuilds the part as an even mesh, closing holes and joining overlaps, at the cell size it keeps; the adjust panel then sets another resolution. Key: Ctrl+R. (Blender: Voxel Remesh.)" },
+  { label = "Voxel mode", group = "Remesh", command = "mesh.voxel_mode", args = { on = "flip" }, shows = "parts.voxel_mode", hint = "While on, a Ctrl drag on empty canvas with the mask clear remeshes the part again at the size it keeps. Turning it on remeshes it once." },
+  { label = "Quad Remesh", group = "Remesh", command = "ui.palette", args = { form = "mesh.quad_remesh", ask = ["faces", "keep_groups", "symmetry", "detail"] }, hint = "Rebuilds the part as quads in flowing rows, to a face count. (Blender: Quadriflow.)" },
+  { label = "Decimate", group = "Remesh", command = "ui.palette", args = { form = "mesh.decimate", ask = ["percent", "faces"] }, hint = "Lowers the face count while keeping the shape." },
+  { label = "Mirror and weld X", short = "X", line = "Mirror and weld", group = "Modify", command = "mesh.symmetrize", args = { axis = "x" }, hint = "Copies the part's +X side onto the other across X and joins the seam. (Blender: Symmetrize.)" },
+  { label = "Mirror and weld Y", short = "Y", line = "Mirror and weld", group = "Modify", command = "mesh.symmetrize", args = { axis = "y" }, hint = "Copies the part's +Y side onto the other across Y and joins the seam. (Blender: Symmetrize.)" },
+  { label = "Mirror and weld Z", short = "Z", line = "Mirror and weld", group = "Modify", command = "mesh.symmetrize", args = { axis = "z" }, hint = "Copies the part's +Z side onto the other across Z and joins the seam. (Blender: Symmetrize.)" },
+  { label = "Project Detail", group = "Modify", command = "ui.palette", args = { form = "mesh.project_detail", ask = ["source", "distance", "divide"] }, hint = "Copies the surface detail of another part onto this one." },
+]
+
+# Mask (section 3, amended for H3): the mask's own operations first, with no heading (a Mask
+# heading would repeat the menu's word), then its filters and the masks made from the surface,
+# moved from Scene tray > Masking. The quick menu shows the first group (`mask/`).
+[[set]]
+name = "mask"
+title = "Mask"
+controls = [
+  { label = "Mask all", short = "All", command = "mask.set", args = { value = 1 }, hint = "Masks the whole part. Key: Ctrl+A." },
+  { label = "Invert mask", short = "Invert", command = "mask.invert", args = { scope = "all" }, hint = "Masked becomes unmasked and the other way round, hidden points too. Key: Ctrl+I." },
+  { label = "Clear mask", short = "Clear", command = "mask.set", args = { value = 0, scope = "all" }, hint = "Removes the mask, from hidden points too. Key: Alt+M." },
+  { label = "Grow mask", short = "Grow", group = "Filter", command = "mask.filter", args = { op = "grow" }, hint = "Moves the mask's edge out by one ring of points." },
+  { label = "Shrink mask", short = "Shrink", group = "Filter", command = "mask.filter", args = { op = "shrink" }, hint = "Moves the mask's edge in by one ring of points." },
+  { label = "Blur mask", short = "Blur", group = "Filter", command = "mask.filter", args = { op = "blur" }, hint = "Softens the mask's edge." },
+  { label = "Sharpen mask", short = "Sharpen", group = "Filter", command = "mask.filter", args = { op = "sharpen" }, hint = "Makes the mask's edge crisper." },
+  { label = "Boost mask", short = "Boost", group = "Filter", command = "mask.filter", args = { op = "boost" }, hint = "Makes the whole mask stronger." },
+  { label = "Dilute mask", short = "Dilute", group = "Filter", command = "mask.filter", args = { op = "dilute" }, hint = "Makes the whole mask weaker." },
+  { label = "Normalize mask", short = "Normalize", group = "Filter", command = "mask.filter", args = { op = "normalize" }, hint = "Stretches the mask so its weakest point is 0 and its strongest 1." },
+  { label = "Mask by cavity", short = "From cavity", group = "Make", command = "mask.make", args = { maker = { by = "cavity" } }, hint = "Masks the creases and hollows." },
+  { label = "Mask by features", short = "From features", group = "Make", command = "mask.make", args = { maker = { by = "features" } }, hint = "Masks the open borders and where face groups meet." },
+]
+
+# Visible (section 3, amended for H3): what shows, moved from Scene tray > Masking's Visibility
+# group. Hide unmasked and Show unmasked are the catalog's Hide by mask and Show by mask.
+[[set]]
+name = "visible"
+title = "Visible"
+controls = [
+  { label = "Hide masked", short = "Masked", group = "Hide", command = "visibility.hide", args = { select = { by = "masked" } }, hint = "Hides the masked faces." },
+  { label = "Hide unmasked", short = "Unmasked", group = "Hide", command = "visibility.hide", args = { select = { by = "unmasked" } }, hint = "Hides the unmasked faces." },
+  { label = "Show unmasked", short = "Unmasked", group = "Show", command = "visibility.show", args = { select = { by = "unmasked" } }, hint = "Shows the unmasked faces again." },
+  { label = "Show all", short = "All", group = "Show", command = "visibility.show_all", hint = "Shows every face." },
+  { label = "Grow visible area", short = "Grow", group = "Area", command = "visibility.grow", hint = "Shows one more ring of faces around what is visible. Key: Ctrl+Shift+X." },
+  { label = "Shrink visible area", short = "Shrink", group = "Area", command = "visibility.shrink", hint = "Hides the outer ring of the visible faces. Key: Ctrl+Shift+S." },
+  { label = "Invert visibility", short = "Invert", group = "Area", command = "visibility.invert", hint = "Hidden faces show and visible ones hide." },
+  { label = "Show whole shells", short = "Shells", group = "Whole", command = "visibility.grow", args = { to = "shells" }, hint = "Shows every face of any separate piece that is partly visible. Key: Ctrl+Shift+A." },
+  { label = "Show whole groups", short = "Groups", group = "Whole", command = "visibility.grow", args = { to = "groups" }, hint = "Shows every face of any face group that is partly visible. Key: Ctrl+Shift+Q." },
+]
+
+# Groups (section 3, amended for H3): face groups made from the shape, what is visible, the
+# camera or the mask, then the visible faces put in one group (a new one, or the id asked for)
+# and groups merged (decision 0026), moved from Scene tray > Face Groups. The camera is the main
+# view's.
+[[set]]
+name = "groups"
+title = "Groups"
+controls = [
+  { label = "Groups from shells", short = "Shells", group = "Make from", command = "group.make", args = { maker = { by = "shells" } }, hint = "Gives each separate piece of the part a face group of its own." },
+  { label = "Groups by surface angle", short = "Surface angle", group = "Make from", command = "group.make", args = { maker = { by = "normals" } }, hint = "Splits the part into face groups wherever the surface turns more than 30 degrees: a cube gives six." },
+  { label = "Group visible faces", short = "Visible faces", group = "Make from", command = "group.make", args = { maker = { by = "visible" } }, hint = "Puts every visible face in one new face group." },
+  { label = "Group faces facing the camera", short = "Facing the camera", group = "Make from", command = "group.make", args = { maker = { by = "front" } }, hint = "Puts the visible faces turned toward the view in one new face group, inner ones too." },
+  { label = "Group masked faces", short = "Mask", group = "Make from", command = "group.make", args = { maker = { by = "masked" } }, hint = "Puts the masked faces in one new face group, or every visible face when nothing is masked." },
+  { label = "Group masked faces and clear mask", short = "Mask and clear it", group = "Make from", command = "group.make", args = { maker = { by = "masked", clear_mask = true } }, hint = "Puts the masked faces in one new face group and clears the mask, in one undo step. Key: Ctrl+W." },
+  { label = "Visible faces to a group", short = "Visible into one", group = "Edit", command = "ui.palette", args = { form = "group.assign", args = { select = { by = "visible" } }, ask = ["id"] }, hint = "Puts every visible face in one face group: a new one, or the number you give." },
+  { label = "Merge groups", short = "Merge", group = "Edit", command = "ui.palette", args = { form = "group.merge" }, hint = "Folds the face groups you name into one, hidden faces too." },
+]
+
+# Add (section 3, amended for H4 and A1): a new part at the end of the list, made active, with
+# the engine's own defaults; the adjust panel then opens with the primitive's settings (its
+# form, density and detail levels; decision 0047, sections 7 to 12), as Blender's Adjust Last
+# Operation does. The other primitives join this group as they are built, and the Generate
+# area's makers come as a second group.
+[[set]]
+name = "add"
+title = "Add"
+controls = [
+  { label = "Sphere", command = "primitive.sphere", hint = "Adds a sphere of even quads at the end of the list and makes it the active part; the adjust panel then sets its form, density and detail levels." },
+  { label = "Cube", command = "primitive.cube", hint = "Adds a cube at the end of the list and makes it the active part; the adjust panel then sets its density and detail levels." },
+  { label = "Cylinder", command = "primitive.cylinder", hint = "Adds a closed cylinder with flat caps at the end of the list and makes it the active part; the adjust panel then sets its density and detail levels." },
+]
+
+# Part (section 3, amended for H4): the operations on the active part, the one lit in Scene tray
+# > Parts' list, moved from under the list with their commands unchanged (decisions 0028 and
+# 0033). In an empty scene each row the engine refuses is gray with its reason, and none asks
+# which part (amendment H4, item 4). Rename asks only for the new name, and Mirror copy is one
+# row of its three axes (decision 0025, rule 13). `part.add` stays a command, in the palette.
+[[set]]
+name = "part"
+title = "Part"
+controls = [
+  { label = "Duplicate", command = "part.duplicate", hint = "Copies the active part, every level, mask and group with it, directly below it, and makes the copy active. Key: Ctrl+Shift+D." },
+  { label = "Mirror copy X", short = "X", line = "Mirror copy", command = "part.mirror_copy", args = { axis = "x" }, hint = "Adds a copy of the active part mirrored left to right across the origin, directly below it. A part with detail levels is refused." },
+  { label = "Mirror copy Y", short = "Y", line = "Mirror copy", command = "part.mirror_copy", args = { axis = "y" }, hint = "Adds a copy of the active part mirrored top to bottom across the origin, directly below it. A part with detail levels is refused." },
+  { label = "Mirror copy Z", short = "Z", line = "Mirror copy", command = "part.mirror_copy", args = { axis = "z" }, hint = "Adds a copy of the active part mirrored front to back across the origin, directly below it. A part with detail levels is refused." },
+  { label = "Rename", group = "Order", command = "ui.palette", args = { form = "part.rename", ask = ["name"] }, hint = "Gives the active part a new name, asking for it first; no two parts may share a name." },
+  { label = "Move up", group = "Order", command = "part.reorder", args = { to = "up" }, hint = "Moves the active part one place up the list; the others keep their order." },
+  { label = "Move down", group = "Order", command = "part.reorder", args = { to = "down" }, hint = "Moves the active part one place down the list; the others keep their order." },
+  { label = "Show all parts", short = "Show all", group = "Order", command = "part.set_visible", args = { visible = true }, hint = "Turns every part's eye on. While Isolate is on it decides what shows, and the eyes count once it ends." },
+  { label = "Split into shells", short = "Shells", group = "Split", command = "part.split", args = { by = "shells" }, hint = "Cuts the active part into one part per separate piece, faces sharing an edge staying together, the new ones directly below it. A part with detail levels is refused." },
+  { label = "Split by groups", short = "Groups", group = "Split", command = "part.split", args = { by = "groups" }, hint = "Cuts the active part into one part per face group, the new ones directly below it. A part with detail levels is refused." },
+  { label = "Split by mask", short = "Mask", group = "Split", command = "part.split", args = { by = "mask" }, hint = "Cuts the masked faces off the active part into a new part directly below it, paint and groups kept. A part with detail levels is refused." },
+  { label = "Split off hidden", short = "Hidden", group = "Split", command = "part.split", args = { by = "hidden" }, hint = "Cuts the hidden faces off the active part into a new part directly below it; both then show every face. A part with detail levels is refused." },
+  { label = "Extract", group = "Split", command = "part.extract", hint = "Adds a thick shell made from the masked faces, or every visible face when none is masked, as a new part directly below the active one, which keeps its mask." },
+  { label = "Merge down", short = "Down", group = "Merge", command = "part.merge_down", hint = "Joins the active part and the one below it into one part in its place. A part with detail levels is refused." },
+  { label = "Merge visible", short = "Visible", group = "Merge", command = "part.merge_visible", hint = "Merges every part that shows into one new part at the end of the list; the parts stay as they are." },
+  { label = "Remesh visible", group = "Merge", command = "part.remesh", hint = "Voxel remeshes every part that shows together into one new part of even quads at the end of the list; the parts stay as they are." },
+  { label = "Delete", short = "This part", group = "Delete", command = "part.delete", hint = "Deletes the active part; the one after it becomes active, else the one before. One undo brings it back." },
+  { label = "Delete others", short = "Others", group = "Delete", command = "part.delete", args = { scope = "others" }, hint = "Deletes every part but the active one, in one undo step." },
+  { label = "Delete hidden", short = "Hidden", group = "Delete", command = "part.delete", args = { scope = "hidden" }, hint = "Deletes every part whose eye is off and that does not show, never the active part, in one undo step." },
+  { label = "Delete all", short = "All", group = "Delete", command = "part.delete", args = { scope = "all" }, hint = "Deletes every part, leaving the scene empty, in one undo step." },
+]
+
+# View (section 3, amended for H4): the camera. Look along and Iso run what V then X, Y, Z or I
+# runs, on the window's 3D view, where a key runs on the view under the pointer; the same axis
+# again looks from the other side (decision 0017). Level (V H) stays among the view's own
+# buttons until H5's step is merged (amendment H4, item 2). Undo move and Redo move step through
+# the camera's own history, never the model's. Reference opens a Reference View beside the 3D
+# view (decisions 0020 and 0024), moved from Scene tray > Reference; its own bar is
+# reference.toml's.
+[[set]]
+name = "view-menu"
+title = "View"
+controls = [
+  { label = "Level", command = "view.level", hint = "Takes the lean out of the view: the horizon level and the picture upright, still looking where it did. Keys: V, then H." },
+  { label = "Look along X", short = "X", line = "Look along", command = "view.align", args = { to = "left", toggle = true }, hint = "Turns the 3D view to look along X from the left; again, from the right. Key: V X." },
+  { label = "Look along Y", short = "Y", line = "Look along", command = "view.align", args = { to = "top", toggle = true }, hint = "Turns the 3D view to look down Y from the top; again, from the bottom. Key: V Y." },
+  { label = "Look along Z", short = "Z", line = "Look along", command = "view.align", args = { to = "front", toggle = true }, hint = "Turns the 3D view to look along Z from the front; again, from the back. Key: V Z." },
+  { label = "Iso view", short = "Iso", command = "view.align", args = { to = "iso" }, hint = "Turns the 3D view to look from the front, the right and above at once. Key: V I." },
+  { label = "Undo view move", short = "Undo move", group = "Camera", command = "view.undo", hint = "Puts the camera back where it was before its last move, up to 50 back; the model's undo never touches it. Key: Alt+Z." },
+  { label = "Redo view move", short = "Redo move", group = "Camera", command = "view.redo", hint = "Takes back the last Undo view move; any other camera move clears it. Key: Shift+Alt+Z." },
+  { label = "Reference from a file", short = "From a file", group = "Reference", command = "ui.palette", args = { form = "reference.open", ask = ["file"] }, hint = "Shows a model file in a Reference View beside the 3D view, turning with it, asking for the file; it never enters the scene." },
+  { label = "Reference: this scene", short = "This scene", group = "Reference", command = "reference.open", args = { scene = true }, hint = "Shows this scene, live, in a Reference View beside the 3D view: for example the whole model while you work close." },
+  { label = "Reference from parts", short = "From parts", group = "Reference", command = "ui.palette", args = { form = "reference.open", ask = ["parts"] }, hint = "Shows copies of the parts you name, as they are now, in a Reference View beside the 3D view; later edits do not show in it." },
+]
+
+# Window (section 3, amended for H4): the window itself, moved from Scene tray > Interface with
+# its commands unchanged. Settings opens the settings window, which asks nothing first, so it
+# has no "…". Left hand mirrors the window (decision 0025). Show 1 to 3 show the arrangements
+# Save 1 to 3 saved, the layout shown with its trays at their widths (decision 0025, section 5,
+# provisional); Next and Previous step through every layout and Restore shows the Workbench as
+# shipped (interface.layout-presets). Panels shows and hides each tray, every panel at once (the
+# palette brings them back) and one section open at a time unless Shift is held
+# (interface.layouts).
+[[set]]
+name = "window"
+title = "Window"
+controls = [
+  { label = "Settings", command = "ui.settings", args = { open = true }, hint = "Opens the settings window: the pen, the interface, navigation, the cursor, files and geometry, a page at a time." },
+  { label = "Left hand", short = "Left", line = "Hand", separator = true, command = "ui.layout", args = { hand = "left" }, shows = "layout.hand", on = "left", hint = "Lit while the window is arranged for a pen in the left hand: it mirrors the window, the trays and strips moving to the other side." },
+  { label = "Right hand", short = "Right", line = "Hand", command = "ui.layout", args = { hand = "right" }, shows = "layout.hand", on = "right", hint = "Lit while the window is arranged for a pen in the right hand, as it ships." },
+  { label = "Arrangement 1", short = "1", line = "Show", group = "Arrangement", command = "ui.layout", args = { name = "arrangement-1" }, hint = "Shows the arrangement Save 1 saved: the layout with its trays at their widths. Key: Ctrl+1." },
+  { label = "Arrangement 2", short = "2", line = "Show", group = "Arrangement", command = "ui.layout", args = { name = "arrangement-2" }, hint = "Shows the arrangement Save 2 saved: the layout with its trays at their widths. Key: Ctrl+2." },
+  { label = "Arrangement 3", short = "3", line = "Show", group = "Arrangement", command = "ui.layout", args = { name = "arrangement-3" }, hint = "Shows the arrangement Save 3 saved: the layout with its trays at their widths. Key: Ctrl+3." },
+  { label = "Save arrangement 1", short = "1", line = "Save", group = "Arrangement", command = "ui.layout", args = { save = "arrangement-1" }, hint = "Saves the arrangement shown, the layout with its trays at their widths, as arrangement 1, replacing the one saved before. Key: Ctrl+Shift+1." },
+  { label = "Save arrangement 2", short = "2", line = "Save", group = "Arrangement", command = "ui.layout", args = { save = "arrangement-2" }, hint = "Saves the arrangement shown, the layout with its trays at their widths, as arrangement 2, replacing the one saved before. Key: Ctrl+Shift+2." },
+  { label = "Save arrangement 3", short = "3", line = "Save", group = "Arrangement", command = "ui.layout", args = { save = "arrangement-3" }, hint = "Saves the arrangement shown, the layout with its trays at their widths, as arrangement 3, replacing the one saved before. Key: Ctrl+Shift+3." },
+  { label = "Next layout", short = "Next", group = "Arrangement", command = "ui.layout", args = { step = 1 }, hint = "Shows the next layout, back to the first after the last; the theme stays." },
+  { label = "Previous layout", short = "Previous", group = "Arrangement", command = "ui.layout", args = { step = -1 }, hint = "Shows the layout before this one, back to the last before the first; the theme stays." },
+  { label = "Restore layout", short = "Restore", group = "Arrangement", command = "ui.layout", args = { restore = true }, hint = "Shows the Workbench as it ships: its sections folded as at first, its trays at their own widths and every panel showing. The hand, the scale and the theme stay." },
+  { label = "Left tray", group = "Panels", command = "ui.layout", args = { left = "flip" }, shows = "layout.left", hint = "Lit while the tray on the window's left edge shows; a tap hides or shows it." },
+  { label = "Right tray", group = "Panels", command = "ui.layout", args = { right = "flip" }, shows = "layout.right", hint = "Lit while the tray on the window's right edge shows; a tap hides or shows it." },
+  { label = "All panels", group = "Panels", command = "ui.layout", args = { chrome = "flip" }, shows = "layout.chrome", hint = "Lit while the panels show; off hides them all at once, leaving the 3D view and the status line, and Tab or the palette brings them back. Key: Tab." },
+  { label = "One section open", group = "Panels", command = "ui.layout", args = { one_open = "flip" }, shows = "layout.one_open", hint = "Lit: opening a section of a tray shuts the others in it, unless Shift is held." },
+]
+
+# Symmetry (section 6's end, H6): at the pen end after Look, `Symmetry [On] [X][Y][Z] [▼]`, for
+# every brush and the gizmo, moved from the brush tray with its commands unchanged. The quick menu
+# shows the Switches, drawn the same. The ▼ (the font has no ▾) opens `symmetry-kinds` under it:
+# a `[Mirror|Parallel|Radial]` row per lit axis, and Count while an axis is Radial; one axis at
+# most is Radial, so choosing it for one makes the axis that had it Mirror. Where the pen end
+# would take the bar past two rows, the set folds into the `[header]` options button of its name
+# (workbench.toml).
+[[set]]
+name = "symmetry"
+title = "Symmetry"
+controls = [
+  { label = "Symmetry on", short = "On", group = "Switches", line = "Symmetry", command = "symmetry.set", args = { on = "flip" }, shows = "symmetry.on", hint = "Turns symmetry on or off for every brush and the gizmo." },
+  { label = "Mirror X", short = "X", group = "Switches", line = "Symmetry", command = "brush.set", args = { flip_mirror = "x" }, shows = "symmetry.x", hint = "Copies each stroke across this axis. Key: X flips X." },
+  { label = "Mirror Y", short = "Y", group = "Switches", line = "Symmetry", command = "brush.set", args = { flip_mirror = "y" }, shows = "symmetry.y", hint = "Copies each stroke across this axis." },
+  { label = "Mirror Z", short = "Z", group = "Switches", line = "Symmetry", command = "brush.set", args = { flip_mirror = "z" }, shows = "symmetry.z", hint = "Copies each stroke across this axis." },
+  { label = "Symmetry kinds", short = "▼", line = "Symmetry", options = "symmetry-kinds", hint = "Each lit axis's kind, and the radial count." },
+]
+
+[[set]]
+name = "symmetry-kinds"
+title = "Axes"
+controls = [
+  { label = "X: Mirror", short = "Mirror", line = "X", while = "symmetry.x", command = "symmetry.set", args = { x_type = "mirror" }, shows = "symmetry.x_type", on = "mirror", hint = "Mirror: a flipped copy across the middle. Parallel: the same stroke shifted across, not flipped. Radial: copies around the axis, like slices of a pie." },
+  { label = "X: Parallel", short = "Parallel", line = "X", while = "symmetry.x", command = "symmetry.set", args = { x_type = "parallel" }, shows = "symmetry.x_type", on = "parallel", hint = "Mirror: a flipped copy across the middle. Parallel: the same stroke shifted across, not flipped. Radial: copies around the axis, like slices of a pie." },
+  { label = "X: Radial", short = "Radial", line = "X", while = "symmetry.x", command = "symmetry.set", args = { x_type = "radial" }, shows = "symmetry.x_type", on = "radial", hint = "Mirror: a flipped copy across the middle. Parallel: the same stroke shifted across, not flipped. Radial: copies around the axis, like slices of a pie." },
+  { label = "Y: Mirror", short = "Mirror", line = "Y", while = "symmetry.y", command = "symmetry.set", args = { y_type = "mirror" }, shows = "symmetry.y_type", on = "mirror", hint = "Mirror: a flipped copy across the middle. Parallel: the same stroke shifted across, not flipped. Radial: copies around the axis, like slices of a pie." },
+  { label = "Y: Parallel", short = "Parallel", line = "Y", while = "symmetry.y", command = "symmetry.set", args = { y_type = "parallel" }, shows = "symmetry.y_type", on = "parallel", hint = "Mirror: a flipped copy across the middle. Parallel: the same stroke shifted across, not flipped. Radial: copies around the axis, like slices of a pie." },
+  { label = "Y: Radial", short = "Radial", line = "Y", while = "symmetry.y", command = "symmetry.set", args = { y_type = "radial" }, shows = "symmetry.y_type", on = "radial", hint = "Mirror: a flipped copy across the middle. Parallel: the same stroke shifted across, not flipped. Radial: copies around the axis, like slices of a pie." },
+  { label = "Z: Mirror", short = "Mirror", line = "Z", while = "symmetry.z", command = "symmetry.set", args = { z_type = "mirror" }, shows = "symmetry.z_type", on = "mirror", hint = "Mirror: a flipped copy across the middle. Parallel: the same stroke shifted across, not flipped. Radial: copies around the axis, like slices of a pie." },
+  { label = "Z: Parallel", short = "Parallel", line = "Z", while = "symmetry.z", command = "symmetry.set", args = { z_type = "parallel" }, shows = "symmetry.z_type", on = "parallel", hint = "Mirror: a flipped copy across the middle. Parallel: the same stroke shifted across, not flipped. Radial: copies around the axis, like slices of a pie." },
+  { label = "Z: Radial", short = "Radial", line = "Z", while = "symmetry.z", command = "symmetry.set", args = { z_type = "radial" }, shows = "symmetry.z_type", on = "radial", hint = "Mirror: a flipped copy across the middle. Parallel: the same stroke shifted across, not flipped. Radial: copies around the axis, like slices of a pie." },
+  { label = "Radial count", short = "Count", command = "symmetry.set", args = { radial_count = "drag" }, shows = "symmetry.radial_count", range = [2.0, 64.0], while = [{ "symmetry.x" = true, "symmetry.x_type" = "radial" }, { "symmetry.y" = true, "symmetry.y_type" = "radial" }, { "symmetry.z" = true, "symmetry.z_type" = "radial" }], hint = "How many radial copies go around the axis. Shows while an axis is Radial." },
+]

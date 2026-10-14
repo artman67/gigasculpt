@@ -1,0 +1,34 @@
+# Clay Line: Clay Build laid along a straight line from press to release (catalog
+# brush.clay-line), until its own settings are measured.
+version = 1
+name = "Clay Line"
+id = "brush.clay-line"
+family = "Build"
+strength = 0.25
+claims = ["local", "masked_unchanged", "mirror_symmetric", "spacing_invariant", "rate_invariant"]
+
+[kernel]
+type = "plane"
+source = "dab"
+side = "below"
+gain = 4.0
+
+[tip]
+profile = "smooth"
+hardness = 0.6
+
+[tip.alpha]
+image = "square"
+
+[depth]
+imbed = 0.1
+
+[sampling]
+normal_radius = 0.5
+position_radius = 0.5
+accumulate = true
+
+[stroke]
+class = "curve"
+spacing = 0.05
+straight = true

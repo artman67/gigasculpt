@@ -1,0 +1,11 @@
+about = "The MatCap flip (catalog item material.matcap-shading): the smooth quad sphere with every MatCap read mirrored left to right, so its light comes from the other side."
+view = "iso"
+looks = ["matcap:gray", "matcap:red-wax"]
+closed = true
+
+[show]
+matcap_flip = true
+
+[[step]]
+command = "primitive.sphere"
+args = { subdivisions = 32 }

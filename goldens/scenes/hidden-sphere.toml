@@ -1,0 +1,15 @@
+about = "A sphere whose right side Select Rect hid (decision 0015): hidden faces are not drawn, so the open edge shows the inside, drawn from both sides."
+view = "iso"
+looks = ["clay"]
+closed = false
+
+[[step]]
+command = "primitive.sphere"
+args = { subdivisions = 16 }
+
+[[step]]
+command = "brush.stroke"
+args = { brush = "Select Rect", view_dir = [0, 0, -1], samples = [
+  { position = [-2.0, -2.0, 3.0] },
+  { position = [0.3, 2.0, 3.0] },
+] }

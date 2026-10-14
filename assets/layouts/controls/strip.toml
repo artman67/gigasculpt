@@ -1,0 +1,190 @@
+# GigaSculpt controls: the header's view buttons, once the view strip's (decision 0060 as amended
+# for H5), with their options and the Look options. Each tray's sets are a file in this folder,
+# and a layout may show any set by its name, whichever file holds it. The format, field by
+# field: docs/reference/controls.md.
+
+# The view buttons (decision 0025, section 4): the main view's switches, from the pen end. Level
+# is the View menu's (decision 0060 as amended for H6, to fit Symmetry). Isolate shows
+# the active part alone, lit while a part is shown alone, and a tap while the active part is
+# shown alone ends it; held, it opens its options, a button per part.
+[[set]]
+name = "view"
+title = "View"
+controls = [
+  { label = "Frame", command = "view.frame", options = "frame", hint = "Fits every part that shows, keeping the view's turn; pressed again with two parts or more, the active part. Held or right-clicked, it opens what else it frames. Key: F. (Blender: Frame All.)" },
+  { label = "Perspective", command = "view.lens", args = { projection = "toggle" }, shows = "view.projection", on = "perspective", hint = "Switches the view between perspective and orthographic, keeping the framing; lit in perspective. Key: P." },
+  { label = "Wire", command = "view.look", args = { flip_wireframe = true }, shows = "view.wireframe", options = "wire", hint = "Shows the polygon edges over the parts in this view. Held or right-clicked, it opens how the wire is drawn. Key: Shift+F. (Blender: Wireframe.)" },
+  { label = "Floor", command = "view.display", args = { floor = "flip" }, shows = "view.floor", options = "floor", hint = "Shows the floor grid under the parts. Held or right-clicked, it opens which planes show and how they are drawn. Key: Shift+P." },
+  { label = "Lock", command = "view.lock", shows = "view.locked", hint = "Locks the view's camera so nothing moves it; a press on empty canvas then sculpts instead of turning the view. Keys: V, then L." },
+  { label = "Isolate", command = "part.isolate", args = { parts = ["@active"] }, shows = "parts.isolated", options = "isolate", hint = "Shows the active part alone, or every part again while one is alone. Held or right-clicked, it opens a button per part. (Blender: Local View.)" },
+]
+
+# Frame's options in the header: what else it frames (a tap frames every part), on one row by
+# their short labels, as the heading says Frame (decision 0060 as amended for R1).
+[[set]]
+name = "frame"
+title = "Frame"
+controls = [
+  { label = "Frame mask", short = "Mask", line = "", command = "view.frame", args = { target = "mask" }, hint = "Fits the masked points in the view with a small border, so a bigger mask frames wider. Key: Alt+F." },
+  { label = "Frame unmasked", short = "Unmasked", line = "", command = "view.frame", args = { target = "unmasked" }, hint = "Fits the points the mask leaves free in the view with a small border, so a bigger mask frames tighter." },
+  { label = "Frame last edit", short = "Last edit", line = "", command = "view.frame", args = { target = "last-edit" }, hint = "Centres the view on where the last stroke first touched, at the same distance, so each new stroke moves where it centres. Key: Period." },
+]
+
+# Floor's options in the header (catalog item canvas.floor-grid): which planes show, where
+# they sit, how big they are and how they are filled. A preset file is loaded and saved with
+# view.floor's preset and view.floor_save. While the floor is hidden only Show floor shows;
+# Height waits for Snap to be off and Tiles for a sized grid (decision 0060 as amended for R1).
+[[set]]
+name = "floor"
+title = "Floor"
+controls = [
+  { label = "Show floor", command = "view.display", args = { floor = true }, while = { "view.floor" = false }, hint = "Shows the floor grid under the parts, and its settings here with it. Key: Shift+P, which hides it again, as the Floor button does." },
+  { label = "X plane", short = "X", line = "Planes", command = "view.floor", args = { x = "flip" }, shows = "view.floor.x", while = "view.floor", hint = "Shows the plane square to X, in red." },
+  { label = "Y plane", short = "Y", line = "Planes", command = "view.floor", args = { y = "flip" }, shows = "view.floor.y", while = "view.floor", hint = "Shows the floor itself, the plane square to Y, in green." },
+  { label = "Z plane", short = "Z", line = "Planes", command = "view.floor", args = { z = "flip" }, shows = "view.floor.z", while = "view.floor", hint = "Shows the plane square to Z, in blue." },
+  { label = "Snap behind", short = "Snap", line = "", command = "view.floor", args = { snap = "flip" }, shows = "view.floor.snap", while = "view.floor", hint = "Puts each plane just past the far side of everything drawn, so it stays behind the model as the view turns; Height hides while it is on." },
+  { label = "Elevation", short = "Height", command = "view.floor", args = { elevation = "drag" }, shows = "view.floor.elevation", range = [-1.0, 1.0], while = { "view.floor" = true, "view.floor.snap" = false }, hint = "Where the planes sit: -1 just past the low side of everything drawn, 0 through its middle, 1 just past the high side. Shows while Snap is off." },
+  { label = "Grid size", short = "Size", command = "view.floor", args = { size = "drag" }, shows = "view.floor.size", range = [0.0, 10.0], reads = [0.0, "endless"], while = "view.floor", hint = "How big the grid is: 0 endless, its lines at powers of ten of the scene unit, and above 0 a square this many times the model's largest side." },
+  { label = "Tiles", command = "view.floor", args = { tiles = "drag" }, shows = "view.floor.tiles", range = [1.0, 64.0], while = "view.floor.size", hint = "How many cells run along a side of a sized grid: more makes each cell smaller. Shows while Size is above 0." },
+  { label = "Opaque fill", short = "Opaque", line = "Fill", command = "view.floor", args = { fill = 0 }, shows = "view.floor.fill", on = 0, while = "view.floor", hint = "The planes are solid." },
+  { label = "Light see-through fill", short = "Light", line = "Fill", command = "view.floor", args = { fill = 1 }, shows = "view.floor.fill", on = 1, while = "view.floor", hint = "The planes are slightly see-through." },
+  { label = "Strong see-through fill", short = "Strong", line = "Fill", command = "view.floor", args = { fill = 2 }, shows = "view.floor.fill", on = 2, while = "view.floor", hint = "The planes are strongly see-through." },
+  { label = "See through facing surfaces", short = "Facing", line = "Fill", command = "view.floor", args = { fill = 3 }, shows = "view.floor.fill", on = 3, while = "view.floor", hint = "The planes are slightly see-through, and the parts are see-through where they face the eye." },
+  { label = "Axis colors", command = "view.floor", args = { tint = "drag" }, shows = "view.floor.tint", range = [0.0, 1.0], while = "view.floor", hint = "How strongly each plane's lines take its axis color: 0 not at all, 1 fully." },
+]
+
+# Wire's options in the header (catalog item canvas.wireframe-view): how every view's wire is
+# drawn (its edges, its face group fill and the edges' opacity), the density view, which colors
+# the surface by polygon size whether or not the wire shows, and Dots, which shows the window's
+# wire only while the view moves. The edges' color is set with view.wire's color. The four
+# switches share a row, and the edges' opacity shows while the edges do (decision 0060 as
+# amended for R1).
+[[set]]
+name = "wire"
+title = "Wire"
+controls = [
+  { label = "Edges", line = "", command = "view.wire", args = { line = "flip" }, shows = "view.wire.line", hint = "Draws the polygon edges in every wire; off, a wire shows only its group fill, and Opacity hides." },
+  { label = "Group fill", short = "Fill", line = "", command = "view.wire", args = { fill = "flip" }, shows = "view.wire.fill", hint = "Shows the face group colors in place of each part's paint while its wire shows." },
+  { label = "Polygon density", short = "Density", line = "", command = "view.wire", args = { density = "flip" }, shows = "view.wire.density", hint = "Colors every part by the size of its polygons on screen, wire or not: red at 32 pixels across or more, green at 8, blue at 2 or less." },
+  { label = "Dots", line = "", command = "view.wire", args = { dots = "flip" }, shows = "view.wire.dots", hint = "Draws the window's wire only while the view moves, so it shows the model turning without covering it at rest." },
+  { label = "Edge opacity", short = "Opacity", command = "view.wire", args = { opacity = "drag" }, shows = "view.wire.opacity", range = [0.0, 1.0], while = "view.wire.line", hint = "How much an edge covers the surface: 0 not at all, 1 fully. Shows while Edges is on." },
+]
+
+# How every look is shaded (decision 0023), in the header's Look options above the looks: the
+# modes on one row, lit on the one in use, then each row only while it applies (decision 0060
+# as amended for R1).
+[[set]]
+name = "shading"
+title = "Shading"
+controls = [
+  { label = "MatCap mode", short = "MatCap", line = "", command = "view.display", args = { shading = "matcap" }, shows = "view.shading", on = "matcap", hint = "Shades with the selected MatCap, a sphere picture with its light baked in, so the environment and lights change nothing." },
+  { label = "Lit mode", short = "Lit", line = "", command = "view.display", args = { shading = "lit" }, shows = "view.shading", on = "lit", hint = "Shades with the selected look as a material, lit live by the environment and the lights, which show below. (Blender: Material Preview.)" },
+  { label = "Clay mode", short = "Clay", line = "", command = "view.display", args = { shading = "clay" }, shows = "view.shading", on = "clay", hint = "Shades every part as light brown clay, lit live as Lit mode is." },
+  { label = "Zebra mode", short = "Zebra", line = "", command = "view.display", args = { shading = "zebra" }, shows = "view.shading", on = "zebra", hint = "Draws reflection stripes over clay, so a small change in shape shows as a large bend in the stripes." },
+  { label = "Normals mode", short = "Normals", line = "", command = "view.display", args = { shading = "normals" }, shows = "view.shading", on = "normals", hint = "Colors each surface by the direction it faces." },
+  # The MatCap flip (catalog item material.matcap-shading): every MatCap read mirrored left to
+  # right, so its light comes from the other side.
+  { label = "Flip MatCap", short = "Flip", command = "view.display", args = { matcap_flip = "flip" }, shows = "view.matcap_flip", while = { "view.shading" = "matcap" }, hint = "Reads every MatCap mirrored left to right, so its light comes from the other side. Shows in MatCap mode." },
+  # The mask's tint (decision 0023 as amended for Q2), the active part's outline (decision
+  # 0033, section 5: while a view draws two parts or more, the one strokes go to) and face
+  # groups (decision 0039, section 9: one flat color per group in place of the paint). Each
+  # changes only the picture; masked points are still held back.
+  { label = "Show mask", short = "Mask", line = "Show", command = "view.display", args = { mask = "flip" }, shows = "view.mask", hint = "Shows the mask as a dark tint; hidden, masked points are still held back, and Mask opacity hides. Key: Ctrl+H." },
+  { label = "Outline the active part", short = "Outline", line = "Show", command = "view.display", args = { active_outline = "flip" }, shows = "view.active_outline", hint = "Outlines the part strokes go to while the view shows two parts or more." },
+  { label = "Face group colors", short = "Groups", line = "Show", command = "view.display", args = { face_groups = "flip" }, shows = "view.face_groups", hint = "Every part shows one flat color per face group in place of its paint. (Blender: Face Sets.)" },
+  { label = "Mask opacity", command = "view.display", args = { mask_opacity = "drag" }, shows = "view.mask_opacity", range = [0.0, 1.0], while = "view.mask", hint = "How dark a fully masked surface is drawn: 0 not at all, 1 black. Shows while the mask does." },
+  # Ambient occlusion (decision 0019 as amended for Q8): how dark creases get and how far it
+  # reaches in scene units. The radius slider reads "auto" while the radius is automatic;
+  # dragging it sets a number, and Auto turns it back. Both wait for some strength.
+  { label = "Occlusion strength", short = "Strength", group = "Occlusion", command = "view.display", args = { occlusion_strength = "drag" }, shows = "view.occlusion_strength", range = [0.0, 1.0], hint = "How dark creases and hollows get: 0 not at all, which hides Radius and Auto, 1 fully." },
+  { label = "Occlusion radius", short = "Radius", group = "Occlusion", command = "view.display", args = { occlusion_radius = "drag" }, shows = "view.occlusion_radius", range = [0.0, 1.0], while = "view.occlusion_strength", hint = "How far, in scene units, a surface looks for what blocks its light, so a crease shades the same at any zoom; it reads auto while automatic." },
+  { label = "Automatic radius", short = "Auto", group = "Occlusion", line = "", command = "view.display", args = { occlusion_radius = "auto" }, shows = "view.occlusion_radius", on = "auto", while = "view.occlusion_strength", hint = "Sets the occlusion radius to a tenth of the radius of the sphere around everything drawn, so it follows the model's size." },
+  # Live subsurface (decision 0023), for looks that scatter in Lit mode: how much of the look's
+  # scattering shows and how far the light travels, each a multiplier that starts at 1.
+  { label = "Subsurface strength", short = "Strength", group = "Subsurface", command = "view.display", args = { subsurface.strength = "drag" }, shows = "view.subsurface.strength", range = [0.0, 1.0], while = { "view.shading" = "lit" }, hint = "How much of the look's light scattering under the surface shows in Lit mode: 0 none, 1 as the look has it." },
+  { label = "Subsurface radius", short = "Radius", group = "Subsurface", command = "view.display", args = { subsurface.radius = "drag" }, shows = "view.subsurface.radius", range = [0.0, 10.0], while = { "view.shading" = "lit" }, hint = "How far light travels under the surface in Lit mode, times the look's own distance." },
+  # The background (catalog item canvas.background): how much of a white-to-black gradient lies
+  # over its color, how far down the view it is half white, and how soft it is. Saved with the
+  # scene. Its color and the border colors are set with view.background.
+  { label = "Background gradient", short = "Gradient", group = "Background", command = "view.background", args = { gradient = "drag" }, shows = "view.background.gradient", range = [0.0, 1.0], hint = "How much of a gradient, white at the top, lies over the background color: 0 none, which hides Center and Softness, 1 the gradient alone." },
+  { label = "Gradient center", short = "Center", group = "Background", command = "view.background", args = { center = "drag" }, shows = "view.background.center", range = [0.0, 1.0], while = "view.background.gradient", hint = "How far down the view the gradient is half white: 0 the top, 1 the bottom." },
+  { label = "Gradient softness", short = "Softness", group = "Background", command = "view.background", args = { softness = "drag" }, shows = "view.background.softness", range = [0.0, 1.0], while = "view.background.gradient", hint = "How soft the gradient is: 0 a hard edge, 1 spread over the view's whole height." },
+]
+
+# Lit mode's display (decision 0023), in the Look options under the looks: how bright the light
+# is and how it becomes the screen's color, what lights the model, and the lights. Each is the
+# session's, so every view draws with it.
+[[set]]
+name = "tone"
+title = "Tone"
+controls = [
+  { label = "Exposure", command = "view.display", args = { exposure = "drag" }, shows = "view.exposure", range = [-5.0, 5.0], hint = "How bright the light is drawn, in stops: +1 doubles it. Every mode but Normals takes it." },
+  { label = "PBR Neutral", line = "", command = "view.display", args = { transform = "pbr-neutral" }, shows = "view.transform", on = "pbr-neutral", hint = "Turns light into screen color with base colors as set and highlights easing toward white. (Blender: Khronos PBR Neutral.)" },
+  { label = "AgX", line = "", command = "view.display", args = { transform = "agx" }, shows = "view.transform", on = "agx", hint = "Turns light into screen color as film does, the brights going toward white. (Blender's default.)" },
+  { label = "Standard", line = "", command = "view.display", args = { transform = "standard" }, shows = "view.transform", on = "standard", hint = "Turns light into screen color as it is, clipping what is too bright." },
+]
+
+# The active material's section in the Look options (decision 0043, section 8, steps (b) to
+# (d)): its `···`, beside the material's title, lists the material's actions (decision 0060 as
+# amended for R1): three middle dots, as the interface's font has no ⋯.
+[[set]]
+name = "material"
+title = "Material"
+controls = [
+  { label = "Material actions", short = "···", options = "material-actions", hint = "The active material's Undo, Redo, Reset, Copy, Rename and Delete." },
+]
+
+# The material's actions, under its `···`: the palette's own undo, apart from the scene's; Reset,
+# which puts a built-in material's shipped settings back (greyed on a copy, which has none);
+# Copy; Rename, which asks a name and a title in the command palette; and Delete, greyed on a
+# built-in. Each acts on the active material.
+[[set]]
+name = "material-actions"
+title = "Material"
+controls = [
+  { label = "Undo material", short = "Undo", command = "material.undo", hint = "Takes back the material palette's last step (a copy, a rename, a delete or an edit); the sculpt never changes." },
+  { label = "Redo material", short = "Redo", command = "material.redo", hint = "Makes again the last step Undo material took back." },
+  { label = "Reset material", short = "Reset", command = "material.set", args = { shipped = true }, hint = "Puts the material's shipped settings back; its name stays." },
+  { label = "Copy material", short = "Copy", command = "material.copy", hint = "Makes a copy of the material, which can be edited, renamed and deleted." },
+  { label = "Rename material", short = "Rename", command = "ui.palette", args = { form = "material.rename", ask = ["name", "title"] }, hint = "Asks the material's new name and title." },
+  { label = "Delete material", short = "Delete", command = "material.delete", hint = "Deletes a material of the user's; the first material becomes active." },
+]
+
+# The environment's own button is never lit: session.state gives no name (null) for it. It
+# shows in the modes it lights (decision 0060 as amended for R1); the Library's Environments
+# tab and the material's Lit by row list the environments in every mode.
+[[set]]
+name = "environment"
+title = "Environment"
+controls = [
+  { label = "Look's own", command = "view.environment", args = { reset = true }, while = [{ "view.shading" = "lit" }, { "view.shading" = "clay" }, { "view.shading" = "zebra" }], hint = "Lights Lit, Clay and Zebra modes with each look's own environment (Studio for most)." },
+  { label = "Studio", command = "view.environment", args = { name = "studio" }, shows = "view.environment", on = "studio", while = [{ "view.shading" = "lit" }, { "view.shading" = "clay" }, { "view.shading" = "zebra" }], hint = "Lights Lit, Clay and Zebra modes with this environment, fixed to the camera." },
+  { label = "Soft studio", command = "view.environment", args = { name = "soft-studio" }, shows = "view.environment", on = "soft-studio", while = [{ "view.shading" = "lit" }, { "view.shading" = "clay" }, { "view.shading" = "zebra" }], hint = "Lights Lit, Clay and Zebra modes with this environment, fixed to the camera." },
+  { label = "Studio Small 08", command = "view.environment", args = { name = "studio-small-08" }, shows = "view.environment", on = "studio-small-08", while = [{ "view.shading" = "lit" }, { "view.shading" = "clay" }, { "view.shading" = "zebra" }], hint = "Lights Lit, Clay and Zebra modes with this environment, fixed to the camera." },
+  { label = "Studio Small 09", command = "view.environment", args = { name = "studio-small-09" }, shows = "view.environment", on = "studio-small-09", while = [{ "view.shading" = "lit" }, { "view.shading" = "clay" }, { "view.shading" = "zebra" }], hint = "Lights Lit, Clay and Zebra modes with this environment, fixed to the camera." },
+  { label = "Photo Studio 01", command = "view.environment", args = { name = "photo-studio-01" }, shows = "view.environment", on = "photo-studio-01", while = [{ "view.shading" = "lit" }, { "view.shading" = "clay" }, { "view.shading" = "zebra" }], hint = "Lights Lit, Clay and Zebra modes with this environment, fixed to the camera." },
+]
+
+# Light 1 is the environment's key light; Ambient scales the rest of it. Lights 2 to 8 start
+# alike (white, from the upper left), so they wait for the light designer to place them. They
+# show in the modes they light, as the environment does.
+[[set]]
+name = "lights"
+title = "Lights"
+controls = [
+  { label = "Key light", command = "light.set", args = { light = 1, on = "flip" }, shows = "light.1", on = { on = true }, while = [{ "view.shading" = "lit" }, { "view.shading" = "clay" }, { "view.shading" = "zebra" }], hint = "Turns the environment's key light, taken out of it as light 1, on or off." },
+  { label = "Ambient", command = "light.set", args = { ambient = "drag" }, shows = "light.ambient", range = [0.0, 4.0], while = [{ "view.shading" = "lit" }, { "view.shading" = "clay" }, { "view.shading" = "zebra" }], hint = "Scales the rest of the environment's light, besides the key light: 0 none, 1 as it ships." },
+]
+
+# The header's Isolate options, after a button per part (the scene tray's `part-row` set's
+# Isolate): Isolate's two window settings (decision 0028, section 10) on one row, Dynamic, which
+# draws only the active part while the camera moves, and a click on empty canvas that toggles
+# Isolate; then End Isolate, while a part is alone (decision 0060 as amended for R1).
+[[set]]
+name = "isolate"
+title = "Isolate"
+controls = [
+  { label = "Dynamic", line = "", command = "ui.settings", args = { dynamic_isolate = "flip" }, shows = "settings.dynamic_isolate", hint = "While the view turns, only the active part is drawn, so a heavy scene turns smoothly; every part shows again when it stops." },
+  { label = "Click on canvas", line = "", command = "ui.settings", args = { click_isolate = "flip" }, shows = "settings.click_isolate", hint = "A click on empty canvas isolates the active part, or ends Isolate." },
+  { label = "End Isolate", command = "part.isolate", while = "parts.isolated", hint = "Shows every part again, ending Isolate. Shows while a part is alone." },
+]

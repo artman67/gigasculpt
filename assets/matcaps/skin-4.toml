@@ -1,0 +1,17 @@
+# MatCap Skin 4 (catalog item material.matcap-skin-4). A physical look: the shared material model (gs-render
+# shading), lit by the studio environment and baked into a MatCap. Format: material.look-recipe.
+# Colors in brackets are linear; values are the material's, never tuned toward a picture.
+name = "MatCap Skin 4"
+catalog_id = "material.matcap-skin-4"
+environment = "studio"
+
+# Pale skin, Fitzpatrick type II (physicallybased.info, CC0): albedo, IOR 1.4 and mean free
+# paths of 4.82, 1.69 and 1.09 mm. Which skin type stands for Skin 4 is a choice for the
+# maintainer to judge once (type I is paler).
+[material]
+base_color = [0.799, 0.485, 0.347]
+specular_roughness = 0.5
+specular_ior = 1.4
+subsurface_weight = 1.0
+subsurface_radius = 4.82
+subsurface_radius_scale = [1.0, 0.351, 0.226]

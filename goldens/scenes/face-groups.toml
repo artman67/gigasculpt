@@ -1,0 +1,23 @@
+about = "Face group colors (decision 0039, section 9): a sphere cut into four groups by three seeded patch makers, each group one flat color by Blender's formula under the shading."
+view = "iso"
+looks = ["clay", "matcap:white"]
+closed = true
+
+[show]
+face_groups = true
+
+[[step]]
+command = "primitive.sphere"
+args = { subdivisions = 16 }
+
+[[step]]
+command = "group.make"
+args = { maker = { by = "visible", coverage = 0.3, cluster = 0.7, seed = 1 } }
+
+[[step]]
+command = "group.make"
+args = { maker = { by = "visible", coverage = 0.3, cluster = 0.7, seed = 2 } }
+
+[[step]]
+command = "group.make"
+args = { maker = { by = "visible", coverage = 0.3, cluster = 0.7, seed = 3 } }

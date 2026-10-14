@@ -1,0 +1,17 @@
+# Soft studio: low-contrast light for the sketch looks (gs-render shading::environment).
+# One very large diffuser overhead and in front, as under a light tent, in a bright room with
+# a light floor: shadows stay open and gentle. Radiance in cd/m^2; metered afterwards, so
+# only the ratios matter. Directions are camera-relative: x right, y up, z toward the viewer.
+name = "Soft studio"
+
+[room]
+walls = 250.0
+ceiling = 400.0
+floor_albedo = 0.5
+
+[[softbox]]
+name = "overhead"
+direction = [-0.2, 0.75, 0.6]
+width = 1.2
+height = 1.0
+radiance = 1500.0

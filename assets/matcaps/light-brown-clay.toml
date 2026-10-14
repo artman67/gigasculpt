@@ -1,0 +1,13 @@
+# MatCap Light Brown Clay (catalog item material.matcap-light-brown-clay). A physical look: the shared material model (gs-render
+# shading), lit by the studio environment and baked into a MatCap. Format: material.look-recipe.
+# Colors in brackets are linear; values are the material's, never tuned toward a picture.
+name = "MatCap Light Brown Clay"
+catalog_id = "material.matcap-light-brown-clay"
+environment = "studio"
+
+# Tan modeling clay. No measured entry: the albedo of a tan dyed clay and the roughness of
+# measured plasticine (0.5), a physically plausible choice for the maintainer to judge once.
+[material]
+base_color = [0.4, 0.26, 0.15]
+specular_roughness = 0.5
+specular_ior = 1.5

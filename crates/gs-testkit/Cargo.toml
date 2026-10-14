@@ -1,0 +1,33 @@
+[package]
+name = "gs-testkit"
+description = "Protected. Comparers, mesh validator, hasher, slow reference implementations, generators, claims harness, golden images."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[dependencies]
+gs-engine.workspace = true
+gs-protocol.workspace = true
+gs-render.workspace = true
+libm.workspace = true
+proptest.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+toml.workspace = true
+# Golden images: FLIP comparison (ARCHITECTURE 10.3) and scene files.
+nv-flip = "0.1.2"
+
+[dev-dependencies]
+gs-core.workspace = true
+schemars.workspace = true
+
+# The golden-image tool: review, approve, reject, revert, keep, decide, digest (see the golden
+# module). Run it as `cargo run -p gs-testkit --bin golden -- <command>`.
+[[bin]]
+name = "golden"
+path = "src/golden/bin.rs"
+
+[lints]
+workspace = true
