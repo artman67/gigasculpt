@@ -3,7 +3,7 @@ resolver = "3"
 members = ["crates/*", "bins/*"]
 
 [workspace.package]
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 license = "GPL-3.0-or-later"
 rust-version = "1.99"
@@ -16,6 +16,7 @@ gs-core = { path = "crates/gs-core" }
 gs-geo = { path = "crates/gs-geo" }
 gs-io = { path = "crates/gs-io" }
 gs-par = { path = "crates/gs-par" }
+gs-win32 = { path = "crates/gs-win32" }
 blake3 = "1.8.7"
 clap = { version = "4.6", features = ["derive", "string"] }
 inventory = "0.3.25"

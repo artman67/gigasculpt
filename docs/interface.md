@@ -62,6 +62,11 @@ so with a question over the palette, Enter answers the question and the palette 
 So do Tab and the arrow keys: an arrow moves the palette's highlighted row only while nothing
 is in front of the palette, and Tab hides and shows the panels only while nothing is open.
 
+While the palette shows, a press on the 3D view, a tray, the header or a strip closes it as
+Escape does, with any form or question in it, and does nothing else: it starts no stroke and
+presses no button. A press on another window, such as the recovery question or Settings, stays
+that window's, and the palette stays open.
+
 ![The quick menu](images/quick-menu.png)
 
 ### Arranging the window

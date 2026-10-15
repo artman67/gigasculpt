@@ -117,6 +117,43 @@ fn files_are_never_replaced_unless_asked() {
     assert_eq!(std::fs::read_dir(&dir).unwrap().count(), 1);
 }
 
+/// An export into a folder GigaSculpt may not write, as a shared or a system folder is, says so
+/// in a person's words and names the file; never the system's text with its error number.
+#[test]
+#[cfg(unix)]
+fn an_export_it_may_not_write_says_so() {
+    use std::os::unix::fs::PermissionsExt;
+    let mut s = with_painted();
+    let dir = folder();
+    std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o555)).unwrap();
+    for overwrite in [false, true] {
+        let args = json!({ "path": at(&dir, "shut.obj"), "overwrite": overwrite });
+        let err = s.err("file.export", args);
+        assert_eq!(code(err.code), "E_PRECONDITION", "{}", err.message);
+        for words in ["shut.obj", "not allowed to write"] {
+            assert!(err.message.contains(words), "{}", err.message);
+        }
+        for system in ["os error", "Permission denied"] {
+            assert!(!err.message.contains(system), "{}", err.message);
+        }
+    }
+}
+
+/// A refusal the standard library gives no name (a file another program holds locked, on
+/// Windows; a drive pulled out here) keeps the system's reason, without its error number, in
+/// place of "uncategorized error".
+#[test]
+#[cfg(target_os = "linux")]
+fn a_refusal_without_a_name_keeps_the_systems_reason() {
+    let pulled_out = std::io::Error::from_raw_os_error(6);
+    let err = gs_engine::file_refused("write", std::path::Path::new("a.obj"), &pulled_out);
+    assert_eq!(code(err.code), "E_PRECONDITION", "{}", err.message);
+    assert_eq!(
+        err.message,
+        "cannot write \"a.obj\": No such device or address"
+    );
+}
+
 #[test]
 fn what_cannot_be_written_is_refused() {
     let mut s = with_painted();

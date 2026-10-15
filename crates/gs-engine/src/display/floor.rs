@@ -146,17 +146,15 @@ pub struct ViewFloor {
 
 /// Reads the floor preset at `path`.
 fn read(path: &str, hashed: bool) -> Result<FloorPreset, CommandError> {
-    let missing = || CommandError {
+    let at_preset = |e: CommandError| CommandError {
         path: Some("/preset".into()),
-        ..error(
-            ErrorCode::NotFound,
-            format!("cannot read {path}: there is no such file"),
-        )
+        ..e
     };
     if !hashed {
-        return Err(missing());
+        return Err(at_preset(crate::file::unhashed(path)));
     }
-    let text = std::fs::read_to_string(path).map_err(|_| missing())?;
+    let text = std::fs::read_to_string(path);
+    let text = text.map_err(|e| at_preset(crate::file::io_error(path, &e)))?;
     toml::from_str(&text)
         .map_err(|e| args_invalid("/preset", format!("{path} is not a floor preset: {e}")))
 }
@@ -272,6 +270,10 @@ impl Command for ViewFloorSave {
             grid: cx.display.floor_grid,
         };
         let path = std::path::Path::new(&self.path);
+        // A folder that is not there, or a folder given, is said in a person's words, as every
+        // save says it, not the system's; a folder is not a file to ask to replace.
+        crate::file::has_folder(path)?;
+        crate::file::not_a_folder(path)?;
         if path.exists() && !self.overwrite {
             let message = format!("{} exists; pass overwrite to replace it", self.path);
             // Naming `overwrite`, so the window asks to replace it, as Save does.
@@ -283,10 +285,8 @@ impl Command for ViewFloorSave {
         let body =
             toml::to_string(&preset).map_err(|e| error(ErrorCode::Internal, e.to_string()))?;
         let text = format!("# A GigaSculpt floor preset: view.floor loads it.\n{body}");
-        std::fs::write(path, text).map_err(|e| {
-            let message = format!("cannot write the floor preset {}: {e}", self.path);
-            error(ErrorCode::Precondition, message)
-        })?;
+        let written = std::fs::write(path, text);
+        written.map_err(|e| crate::file::file_refused("write", path, &e))?;
         Ok(preset)
     }
 }

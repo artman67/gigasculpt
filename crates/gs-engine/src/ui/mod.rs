@@ -71,9 +71,10 @@ pub trait WindowHost: Send {
     /// Opens or closes the command palette as `request` asks; `None` without a window, an
     /// error naming what is wrong when its form names no command.
     fn palette(&mut self, request: &UiPalette) -> Option<Result<PaletteInfo, String>>;
-    /// Switches the layout or its hand as `change` asks; `None` without a window,
-    /// an error naming what does not exist.
-    fn layout(&mut self, _change: &UiLayout) -> Option<Result<LayoutInfo, String>> {
+    /// Switches the layout or its hand as `change` asks; `None` without a window, the refusal
+    /// coded by what went wrong: a name or a file not there, a file it may not use, a settings
+    /// file it cannot read as settings.
+    fn layout(&mut self, _change: &UiLayout) -> Option<Result<LayoutInfo, CommandError>> {
         None
     }
     /// Opens, closes or changes the Library and its favorites as `change` asks; `None`
@@ -270,11 +271,15 @@ pub struct CallReport<'a> {
     /// changes, as `brush.describe` reports it): the window draws its falloff and pressure
     /// curves and its smoothing string. `None` for a session without a window.
     pub preset: Option<BrushPreset>,
-    /// What went wrong between calls: a job the window started failed, a gizmo drag was
-    /// refused, the recent list could not be written.
+    /// What else went wrong beside the call itself, for the status line (`Sculpting.problem`):
+    /// the recent list or a new command log that could not be written, an opened file's
+    /// materials the renderer cannot draw, a user materials folder that no longer reads. A
+    /// refusal of a pen stroke, gizmo drag or deformer comes in `stroke`, and a job's failure
+    /// with the job the window follows.
     pub problem: Option<&'a str>,
-    /// Why the window's last pen stroke was refused, whole, so the window says it in a
-    /// person's words by its code (gs-ui `shell/refusals.rs`).
+    /// Why the window's last pen stroke, gizmo drag or accepted deformer was refused, whole
+    /// (`Sculpting.refused`), so the window says it in a person's words by its code (gs-ui
+    /// `shell/refusals.rs`).
     pub stroke: Option<&'a CommandError>,
     /// The file a save wrote in this call, for the window to say for a moment (review 0009,
     /// R11); not autosave's copy.

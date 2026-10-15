@@ -188,6 +188,32 @@ fn the_difference_image_shows_the_changed_pixel_brightest() {
     }
 }
 
+/// A difference image into a folder GigaSculpt may not write, as a shared or a system folder is,
+/// is refused in a person's words naming the file; never the system's text with its error
+/// number.
+#[test]
+#[cfg(unix)]
+fn a_difference_image_it_may_not_write_says_so() {
+    use std::os::unix::fs::PermissionsExt;
+    let mut s = agent();
+    let base = save(&picture(W, H), "base.png");
+    let out_path = path("shut.png");
+    let dir = std::path::Path::new(&out_path).parent();
+    let dir = dir.unwrap_or_else(|| panic!("{out_path} has a folder"));
+    std::fs::set_permissions(dir, std::fs::Permissions::from_mode(0o555))
+        .unwrap_or_else(|e| panic!("{e}"));
+    let args = json!({ "a": base, "b": base, "path": out_path });
+    let err = gs_testkit::failure(s.call("image.diff", args), "a folder it may not write");
+    assert_eq!(code(err.code), "E_PRECONDITION", "{}", err.message);
+    assert_eq!(err.path.as_deref(), Some("/path"), "{}", err.message);
+    for words in ["shut.png", "not allowed to write"] {
+        assert!(err.message.contains(words), "{}", err.message);
+    }
+    for system in ["os error", "Permission denied"] {
+        assert!(!err.message.contains(system), "{}", err.message);
+    }
+}
+
 #[test]
 fn images_of_different_sizes_are_refused_naming_both() {
     let mut s = agent();

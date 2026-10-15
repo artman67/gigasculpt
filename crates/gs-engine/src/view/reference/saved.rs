@@ -251,7 +251,10 @@ fn file_scene(cx: &Ctx, view: &str, source: &Source) -> Result<Scene, String> {
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
             return Err(format!("its file {path} is missing"));
         }
-        Err(e) => return Err(format!("its file {path} cannot be read: {e}")),
+        Err(e) => {
+            let refused = crate::file::file_refused("read", std::path::Path::new(path), &e);
+            return Err(format!("its file cannot be read: {}", refused.message));
+        }
         Ok(now) if &now != hash => {
             return Err(format!(
                 "its file {path} changed since the reference opened (its content hash differs)"

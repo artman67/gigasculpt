@@ -148,13 +148,7 @@ pub(super) fn write(
             Ok(())
         })
     });
-    let failed = |e: std::io::Error| {
-        error(
-            ErrorCode::Precondition,
-            format!("cannot write {}: {e}", path.display()),
-        )
-    };
-    result.map_err(failed)?;
+    result.map_err(|e| crate::file::file_refused("write", path, &e))?;
     let written = written.ok_or_else(|| errors::internal("the writer did not run"))?;
     Ok((written, preview.is_some()))
 }

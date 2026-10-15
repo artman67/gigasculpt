@@ -81,7 +81,8 @@ pub fn prepare(environment: &Environment) -> Result<Arc<LitEnvironment>, String>
         Environment::Own => LitEnvironment::shipped(DEFAULT_ENVIRONMENT).map_err(text),
         Environment::Shipped(name) => LitEnvironment::shipped(name).map_err(text),
         Environment::File { path, turn, .. } => {
-            let bytes = std::fs::read(path).map_err(|e| format!("cannot read {path}: {e}"))?;
+            let refused = |e| gs_engine::file_refused("read", Path::new(path), &e).message;
+            let bytes = std::fs::read(path).map_err(refused)?;
             let image = Equirect::read_hdr(&bytes).map_err(|e| format!("{path}: {e}"))?;
             let turn = turn.map_or_else(|| image.key_turn(), f32::to_radians);
             let name = Path::new(path)

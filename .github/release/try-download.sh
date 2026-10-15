@@ -43,13 +43,13 @@ if [[ $(uname -s) == Linux && -z ${XDG_RUNTIME_DIR:-} ]]; then
 fi
 
 session=try-download
-# Each call says what it starts, so a run that stops shows where. gs spawn writes to a file, not
-# a pipe: on Windows the engine it starts holds a copy of gs's output, so $(...) would wait
-# until the engine ends (reported with decision 0064's trial runs).
+# Each call says what it starts, so a run that stops shows where. gs spawn is read through a pipe,
+# as a script reads it: $(...) ends when gs does, also on Windows, where the engine once held a
+# copy of gs's output and so kept it waiting until the session stopped (decision 0065).
 echo "starting a session: gs spawn $session"
-"$gs" spawn "$session" --wait-ms 60000 >"$scratch/spawn.txt"
-cat "$scratch/spawn.txt"
-key=$(sed -n 's/^stop key: \([^ ]*\).*/\1/p' "$scratch/spawn.txt")
+started=$("$gs" spawn "$session" --wait-ms 60000)
+echo "$started"
+key=$(printf '%s\n' "$started" | sed -n 's/^stop key: \([^ ]*\).*/\1/p')
 [[ -n $key ]] || fail "gs spawn printed no stop key"
 trap '"$gs" -s "$session" stop --key "$key" >/dev/null 2>&1 || true' EXIT
 echo "making a sphere: gs call primitive.sphere"

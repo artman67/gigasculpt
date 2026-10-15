@@ -222,12 +222,8 @@ impl Command for FileQuickSave {
             .clone()
             .unwrap_or_else(|| scene_id(cx, Path::new(&untitled)));
         let folder = autosave::folder(&config, &cx.file.name(), &id);
-        std::fs::create_dir_all(&folder).map_err(|e| {
-            error(
-                ErrorCode::Precondition,
-                format!("cannot make {}: {e}", folder.display()),
-            )
-        })?;
+        let made = std::fs::create_dir_all(&folder);
+        made.map_err(|e| crate::file::file_refused("write", &folder, &e))?;
         let path = autosave::next_file(&folder, &cx.file.name());
         let doc = cx.doc.document();
         let names = chosen(doc, None)?;
@@ -290,12 +286,6 @@ fn saved_file(
 /// A `.gss` path in a folder that exists, and not a file the save may not replace. A refusal
 /// quotes the path it got, so a stray prefix or space shows.
 fn check_target(path: &Path, own: bool, overwrite: bool) -> Result<(), CommandError> {
-    let refuse = |message: String, hint: &str| {
-        Err(CommandError {
-            hint: Some(hint.into()),
-            ..error(ErrorCode::Precondition, message)
-        })
-    };
     let gss = path
         .extension()
         .is_some_and(|e| e.eq_ignore_ascii_case(scene::EXTENSION));
@@ -308,16 +298,7 @@ fn check_target(path: &Path, own: bool, overwrite: bool) -> Result<(), CommandEr
             )
         });
     }
-    let folder = path
-        .parent()
-        .filter(|p| !p.as_os_str().is_empty())
-        .unwrap_or(Path::new("."));
-    if !folder.is_dir() {
-        return refuse(
-            format!("there is no folder \"{}\"", folder.display()),
-            "make the folder first",
-        );
-    }
+    crate::file::has_folder(path)?;
     crate::file::not_a_folder(path)?;
     if path.exists() && !own && !overwrite {
         // Naming `overwrite`, so the window asks to replace it (review 0009, B2).

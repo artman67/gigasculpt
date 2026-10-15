@@ -113,9 +113,10 @@ The command palette finds every setting by name too.
 
 ## Keys
 
-The Keys page lists every key in force, under where it works. **Bind a key…** asks for a key and a
-command and binds the key to it. Under **Your changes**, each key you changed has a button to put
-it back, and **Restore defaults** puts every key back as built.
+The Keys page lists every key in force, under where it works. **Bind a key…** opens the command
+palette's list: pick what the key runs, then press the key, and **Bind** binds it. A key that
+already runs something asks whether to replace it. Under **Your changes**, each key you changed has
+a button to put it back, and **Restore defaults** puts every key back as built.
 
 To bind a key to a button straight from the window, hold Ctrl+Alt and click the button; see
 [Changing keys](interface.md#changing-keys). Your keys are kept in `keymap.toml` in the config

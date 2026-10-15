@@ -6,7 +6,7 @@ use std::fs;
 use std::path::PathBuf;
 use std::process::Command;
 
-use crate::common::{exit_code, runtime_dir};
+use crate::common::{exit_code, gs_command, runtime_dir, stop_key_in};
 use serde_json::Value;
 
 /// A private runtime folder for one case. Stops its sessions and removes itself when dropped.
@@ -42,16 +42,13 @@ impl Env {
         }
     }
 
+    /// `gs` with `args`, in this case's folders, with this test program as its engine.
+    pub fn command(&self, args: &[&str]) -> Command {
+        gs_command(&self.dir, args)
+    }
+
     pub fn gs_with(&self, args: &[&str], env: &[(&str, &str)]) -> Out {
-        let me = std::env::current_exe().unwrap_or_else(|e| panic!("no test program path: {e}"));
-        let mut command = Command::new(env!("CARGO_BIN_EXE_gs"));
-        command
-            .args(args)
-            .env("XDG_RUNTIME_DIR", &self.dir)
-            // Engines log in the state folder: keep their logs in this case's folder.
-            .env("XDG_STATE_HOME", self.dir.join("state"))
-            .env("GS_ENGINE", me)
-            .env_remove("GS_SESSION");
+        let mut command = self.command(args);
         for (key, value) in env {
             command.env(key, value);
         }
@@ -94,12 +91,13 @@ impl Env {
             "spawn says when it is ready: {}",
             out.stdout
         );
-        let key = out
-            .stdout
-            .lines()
-            .find_map(|l| l.strip_prefix("stop key: "))
-            .and_then(|rest| rest.split_whitespace().next())
-            .unwrap_or_else(|| panic!("spawn prints a stop key: {}", out.stdout));
+        self.keep_key(name, &out.stdout);
+    }
+
+    /// Keeps the stop key in what `gs spawn NAME` printed, so the session is stopped.
+    pub fn keep_key(&self, name: &str, printed: &str) {
+        let key =
+            stop_key_in(printed).unwrap_or_else(|| panic!("spawn prints a stop key: {printed}"));
         self.keys.borrow_mut().insert(name.into(), key.into());
     }
 

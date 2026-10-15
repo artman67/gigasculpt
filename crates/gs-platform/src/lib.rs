@@ -19,7 +19,7 @@ mod window;
 pub mod xvfb;
 
 pub use clock::Clock;
-pub use dialog::{Answer, Dialog, Dialogs, Filter, Pick};
+pub use dialog::{Answer, Dialog, Dialogs, Filter, Pick, tell};
 pub use icon::Icon;
 pub use input::{Button, EventMapper, Input, Modifiers, pen_event};
 pub use pen::{PenChange, PenEvent, PenTracker};

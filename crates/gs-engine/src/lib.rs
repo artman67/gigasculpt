@@ -74,7 +74,7 @@ pub use display::{Background, FloorGrid, FloorPreset, WireStyle};
 pub use document::{DocTxn, Numbering, PartMut, VertexOrder};
 pub use engine::{Engine, EngineConfig};
 pub use example::Example;
-pub use file::{AutosaveSettings, FreeSpace, StateFolder};
+pub use file::{AutosaveSettings, FreeSpace, StateFolder, file_refused};
 pub use gs_core::rng::CommandRng;
 pub use gs_protocol::Request;
 #[doc(hidden)]

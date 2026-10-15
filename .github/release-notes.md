@@ -3,6 +3,12 @@
 GigaSculpt is early: expect rough edges, and scene files may change between versions. Linux is
 built and tested on every change; the Windows and macOS builds are new and less tested.
 
+**0.1.1** fixes the app on Windows and macOS: in 0.1.0 its window could not draw there, so the
+app closed as soon as it was opened. If the app cannot start now, it says why in a message box.
+On Windows, a script reading `gs spawn` or `gs mcp --spawn` no longer waits for the session to stop.
+When a file cannot be read or written, the app and `gs` say why in plain words (no file there, a
+folder, a file GigaSculpt may not read or write) instead of the system's message and error number.
+
 ## Downloads
 
 | File | For |
@@ -26,7 +32,8 @@ guide is.
 
 Before a release is published, each download is unpacked on its own system as a person gets it
 (the Linux one on Ubuntu 22.04 and Debian 12 with nothing added) and started there: both
-programs print this version and their help, and Quad Remesh's helper remeshes a small sphere.
+programs print this version and their help, the app's window opens and draws (on Windows and
+macOS), and Quad Remesh's helper remeshes a small sphere.
 
 ## Opening an unsigned app
 

@@ -119,21 +119,57 @@ pub(crate) fn content_hash(path: &str) -> io::Result<String> {
 }
 
 /// A file that could not be opened or read, as a command error quoting the path it got, so a
-/// stray prefix or space shows.
+/// stray prefix or space shows ([`file_refused`]'s words).
 pub(crate) fn io_error(path: &str, e: &io::Error) -> CommandError {
+    let refused = file_refused("read", Path::new(path), e);
     match e.kind() {
         io::ErrorKind::NotFound => CommandError {
             hint: Some("give an absolute path: relative ones start at the engine's folder".into()),
-            ..error(
-                ErrorCode::NotFound,
-                format!("there is no file at \"{path}\""),
-            )
+            ..refused
         },
-        _ => error(
-            ErrorCode::Precondition,
-            format!("cannot use \"{path}\": {e}"),
-        ),
+        _ => refused,
     }
+}
+
+/// Why the file at `path` cannot be read, for a command whose file the engine could not hash
+/// before it ran (`pinning.rs` `pin_file` leaves that to the command): hashing it again says,
+/// as Open does. A file readable by now is said not there, as it was when the call was pinned.
+pub(crate) fn unhashed(path: &str) -> CommandError {
+    let e = content_hash(path).err();
+    io_error(path, &e.unwrap_or_else(|| io::ErrorKind::NotFound.into()))
+}
+
+/// The system's refusal `e` to `doing` ("read", "write") the file at `path`, in a person's words
+/// by what went wrong, naming the file: there is no file there (not found), it is a folder, or
+/// GigaSculpt is not allowed to (each a precondition, as is any other kind, said by its name).
+/// Never the system's message with its error number; an error of the program's own (a file that
+/// is not UTF-8) keeps its words. Every file refusal a person meets is worded here, the window's
+/// own files' too (gs-ui), so its refusals table finds each by these words.
+pub fn file_refused(doing: &str, path: &Path, e: &io::Error) -> CommandError {
+    let shown = path.display();
+    let message = match e.kind() {
+        io::ErrorKind::NotFound => {
+            return error(
+                ErrorCode::NotFound,
+                format!("there is no file at \"{shown}\""),
+            );
+        }
+        io::ErrorKind::IsADirectory => format!("\"{shown}\" is a folder"),
+        io::ErrorKind::PermissionDenied | io::ErrorKind::ReadOnlyFilesystem => {
+            format!("GigaSculpt is not allowed to {doing} \"{shown}\"")
+        }
+        // A kind the standard library leaves unnamed (a file another program holds locked, on
+        // Windows) would read "uncategorized error": the system's reason says more, without
+        // its error number.
+        kind if format!("{kind:?}") == "Uncategorized" => {
+            let said = e.to_string();
+            let reason = said.split(" (os error").next().unwrap_or_default();
+            format!("cannot {doing} \"{shown}\": {reason}")
+        }
+        kind if e.raw_os_error().is_some() => format!("cannot {doing} \"{shown}\": {kind}"),
+        _ => format!("cannot {doing} \"{shown}\": {e}"),
+    };
+    error(ErrorCode::Precondition, message)
 }
 
 /// Refuses a folder given where a file is wanted, as a form run with only the folder it starts
@@ -154,8 +190,8 @@ pub(crate) fn not_a_folder(path: &Path) -> Result<(), CommandError> {
 
 /// Refuses a file to write whose folder is not there, before anything is written, naming the
 /// file and the folder in place of the system's "No such file or directory". It names no
-/// argument, and the window finds it by its words ("no folder"). Its twin is `scene/save.rs`
-/// `check_target`'s, which names the folder alone.
+/// argument, and the window finds it by its words ("no folder"). Every save asks here, a scene's
+/// too (`scene/save.rs` `check_target`), so each says the same sentence.
 pub(crate) fn has_folder(path: &Path) -> Result<(), CommandError> {
     let folder = (path.parent())
         .filter(|p| !p.as_os_str().is_empty())

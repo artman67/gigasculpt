@@ -57,32 +57,10 @@ choose a shorter one. Names may use letters, digits, `-` and `_`.
 ## Nothing prints on Windows
 
 `gigasculpt.exe` is the app you double-click, and it prints nothing, not even `--version` or
-`--help`. In a terminal, type `gigasculpt` without `.exe` (`.\gigasculpt` in PowerShell), in the
-GigaSculpt folder or anywhere once that folder is on your `PATH`: that runs `gigasculpt.com`, the
-same program built for the terminal, which prints there (see
+`--help`. In a terminal in the GigaSculpt folder, type `gigasculpt` without `.exe`
+(`.\gigasculpt` in PowerShell), or `gigasculpt` anywhere once that folder is on your `PATH`: that
+runs `gigasculpt.com`, the same program built for the terminal, which prints there (see
 [Scripts and agents](scripting.md#sessions-without-a-window)).
-
-## A script on Windows waits after `gs spawn`
-
-A known issue on Windows: the session `gs spawn` starts keeps a copy of `gs`'s output open. So
-a program that reads `gs spawn`'s output through a pipe until it ends, such as `$(gs spawn work)`
-in Git Bash, `$s = gs spawn work` in PowerShell or Python's `subprocess` with
-`capture_output`, waits until the session stops. Typing `gs spawn` in a terminal is not
-affected. In a script, send its output to a file and read the stop key from there:
-
-```
-gs spawn work > spawn.txt
-gs -s work stop --key "$(sed -n 's/^stop key: \([^ ]*\).*/\1/p' spawn.txt)"
-```
-
-In Python, pass an open file as `stdout` instead of capturing it. A program that captures the
-output of the whole script still waits for the session, so have the script stop the session
-before it ends.
-
-`gs mcp --spawn` does the same with the session it starts: that session keeps the MCP client's
-connection to `gs mcp` open, so a client that waits for `gs mcp` to end waits for the session
-too. Open GigaSculpt first, or start the session from a terminal, and leave out `--spawn`: then
-`gs mcp` uses the session that is running and starts nothing.
 
 ## A download does not start
 

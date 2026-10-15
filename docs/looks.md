@@ -144,7 +144,8 @@ Its bar has:
   sculpt. Turn it to match first, with Turn off.
 - **Frame** fits the reference in its view, and **Wire** shows its edges.
 - Its own **Look**, followed by the name of the look the reference draws with: the 3D view's
-  until you pick another. Tap either to pick a MatCap for it, or **Same as the view**.
+  until you pick another. Tap either to pick a MatCap for it, or **Same as the view**. The menu
+  lights the one in use: **Same as the view** while the reference follows the 3D view's look.
 - **Next**, which makes the next open reference the one the bar acts on, and **Close**, which
   closes it. The sculpt does not change.
 

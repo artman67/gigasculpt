@@ -8,8 +8,8 @@
 
 use std::path::Path;
 
-use gs_engine::{KeyBinding, KeymapInfo, UiKeymap, Unavailable, errors};
-use gs_protocol::CommandError;
+use gs_engine::{KeyBinding, KeymapInfo, UiKeymap, Unavailable, errors, file_refused};
+use gs_protocol::{CommandError, ErrorCode};
 use serde::{Deserialize, Serialize};
 
 use super::binding::{parse_keys, same_keys, written};
@@ -66,7 +66,7 @@ impl Keymap {
                 write_file(path, EMPTY)?;
                 return Ok((Self::default(), None));
             }
-            Err(e) => return Err(format!("{name}: {e}")),
+            Err(e) => return Err(file_refused("read", path, &e).message),
         };
         let changes: Changes = parse(&name, &text)?;
         let file = path
@@ -125,7 +125,9 @@ impl Keymap {
         let keymap = Self::default().with(changes);
         let keymap = keymap.map_err(|e| errors::internal(&e))?;
         if let Some(file) = file {
-            write_file(file, &keymap.file_text()?).map_err(|e| errors::internal(&e))?;
+            // A file the system will not write is no fault in the program.
+            let written = write_file(file, &keymap.file_text()?);
+            written.map_err(|e| errors::error(ErrorCode::Precondition, e))?;
         }
         *self = keymap;
         Ok(self.info())
@@ -268,17 +270,19 @@ fn move_aside(path: &Path) -> Result<String, String> {
             path.display()
         ));
     }
-    std::fs::rename(path, &before).map_err(|e| format!("{}: {e}", path.display()))?;
+    std::fs::rename(path, &before).map_err(|e| file_refused("write", path, &e).message)?;
     write_file(path, EMPTY)?;
     Ok(format!(
         "the built-in keys apply again; your old keymap is in {BEFORE}, and keymap.toml now holds only your changes"
     ))
 }
 
-/// Writes `text` to `path`, making its folder first.
+/// Writes `text` to `path`, making its folder first; a refusal says why in a person's words,
+/// naming the file ([`file_refused`]).
 pub(crate) fn write_file(path: &Path, text: &str) -> Result<(), String> {
+    let refused = |e: std::io::Error| file_refused("write", path, &e).message;
     if let Some(dir) = path.parent() {
-        std::fs::create_dir_all(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
+        std::fs::create_dir_all(dir).map_err(refused)?;
     }
-    std::fs::write(path, text).map_err(|e| format!("{}: {e}", path.display()))
+    std::fs::write(path, text).map_err(refused)
 }

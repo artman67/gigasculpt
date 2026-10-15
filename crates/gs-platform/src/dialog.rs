@@ -4,6 +4,7 @@
 //! its answer arrives later from [`Dialogs::answers`], which the window hands the interface as
 //! an [`Input::Dialog`](crate::Input::Dialog) with the rest of its input. Where no dialog can
 //! show, the answer is a failure at once, and the interface asks in its own form instead.
+//! [`tell`] is the one message box, for a reason the app could not start.
 
 use std::path::PathBuf;
 use std::sync::mpsc::{Receiver, Sender, channel};
@@ -122,4 +123,17 @@ fn start(dialog: &Dialog) -> Option<PathBuf> {
         _ => dialog.folder.clone(),
     };
     at.filter(|p| p.to_str().is_some_and(|s| !s.contains('\0')))
+}
+
+/// Shows `message` in the system's message box and waits for its OK: the reason the app could
+/// not start, when it was opened from Finder or Explorer and has no terminal to print it to.
+/// Where no box can show, it shows nothing.
+pub fn tell(title: &str, message: &str) {
+    sdl3::messagebox::show_simple_message_box(
+        sdl3::messagebox::MessageBoxFlag::ERROR,
+        title,
+        message,
+        None,
+    )
+    .ok();
 }

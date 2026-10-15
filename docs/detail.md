@@ -156,5 +156,8 @@ asks for:
 - **Divide**: divide the active part toward the source's face count as it projects. It needs a
   part with one level.
 
+Project Detail is gray while the active part's levels are frozen; unfreeze them first (see
+[Freezing levels](#freezing-levels)).
+
 A typical round trip: Part > Duplicate, Voxel Remesh or Quad Remesh the copy, then Project
 Detail from the original, and hide or delete the original.

@@ -1,6 +1,8 @@
 //! The claims harness refutes a false claim of every kind, refuses runs that checked nothing,
 //! and reports failures as bug reports. (The full run holding every command to its declared
-//! claims is gs-engine's `every_edit_command_keeps_its_claims`, next to the commands.)
+//! claims is gs-engine's `every_edit_command_keeps_its_claims`, next to the commands: one test
+//! per share of the edit commands, `Harness::check_share`, and one per share of the commands
+//! that name a setup, `Harness::check_setup_share`.)
 
 use gs_protocol::{Catalog, Step};
 use gs_testkit::Session;

@@ -1,6 +1,8 @@
 //! Pictures as 8-bit RGBA PNG files hold them: what `image.diff` compares and a transparent
 //! `view.snapshot` mattes.
 
+use std::path::Path;
+
 use gs_protocol::{CommandError, ErrorCode};
 
 use crate::errors::{error, internal};
@@ -14,8 +16,8 @@ pub(crate) struct Picture {
 
 /// Reads an 8-bit RGBA PNG file.
 pub(crate) fn read(file: &str) -> Result<Picture, CommandError> {
-    let bytes = std::fs::read(file)
-        .map_err(|e| error(ErrorCode::Precondition, format!("cannot read {file}: {e}")))?;
+    let bytes = std::fs::read(file);
+    let bytes = bytes.map_err(|e| crate::file::file_refused("read", Path::new(file), &e))?;
     decode(&bytes, file)
 }
 

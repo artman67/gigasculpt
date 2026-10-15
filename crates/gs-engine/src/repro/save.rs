@@ -104,6 +104,8 @@ impl Command for ReproSave {
                 )
             });
         }
+        // The bundle folder is new, so a missing folder is its parent, said as every save says it.
+        crate::file::has_folder(&folder)?;
         let then = (self.then.into_iter())
             .map(|step| as_record(&step.command, step.args))
             .collect();

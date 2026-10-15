@@ -6,8 +6,8 @@
 
 use gs_protocol::{CommandInfo, Outcome, Step};
 use gs_testkit::claims::plan::Plan;
-use gs_testkit::claims::run::Harness;
-use gs_testkit::claims::{Claim, declared};
+use gs_testkit::claims::run::{Harness, Tally};
+use gs_testkit::claims::{Claim, Declaration, declared};
 use gs_testkit::symmetry::CubeSymmetry;
 use gs_testkit::{Session, fixtures};
 use serde_json::{Value, json};
@@ -33,27 +33,32 @@ fn canonical(value: &Value) -> Value {
 /// catalog order, with every argument intact, and the runs over the shares of the catalog's
 /// edit commands pass and check each of them (and the claims every edit is held to) at least
 /// once, history and effects included. A command that names a setup (`part.apply_transform`,
-/// the locked Reset Orientation) is checked in its share's test on plans of its own that start
-/// with it. No declaring command is named here, so a command that starts declaring claims or a
-/// setup needs no change to these tests. One test per share, so nextest runs them side by side
-/// (decision 0008, amended 2026-10-14).
+/// the locked Reset Orientation) is held to its claims in a setup test, on plans of its own that
+/// start with it. No declaring command is named here, so a command that starts declaring claims
+/// or a setup needs no change to these tests. One test per share and one per share of the
+/// commands that name a setup, so nextest runs them side by side (decision 0008, amended
+/// 2026-10-14, twice).
 mod every_edit_command_keeps_its_claims {
-    use super::{Claim, Harness, Session, Step, Value, canonical, declared, json};
+    use super::{
+        Claim, Declaration, Harness, Session, Step, Tally, Value, canonical, declared, json,
+    };
 
-    /// One test per share of the catalog's edit commands; `SHARES` holds their numbers.
-    macro_rules! shares {
-        ($($share:ident = $k:literal),+ $(,)?) => {
-            const SHARES: &[usize] = &[$($k),+];
+    /// One test per number, each calling `$check` with it; `$all` holds the numbers.
+    macro_rules! numbered {
+        ($all:ident, $check:ident, $($test:ident = $k:literal),+ $(,)?) => {
+            const $all: &[usize] = &[$($k),+];
             $(
                 #[test]
-                fn $share() {
-                    keeps_its_claims($k);
+                fn $test() {
+                    $check($k);
                 }
             )+
         };
     }
 
-    shares!(
+    numbered!(
+        SHARES,
+        keeps_its_claims,
         share_0 = 0,
         share_1 = 1,
         share_2 = 2,
@@ -64,6 +69,15 @@ mod every_edit_command_keeps_its_claims {
         share_7 = 7,
         share_8 = 8,
         share_9 = 9,
+    );
+
+    numbered!(
+        SETUPS,
+        keeps_its_claims_after_its_setup,
+        setup_0 = 0,
+        setup_1 = 1,
+        setup_2 = 2,
+        setup_3 = 3,
     );
 
     /// The catalog and the harness over all of it.
@@ -128,33 +142,42 @@ mod every_edit_command_keeps_its_claims {
         }
     }
 
+    /// The setup tests are numbered 0 to their count, and together run the setup of every
+    /// command that names one, each exactly once.
+    #[test]
+    fn the_setup_tests_cover_every_command_that_names_a_setup() {
+        assert_eq!(
+            SETUPS,
+            (0..SETUPS.len()).collect::<Vec<_>>(),
+            "numbered in order"
+        );
+        let (catalog, harness) = whole();
+        let mut dealt: Vec<String> = (SETUPS.iter())
+            .flat_map(|&k| harness.setup_share(k, SETUPS.len()))
+            .collect();
+        dealt.sort();
+        let found = declared(&catalog).unwrap_or_else(|e| panic!("{e}"));
+        let mut naming: Vec<String> = (found.iter())
+            .filter(|d| !d.setup.is_empty())
+            .map(|d| d.command.clone())
+            .collect();
+        naming.sort();
+        assert!(!naming.is_empty(), "some command names a setup");
+        assert_eq!(dealt, naming, "each command that names a setup in one test");
+    }
+
     /// Share `k`: its commands keep their declared claims, and the run over them checks each,
-    /// and the claims every edit is held to, at least once; history is compared on the three
-    /// history steps, and on `mesh.translate` and effects on `mesh.jitter` in their shares.
+    /// and the claims every edit is held to, at least once, but for a command that names a
+    /// setup, which its setup test holds to them; history is compared on the three history
+    /// steps, and on `mesh.translate` and effects on `mesh.jitter` in their shares.
     fn keeps_its_claims(k: usize) {
         let (catalog, harness) = whole();
         let mine = harness.share(k, SHARES.len());
         let tally = (harness.check_share(k, SHARES.len()))
             .unwrap_or_else(|report| panic!("share {k}: {report}"));
-        for ((command, claim), seen) in &tally.observed {
-            eprintln!(
-                "observed {command} {claim}: {:e}, policy tolerance {:e}",
-                seen.max,
-                seen.tolerance()
-            );
-        }
         let found = declared(&catalog).unwrap_or_else(|e| panic!("{e}"));
-        let declaring = found.iter().filter(|d| !d.claims.is_empty());
-        for d in declaring.filter(|d| mine.contains(&d.command)) {
-            let command = &d.command;
-            for claim in d.claims.iter().chain(&Claim::UNIVERSAL) {
-                assert!(
-                    tally.count(command, claim.name()) >= 1,
-                    "{command}: {} reached the harness and was checked",
-                    claim.name()
-                );
-            }
-        }
+        let own = found.iter().filter(|d| d.setup.is_empty());
+        reached(&tally, own.filter(|d| mine.contains(&d.command)));
         let history = ["history.undo", "history.redo", "history.checkpoint"].map(String::from);
         let translate = ["mesh.translate".to_string()];
         for command in history
@@ -171,6 +194,40 @@ mod every_edit_command_keeps_its_claims {
                 tally.count("mesh.jitter", "effect") >= 1,
                 "effects compared"
             );
+        }
+    }
+
+    /// Setup test `k`: each of its commands keeps its declared claims on plans that start with
+    /// its setup, and the run checks each, and the claims every edit is held to, at least once.
+    fn keeps_its_claims_after_its_setup(k: usize) {
+        let (catalog, harness) = whole();
+        let mine = harness.setup_share(k, SETUPS.len());
+        let tally = (harness.check_setup_share(k, SETUPS.len()))
+            .unwrap_or_else(|report| panic!("setup test {k}: {report}"));
+        let found = declared(&catalog).unwrap_or_else(|e| panic!("{e}"));
+        reached(&tally, found.iter().filter(|d| mine.contains(&d.command)));
+    }
+
+    /// Prints the worst difference seen for each claim with a tolerance, and requires each
+    /// claim of each of `declarations` that declares claims, and the claims every edit is held
+    /// to, to have reached the harness and been checked at least once.
+    fn reached<'a>(tally: &Tally, declarations: impl Iterator<Item = &'a Declaration>) {
+        for ((command, claim), seen) in &tally.observed {
+            eprintln!(
+                "observed {command} {claim}: {:e}, policy tolerance {:e}",
+                seen.max,
+                seen.tolerance()
+            );
+        }
+        for d in declarations.filter(|d| !d.claims.is_empty()) {
+            let command = &d.command;
+            for claim in d.claims.iter().chain(&Claim::UNIVERSAL) {
+                assert!(
+                    tally.count(command, claim.name()) >= 1,
+                    "{command}: {} reached the harness and was checked",
+                    claim.name()
+                );
+            }
         }
     }
 }
@@ -227,6 +284,26 @@ fn a_command_names_a_setup_exactly_when_the_fixtures_alone_never_change() {
         }
     }
     assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+}
+
+/// `transform.apply`'s own examples, called as given, check its `mask_holds` (the mask on, on
+/// the masked fixture) and its `keeps_symmetry` (a mirror plane its frame is off). Random plans
+/// reach the two only now and then, so a run that leaves them unchecked checks them this way,
+/// the same on every run, with no top-up (decision 0008, amended 2026-10-14 (Fast-gate2)).
+#[test]
+fn the_examples_of_transform_apply_as_given_check_its_mask_and_symmetry() {
+    let catalog = Session::new().engine.catalog().clone();
+    let harness = Harness::new(&catalog).unwrap_or_else(|e| panic!("{e}"));
+    let tally = (harness
+        .only(&["transform.apply"])
+        .as_given("transform.apply"))
+    .unwrap_or_else(|e| panic!("{e}"));
+    for claim in ["mask_holds", "keeps_symmetry"] {
+        assert!(
+            tally.count("transform.apply", claim) >= 1,
+            "{claim} checked"
+        );
+    }
 }
 
 /// A part flattened to zero thickness (a zero scale factor, decision 0027 section 4) has a

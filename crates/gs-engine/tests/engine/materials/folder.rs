@@ -213,6 +213,42 @@ fn the_folder_refuses_what_it_cannot_read_and_reads_the_rest() {
     clean(&dir);
 }
 
+/// A look file GigaSculpt may not read is refused in a person's words and the rest are read;
+/// a folder it may not read is refused so. Never the system's text with its error number.
+#[test]
+#[cfg(unix)]
+fn a_file_or_a_folder_it_may_not_read_says_so() {
+    use std::os::unix::fs::PermissionsExt;
+    let mode = |path: &Path, mode: u32| {
+        let mode = std::fs::Permissions::from_mode(mode);
+        std::fs::set_permissions(path, mode).unwrap_or_else(|e| panic!("{e}"));
+    };
+    let good = standard("Good");
+    let files = [
+        ("good.toml", good.as_bytes()),
+        ("shut.toml", good.as_bytes()),
+    ];
+    let dir = folder("not-allowed", &files);
+    mode(&dir.join("shut.toml"), 0o000);
+    let mut s = agent();
+    let got = read(&mut s, &dir);
+    assert_eq!(got["read"], json!(["good"]), "{got}");
+    assert_eq!(got["refused"][0]["file"], "shut.toml", "{got}");
+    let file = got["refused"][0]["error"]
+        .as_str()
+        .unwrap_or("")
+        .to_string();
+    mode(&dir, 0o000);
+    let (code, whole) = refused(&mut s, "material.folder", json!({ "folder": dir }));
+    mode(&dir, 0o755);
+    clean(&dir);
+    assert_eq!(code, "E_PRECONDITION", "{whole}");
+    for message in [file, whole] {
+        assert!(message.contains("not allowed to read"), "{message}");
+        assert!(!message.contains("os error"), "{message}");
+    }
+}
+
 /// Decision 0043, step (d): "a hundred files stay fast". The time, without a renderer, goes to
 /// the test's output; the limit is the command's cost class (Short, under 2 s).
 #[test]

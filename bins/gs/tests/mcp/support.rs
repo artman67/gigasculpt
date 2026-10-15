@@ -1,15 +1,15 @@
 //! A private session for the test, `gs` runs against it, and `gs mcp` as a child process spoken
 //! to in MCP JSON-RPC over its stdin and stdout.
 
-use std::fs;
+use std::fs::{self, File};
 use std::io::{BufRead, BufReader, Write};
 use std::path::PathBuf;
 use std::process::{Child, ChildStdin, Command, Stdio};
-use std::sync::mpsc::{self, Receiver};
+use std::sync::mpsc::{self, Receiver, RecvTimeoutError};
 use std::thread;
 use std::time::Duration;
 
-use crate::common::{exit_code, runtime_dir};
+use crate::common::{exit_code, gs_command, runtime_dir, stop_key_in};
 use serde_json::{Value, json};
 
 /// A private runtime folder with sessions in it. Stops everything started in it, and removes
@@ -36,16 +36,7 @@ impl Env {
     }
 
     fn command(&self, args: &[&str]) -> Command {
-        let me = std::env::current_exe().unwrap_or_else(|e| panic!("no test program path: {e}"));
-        let mut command = Command::new(env!("CARGO_BIN_EXE_gs"));
-        command
-            .args(args)
-            .env("XDG_RUNTIME_DIR", &self.dir)
-            // Engines log in the state folder: keep their logs in this case's folder.
-            .env("XDG_STATE_HOME", self.dir.join("state"))
-            .env("GS_ENGINE", me)
-            .env_remove("GS_SESSION");
-        command
+        gs_command(&self.dir, args)
     }
 
     pub fn gs(&self, args: &[&str]) -> Out {
@@ -67,11 +58,22 @@ impl Env {
     /// 10 s to start an engine; `gs spawn` fails at once if the engine dies.
     pub fn spawn(&mut self, name: &str) {
         let out = self.gs(&["spawn", name, "--wait-ms", "180000"]);
-        let key = (out.stdout.lines())
-            .find_map(|l| l.strip_prefix("stop key: "))
-            .and_then(|rest| rest.split_whitespace().next())
+        let key = stop_key_in(&out.stdout)
             .unwrap_or_else(|| panic!("spawn {name}: {}{}", out.stdout, out.stderr));
         self.keys.push((name.into(), key.into()));
+    }
+
+    /// Keeps the stop key a `gs mcp --spawn` on `session` wrote to its log when it started the
+    /// session, so the session is stopped.
+    pub fn keep_spawned_key(&mut self, session: &str) {
+        let log = fs::read_to_string(self.log_of(session)).unwrap_or_default();
+        let key = stop_key_in(&log).unwrap_or_else(|| panic!("no stop key in the log: {log}"));
+        self.keys.push((session.into(), key.into()));
+    }
+
+    /// Where the `gs mcp` servers on `session` write what they print to stderr.
+    fn log_of(&self, session: &str) -> PathBuf {
+        self.dir.join(format!("mcp-{session}.log"))
     }
 
     /// `gs mcp` on a session.
@@ -82,10 +84,13 @@ impl Env {
     /// `gs mcp` on a session, with more flags.
     pub fn mcp_with(&self, session: &str, flags: &[&str]) -> Mcp {
         let args = [&["-s", session, "mcp"], flags].concat();
+        let log = (File::options().create(true).append(true))
+            .open(self.log_of(session))
+            .unwrap_or_else(|e| panic!("mcp log: {e}"));
         let mut child = (self.command(&args))
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
-            .stderr(Stdio::null())
+            .stderr(log)
             .spawn()
             .unwrap_or_else(|e| panic!("gs mcp: {e}"));
         let input = child.stdin.take().unwrap_or_else(|| panic!("no stdin"));
@@ -100,7 +105,7 @@ impl Env {
         });
         Mcp {
             child,
-            input,
+            input: Some(input),
             received,
             next: 0,
             progress: Vec::new(),
@@ -134,7 +139,8 @@ impl Drop for Env {
 /// request's `_meta`, and a progress token with every call.
 pub struct Mcp {
     child: Child,
-    input: ChildStdin,
+    /// The server's input; gone once the client leaves.
+    input: Option<ChildStdin>,
     received: Receiver<String>,
     next: u64,
     /// Progress notifications received so far.
@@ -153,7 +159,11 @@ impl Mcp {
         });
         let request =
             json!({ "jsonrpc": "2.0", "id": self.next, "method": method, "params": params });
-        writeln!(self.input, "{request}").unwrap_or_else(|e| panic!("send: {e}"));
+        let input = self
+            .input
+            .as_mut()
+            .unwrap_or_else(|| panic!("the client left"));
+        writeln!(input, "{request}").unwrap_or_else(|e| panic!("send: {e}"));
         loop {
             let line = (self.received.recv_timeout(Duration::from_secs(60)))
                 .unwrap_or_else(|e| panic!("no answer to {method}: {e}"));
@@ -186,6 +196,18 @@ impl Mcp {
         assert_eq!(content.len(), 1, "one text block: {content:?}");
         let text = content[0]["text"].as_str().unwrap_or_default().to_string();
         (text, error)
+    }
+
+    /// Closes the server's input, as a client that leaves does. True if the server's output
+    /// then ends within 30 s.
+    pub fn leave(&mut self) -> bool {
+        self.input = None;
+        loop {
+            match self.received.recv_timeout(Duration::from_secs(30)) {
+                Ok(_) => {}
+                Err(end) => return end == RecvTimeoutError::Disconnected,
+            }
+        }
     }
 }
 

@@ -1,41 +1,18 @@
-# Workbench (decision 0025): shelves and trays grouped by task. The brush shelf runs along the
-# top: the Gizmo tool first, so it shows however the brushes wrap, then a button per brush family
-# (Build, Carve, Move, Smooth, Mask, Paint) showing the family's brush in use or used last; a
-# second tap, a held press or a right click opens the whole family at the pointer. Then the
-# favorites pinned in the Library, then Quick. The brush tray, on the side away from the pen,
-# holds what the next stroke does: its header (the brush's name, opening the brush picker, and
-# the brush's ⋯ with Save brush…, Load brush…, Reset to defaults and Copy settings to…), the
-# active tool's settings in Basics (from the tools below, and Pressure…, the brush's pressure
-# curves), its Tip (shut at first: the tip's picture and Softness, then Edit shape…, the
-# falloff curve's popover, and Exact), Stroke (the stroke types, Spacing, Stabilize and, while
-# Stabilize is on, Steady) and its alpha in Alpha (the alphas used lately and an
-# index slider beside it; its picture opens the Library's Alphas), then the colors it paints and
-# Fill in Paint, and Depth last; the scene tray, on the pen
-# side, holds the parts (the list, each part's eye, the active one named on its title), the
-# detail levels with Live Detail, and the history; the scene's files, new parts, the parts' operations, the mesh's operations, the
-# mask, what shows, face groups, the camera with Reference Views, and the window itself are the
-# header's File, Add, Part, Mesh, Mask, Visible, Groups, View and Window menus, with Deform
-# (spring-back sliders that pull the whole part; decision 0041 as amended for DF7a) a dropdown
-# panel between Groups and View (decision 0060, section 18, D1). Each piece in a tray is a section under its title, which folds it
-# shut, in section 3's order; a section with nothing built yet is left out (Layers,
-# Generate, Maps, Render, Scripts). Each tray's inner edge drags it wider or narrower; layout.toml
-# keeps the width.
-# The header's pen end holds the view's buttons, once the view strip's (decision 0060 as amended
-# for H5): the view's switches (Frame's options, the mask, what the mask leaves free and the last
-# edit, open under it on a held press or a right click, while a tap frames every part), Isolate
-# (a tap shows the active part alone or ends it; its options, held open likewise, show any part
-# alone, and it stays lit while one is), then Look, whose options hold how the model is shaded,
-# its look,
-# Lit mode's light (exposure, view transform, environment, key light and Ambient) and, last, the
-# look's material (its sliders, the palette's Undo and Redo, and Reset), then Symmetry, `Symmetry
-# [On] [X][Y][Z] [▼]`, which folds into one button, Symmetry, where it would take the bar past two
-# rows (decision 0060 as amended for H6). An open Reference View docks
-# between the 3D view and the scene tray; drag its inner edge to resize it. The settings window,
-# opened from Header > Window, holds the pen, the held keys, navigation, the sliders, the brush wheel, the interface scale, the parts list's rows, the theme, files, hole closing and the keys (decision 0060, section 7). The quick
-# menu opens at the pointer (Shift+Space) with the brush's Size, Strength and Softness, each on a
-# row of its own, the symmetry switches (the axis kinds are under the header's ▼), the mask
-# operations and the history: the set decision 0060 confirms (section 10, amended for UI-last;
-# decision 0062, row 819).
+# Workbench (decision 0025), the layout that ships: shelves and trays grouped by task. Its lists
+# name pieces: a set of controls (controls/*.toml, a file per tray, says what each control
+# does), one group of a set (`set/Group`; `mask/` is the Mask set's first group), or a shared
+# widget (gs-ui direction.rs, `WIDGETS`, beside the file's format). Each comment below says what
+# its keys hold:
+# - `palette`: the command palette (Space), near the window's top, centered, 680 points wide.
+# - `wheel`: the brush wheel (F2 held, or a barrel click as shipped) holds the brushes, each slot
+#   320 points from the pen.
+# - `reference`: an open Reference View docks on the right, between the 3D view and the scene
+#   tray, 560 points wide; its inner edge resizes it.
+# - `settings`: the settings window's sets, in order (Window > Settings; decision 0060, section 7).
+# - `quick`: the quick menu at the pointer (Shift+Space): the brush's Size, Strength and Softness,
+#   each on a row of its own, symmetry's switches (the axis kinds are under the header's Symmetry
+#   ▼), the mask's own operations, and History: the pieces decision 0060 confirms (section 10,
+#   amended for UI-last; decision 0062, row 819).
 
 title = "Workbench"
 order = 1
@@ -56,10 +33,14 @@ library = [
   { id = "themes", title = "Themes", show = "themes" },
 ]
 
-# The header along the 3D view's top (decision 0060, section 2): its menus by set name, in order
-# (controls/header.toml), at the far end from the pen, and the pieces at its pen end (`show`).
-# While their titles do not fit one row they fold into one button (`fold`; decision 0060 as
-# amended for H7).
+# The header along the 3D view's top (decision 0060, section 2): its menus by piece name, in
+# order, at the far end from the pen (sets in controls/header.toml; `deform` is the Deform
+# dropdown panel, decision 0041 as amended for DF7a), and the pieces at its pen end (`show`): the
+# view's buttons with Isolate (`view`, controls/strip.toml), then Look and Symmetry, whose
+# buttons' options are `options`. Symmetry shows its switches on the bar and folds into its
+# button where they would take the bar past two rows (decision 0060 as amended for H6). While the
+# menus' titles do not fit one row they fold into one button (`fold`; decision 0060 as amended
+# for H7).
 [header]
 menus = ["file", "add", "part", "mesh", "mask", "visible", "groups", "deform", "view-menu", "window"]
 show = ["view", "look", "symmetry"]
@@ -72,9 +53,9 @@ options = [
 # The active tool's settings in Brush tray > Basics: the first tool whose `when` state value is
 # true; one without `when` always matches, so the brush comes last. A tool's `tray`, when given,
 # is the Brush tray's sections while it is on. While the Gizmo tool is on, the tray is the
-# tool's name and ⋯, Basics with the brush's Size titled Reach (what a soft drag reaches) and the
-# gizmo's settings, then Pose; else Basics holds the brush's Size and Strength, each with its
-# pen toggle, then Pressure… (decision 0060, section 6).
+# tool's name and `···`, Basics with the brush's Size titled Reach (what a soft drag reaches)
+# and the gizmo's settings, then Pose; else Basics holds the brush's Size and Strength, each
+# with its pen toggle, Add and Subtract (`mode`), then Pressure… (decision 0060, section 6).
 [[tool]]
 id = "gizmo"
 when = "gizmo.tool"
@@ -85,6 +66,16 @@ tray = ["head", "brush", "pose"]
 id = "brush"
 show = ["size", "strength", "mode", "pressure"]
 
+# The panels. The brush shelf along the top: the Gizmo tool first, so it shows however the brushes
+# wrap, then a button per brush family (`families`; gs-ui family.rs says what a tap and a held
+# press do), the favorites pinned in the Library (none ship), then Quick (Back, Wheel, Find and
+# Library). The brush tray, on the left (away from a right-handed pen), holds what the next
+# stroke does: its header (the brush's name, which opens the brush picker, and its `···`: Save
+# brush…, Load brush…, Reset to defaults, then Copy settings to with each other brush as a
+# button), Basics (the active tool's settings, above), then Tip, Stroke, Alpha, Paint and Depth.
+# The scene tray, on the right, holds the parts, the detail levels with Live Detail, and History.
+# In a tray each piece is a section under its title, which folds it shut. A tray's inner edge
+# drags it wider or narrower, and layout.toml keeps the width; Window > Left hand swaps the sides.
 [[panel]]
 id = "shelf"
 title = "Brush shelf"

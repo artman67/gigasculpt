@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 use super::Form;
 use super::names::{Column, Domain, Elem, Place, TABLE};
 use crate::errors::error;
-use crate::file::io_error;
+use crate::file::{file_refused, io_error};
 
 /// The manifest's file name in its folder.
 pub const MANIFEST: &str = "manifest.json";
@@ -182,13 +182,12 @@ pub fn load(folder: &Path) -> Result<Bundle, CommandError> {
 pub fn put_manifest(folder: &Path, manifest: &Manifest) -> Result<(), CommandError> {
     let path = folder.join(MANIFEST);
     let temp = folder.join(format!(".{MANIFEST}.{}.part", std::process::id()));
-    let shown = path.display().to_string();
     let json = serde_json::to_vec_pretty(manifest)
         .map_err(|e| error(ErrorCode::Internal, format!("manifest: {e}")))?;
     let written = fs::write(&temp, json).and_then(|()| fs::rename(&temp, &path));
     written.map_err(|e| {
         fs::remove_file(&temp).ok();
-        io_error(&shown, &e)
+        file_refused("write", &path, &e)
     })
 }
 
@@ -200,18 +199,18 @@ pub fn put_column<T: Copy>(
     bytes: impl Fn(T) -> [u8; 4],
 ) -> Result<u64, CommandError> {
     let path = folder.join(name);
-    let shown = path.display().to_string();
-    let mut out = BufWriter::new(File::create(&path).map_err(|e| io_error(&shown, &e))?);
+    let refused = |e: io::Error| file_refused("write", &path, &e);
+    let mut out = BufWriter::new(File::create(&path).map_err(refused)?);
     for &v in values {
-        out.write_all(&bytes(v)).map_err(|e| io_error(&shown, &e))?;
+        out.write_all(&bytes(v)).map_err(refused)?;
     }
-    out.flush().map_err(|e| io_error(&shown, &e))?;
+    out.flush().map_err(refused)?;
     Ok(4 * values.len() as u64)
 }
 
 /// Writes one column file of bytes.
 pub fn put_bytes(folder: &Path, name: &str, values: &[u8]) -> Result<u64, CommandError> {
     let path = folder.join(name);
-    fs::write(&path, values).map_err(|e| io_error(&path.display().to_string(), &e))?;
+    fs::write(&path, values).map_err(|e| file_refused("write", &path, &e))?;
     Ok(values.len() as u64)
 }

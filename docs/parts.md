@@ -48,7 +48,8 @@ adjust panel then sets its form, density and detail levels.
 
 Mirror copy, the Split items and Merge down refuse a part with detail levels, so they are gray
 on one; hover over an item to see why. See [Detail levels](detail.md#detail-levels). In an empty
-scene the Delete items are gray.
+scene the Delete items are gray. So are Delete others and Delete hidden while they would delete
+nothing: Delete others with one part, Delete hidden with no part hidden.
 
 ## Showing one part
 

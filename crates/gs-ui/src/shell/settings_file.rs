@@ -7,7 +7,8 @@
 use std::collections::BTreeMap;
 use std::path::Path;
 
-use gs_engine::{Hand, LayoutPart, SETTINGS_VERSION, UiKeymap};
+use gs_engine::{Hand, LayoutPart, SETTINGS_VERSION, UiKeymap, errors, file_refused};
+use gs_protocol::{CommandError, ErrorCode};
 use serde::{Deserialize, Serialize};
 
 use super::Shell;
@@ -100,14 +101,22 @@ impl Shell {
     }
 
     /// `ui.layout` `import`: the parts of the file at `path` that `parts` names, or every part
-    /// it holds, each in place of the window's. Nothing changes unless all of it reads.
+    /// it holds, each in place of the window's. Nothing changes unless all of it reads. A
+    /// refusal is coded by what went wrong: no file, a file it may not read, one it cannot read
+    /// as settings (damaged), or one naming what the window does not have (not found).
+    #[expect(
+        clippy::result_large_err,
+        reason = "the engine's wire error, as in keymap.rs"
+    )]
     pub(super) fn import_settings(
         &mut self,
         path: &str,
         parts: &[LayoutPart],
-    ) -> Result<(), String> {
-        let text = std::fs::read_to_string(path).map_err(|e| format!("{path}: {e}"))?;
-        let file: Settings = parse(path, &text)?;
+    ) -> Result<(), CommandError> {
+        // The engine read it to check it; one gone or changed since says so in its words.
+        let read = std::fs::read_to_string(path);
+        let text = read.map_err(|e| file_refused("read", Path::new(path), &e))?;
+        let file: Settings = parse(path, &text).map_err(damaged)?;
         let named = |p: LayoutPart| parts.is_empty() || parts.contains(&p);
         let mut layout = self.layout.layout.clone();
         if let Some(a) = file.arrangement.filter(|_| named(LayoutPart::Arrangement)) {
@@ -119,8 +128,7 @@ impl Shell {
         let keys = file.keymap.filter(|_| named(LayoutPart::Keymap));
         if let Some(mut keymap) = keys.map(|k| keymap(&k.bind)).transpose()? {
             // Rebuilt from its changes and written to `keymap.toml`.
-            let written = keymap.change(&UiKeymap::default(), self.keymap_file.as_deref());
-            written.map_err(|e| e.message)?;
+            keymap.change(&UiKeymap::default(), self.keymap_file.as_deref())?;
             self.keymap = keymap;
         }
         self.layout.layout = layout;
@@ -134,20 +142,25 @@ impl Shell {
 
     /// `a` put in `layout`, once its layout is one the window has and its scale one
     /// `ui.layout` takes.
-    fn arrange(&self, layout: &mut Layout, a: Arrangement) -> Result<(), String> {
+    #[expect(
+        clippy::result_large_err,
+        reason = "the engine's wire error, as in keymap.rs"
+    )]
+    fn arrange(&self, layout: &mut Layout, a: Arrangement) -> Result<(), CommandError> {
         let names: Vec<&str> = (self.directions.list.iter())
             .map(|d| d.name.as_str())
             .collect();
         if !names.contains(&a.layout.as_str()) {
             let there = names.join(", ");
-            return Err(format!(
+            return Err(not_there(format!(
                 "no layout called {} here; there are {there}",
                 a.layout
-            ));
+            )));
         }
         let [low, high] = SCALES;
         if !(low..=high).contains(&a.scale) {
-            return Err(format!("scale {} is not from {low} to {high}", a.scale));
+            let message = format!("scale {} is not from {low} to {high}", a.scale);
+            return Err(damaged(message));
         }
         (layout.current, layout.hand, layout.ui_scale) = (a.layout, a.hand, a.scale);
         (layout.folded, layout.hidden, layout.widths) = (a.folded, a.hidden, a.widths);
@@ -157,22 +170,25 @@ impl Shell {
 
     /// The quick menus `q` put in `layout`, once there are one to five, each holds something
     /// the window can show and the one shown is one of them.
-    fn quick_menus(&self, layout: &mut Layout, q: Quick) -> Result<(), String> {
+    #[expect(
+        clippy::result_large_err,
+        reason = "the engine's wire error, as in keymap.rs"
+    )]
+    fn quick_menus(&self, layout: &mut Layout, q: Quick) -> Result<(), CommandError> {
         let count = q.menus.len();
         if !(1..=quick::MOST).contains(&count) {
-            return Err(format!(
-                "{count} quick menus; there are 1 to {}",
-                quick::MOST
-            ));
+            let message = format!("{count} quick menus; there are 1 to {}", quick::MOST);
+            return Err(damaged(message));
         }
         if let Some(i) = q.menus.iter().position(Vec::is_empty) {
-            return Err(format!("quick menu {} holds nothing", i + 1));
+            return Err(damaged(format!("quick menu {} holds nothing", i + 1)));
         }
         if let Some(p) = (q.menus.iter().flatten()).find(|p| !self.directions.knows(p)) {
-            return Err(format!("nothing called `{p}` to show in a quick menu"));
+            let message = format!("nothing called `{p}` to show in a quick menu");
+            return Err(not_there(message));
         }
         if !(1..=count).contains(&q.shown) {
-            return Err(format!("quick menu {} shows, of {count}", q.shown));
+            return Err(damaged(format!("quick menu {} shows, of {count}", q.shown)));
         }
         // Menus as the layout file lists them are no change.
         let listed = self.quick_listed();
@@ -188,14 +204,18 @@ impl Shell {
 
 /// The built-in keys with `changes` over them, each bound as `ui.keymap` binds; refused whole
 /// when one names a command the program does not have.
-fn keymap(changes: &[Binding]) -> Result<Keymap, String> {
+#[expect(
+    clippy::result_large_err,
+    reason = "the engine's wire error, as in keymap.rs"
+)]
+fn keymap(changes: &[Binding]) -> Result<Keymap, CommandError> {
     let specs = gs_engine::registry();
     let known = |c: &str| c.is_empty() || specs.iter().any(|s| s.name == c);
     if let Some(b) = changes.iter().find(|b| !known(&b.command)) {
-        return Err(format!(
+        return Err(not_there(format!(
             "{} runs `{}`, which is no command here; nothing was imported",
             b.key, b.command
-        ));
+        )));
     }
     let mut keymap = Keymap::default();
     for b in changes {
@@ -211,7 +231,17 @@ fn keymap(changes: &[Binding]) -> Result<Keymap, String> {
             ..UiKeymap::default()
         };
         let bound = keymap.change(&bind, None);
-        bound.map_err(|e| format!("{}: {}", b.key, e.message))?;
+        bound.map_err(|e| damaged(format!("{}: {}", b.key, e.message)))?;
     }
     Ok(keymap)
+}
+
+/// A settings file the window cannot read as settings.
+fn damaged(message: String) -> CommandError {
+    errors::error(ErrorCode::Damaged, message)
+}
+
+/// A settings file naming what the window does not have.
+fn not_there(message: String) -> CommandError {
+    errors::error(ErrorCode::NotFound, message)
 }

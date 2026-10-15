@@ -29,8 +29,8 @@ fn main() -> ExitCode {
     let dir = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("window-e2e");
     let sockets = || PathBuf::from(std::env::var_os(SOCKETS).unwrap_or_default());
     match std::env::var(ROLE).as_deref() {
-        Ok("driven") => gs_ui::app::main(&window_args(&dir, &sockets(), "driven", "600")),
-        Ok(_) => gs_ui::app::main(&window_args(&dir, &sockets(), "brief", "1.5")),
+        Ok("driven") => gs_ui::app::main(&window_args(&dir, &sockets(), "driven", "600"), false),
+        Ok(_) => gs_ui::app::main(&window_args(&dir, &sockets(), "brief", "1.5"), false),
         // One case, listed and run the way the standard harness does.
         Err(_) => {
             let trial = Trial::test("the_window_runs_end_to_end_under_xvfb", move || {

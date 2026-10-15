@@ -71,7 +71,7 @@ impl Command for ImageDiff {
                     path: Some("/nonexistent/diff.png".into()),
                 },
             )
-            .fails_with(ErrorCode::Precondition),
+            .fails_with(ErrorCode::NotFound),
         ]
     }
 

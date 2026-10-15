@@ -136,7 +136,7 @@ controls = [
 
 # The material's actions, under its `···`: the palette's own undo, apart from the scene's; Reset,
 # which puts a built-in material's shipped settings back (greyed on a copy, which has none);
-# Copy; Rename, which asks a name and a title in the command palette; and Delete, greyed on a
+# Copy; Rename, which asks the new title in the command palette; and Delete, greyed on a
 # built-in. Each acts on the active material.
 [[set]]
 name = "material-actions"

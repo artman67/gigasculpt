@@ -311,17 +311,22 @@ pub(crate) fn render(
     picture.map_err(|e| error(ErrorCode::Precondition, format!("the render failed: {e}")))
 }
 
-/// A PNG written to `path` (returned as the path), or else returned as base64.
+/// A PNG written to `path` (returned as the path), or else returned as base64. A folder that is
+/// not there, or one the system refuses, is said in a person's words at `/path`, as a save's.
 pub(crate) fn deliver(
     png: &[u8],
     path: Option<String>,
 ) -> Result<(Option<String>, Option<String>), CommandError> {
     match path {
         Some(path) => {
-            std::fs::write(&path, png).map_err(|e| CommandError {
+            let at_path = |e: CommandError| CommandError {
                 path: Some("/path".into()),
-                ..error(ErrorCode::Precondition, format!("cannot write {path}: {e}"))
-            })?;
+                ..e
+            };
+            let file = std::path::Path::new(&path);
+            crate::file::has_folder(file).map_err(at_path)?;
+            let written = std::fs::write(file, png);
+            written.map_err(|e| at_path(crate::file::file_refused("write", file, &e)))?;
             Ok((Some(path), None))
         }
         None => Ok((

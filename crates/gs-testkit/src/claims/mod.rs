@@ -21,6 +21,16 @@
 //! [`Claim::Atomic`] whether it declares them or not (ARCHITECTURE 10.1, item 1), and every
 //! state must pass the validator. Declaring them only documents intent.
 //!
+//! # Claims random calls seldom reach
+//!
+//! Random plans change every number of an example and pick parts at random, so a claim checked
+//! only on some calls (`mask_holds` with the mask on, on the one masked fixture;
+//! `keeps_symmetry` with a mirror plane its frame is off) is reached now and then, and any
+//! command added deals every plan again. So when a run's random plans leave a claim unchecked,
+//! the command's own examples run as given ([`run::Harness::as_given`]): unchanged, on each
+//! fixture, the same on every run. Give a command examples that reach each of its claims that
+//! way; a claim they miss is left to more rounds of random plans, which is luck.
+//!
 //! # Commands that need a state first
 //!
 //! A command that changes something only after another call has set a state up (a part must
@@ -33,7 +43,7 @@
 //! const SETUP: &'static str = r#"[{"command": "gizmo.place", "args": {"origin": [0, 0, 0], "normal": [1, 1, 0]}}]"#;
 //! ```
 //!
-//! [`run::Harness::check_share`] then checks it in a run of its own
+//! [`run::Harness::check_setup_share`] then checks it in a run of its own
 //! ([`run::Harness::check_setup_of`]): plans of the command and the edit commands its setup
 //! calls, each starting with the setup. The setup heads no other plan, so it never changes
 //! what other commands are checked against, and outside its own run such a command is only
@@ -45,9 +55,11 @@
 //! # Wiring
 //!
 //! `cargo mutants` runs only the tests of the package it mutates, so each crate whose code
-//! commands reach calls [`run::Harness::check_share`] on every share of the catalog, one test
-//! per share, in its own `tests/` folder (gs-engine does, in `tests/engine/claims.rs`, with a
-//! test that the shares cover every edit command).
+//! commands reach calls [`run::Harness::check_share`] on every share of the catalog's edit
+//! commands and [`run::Harness::check_setup_share`] on every share of the commands that name a
+//! setup, one test per share, in its own `tests/` folder (gs-engine does, in
+//! `tests/engine/claims.rs`, with tests that the shares cover every edit command and the setup
+//! tests every command that names a setup).
 
 pub mod closed;
 pub mod model;

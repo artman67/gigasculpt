@@ -2,10 +2,15 @@
 
 use std::fs;
 use std::io::{BufRead, BufReader};
+use std::process::Stdio;
+use std::sync::mpsc::{self, RecvTimeoutError};
+use std::thread;
+use std::time::Duration;
 
 use gs_protocol::UnixListener;
 use serde_json::json;
 
+use crate::common::exit_code;
 use crate::support::Env;
 
 pub fn spawn_call_and_stop() {
@@ -41,6 +46,45 @@ pub fn spawn_call_and_stop() {
         4,
         "no session to talk to"
     );
+}
+
+/// `gs spawn` read through a pipe, as a script reads `$(gs spawn NAME)`: its output ends when
+/// `gs` exits, while the session it started runs on. On Windows the engine inherited a copy of
+/// `gs`'s own output, so the reader waited until the session stopped (decisions 0064 and 0065).
+/// Linux and macOS hand a program only the handles it is given, so there this passes with or
+/// without the fix.
+pub fn spawns_output_ends_before_its_session_does() {
+    let env = Env::new();
+    let mut gs = (env.command(&["spawn", "piped", "--wait-ms", "180000"]))
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .spawn()
+        .unwrap_or_else(|e| panic!("cannot run gs: {e}"));
+    let output = gs.stdout.take().unwrap_or_else(|| panic!("no stdout"));
+    let (lines, received) = mpsc::channel();
+    thread::spawn(move || {
+        for line in BufReader::new(output).lines().map_while(Result::ok) {
+            lines.send(line).ok();
+        }
+    });
+    let status = gs.wait().unwrap_or_else(|e| panic!("gs spawn: {e}"));
+    assert_eq!(exit_code(status), 0, "gs spawn fails");
+    let mut printed = Vec::new();
+    let end = loop {
+        match received.recv_timeout(Duration::from_secs(30)) {
+            Ok(line) => printed.push(line),
+            Err(end) => break end,
+        }
+    };
+    let printed = printed.join("\n");
+    env.keep_key("piped", &printed);
+    assert_eq!(
+        end,
+        RecvTimeoutError::Disconnected,
+        "the output did not end within 30 s of gs exiting: {printed}"
+    );
+    env.ok(&["-s", "piped", "query", "mesh.hash"]);
+    assert_eq!(env.stop("piped").code, 0, "the session stops");
 }
 
 pub fn picking_a_session() {
@@ -188,8 +232,15 @@ pub fn a_stuck_session_times_out() {
     let out = env.gs(&["-s", "gone", "query", "mesh.stats"]);
     dropper.join().ok();
     assert_eq!(out.code, 4, "the session went away: {}", out.stderr);
+    // Linux reports a peer that closed with the request unread as a reset, so `gs` says it lost
+    // the session; macOS and Windows may report a plain close, which `gs` words as below.
+    let said: &[&str] = if cfg!(target_os = "linux") {
+        &["lost the session"]
+    } else {
+        &["lost the session", "closed the connection"]
+    };
     assert!(
-        out.stderr.contains("lost the session"),
+        said.iter().any(|s| out.stderr.contains(s)),
         "says so: {}",
         out.stderr
     );

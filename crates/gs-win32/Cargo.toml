@@ -1,0 +1,49 @@
+[package]
+name = "gs-win32"
+description = "The Win32 calls the standard library has no safe form of, one function each: the workspace's only unsafe code (decision 0065)."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_Foundation"] }
+
+# Its own lints, not the workspace's: the workspace forbids unsafe code and this crate is the one
+# exception (decision 0065). `gate/run.sh` lets this crate alone leave out `workspace = true`.
+[lints.rust]
+unsafe_code = "deny"
+unsafe_op_in_unsafe_fn = "deny"
+
+# A copy of [workspace.lints.clippy] in the root Cargo.toml: keep the two in step. Only
+# undocumented_unsafe_blocks differs: denied here, so every unsafe block says why it is sound.
+[lints.clippy]
+pedantic = { level = "warn", priority = -1 }
+# Pedantic lints that are noise in numeric code:
+cast_possible_truncation = "allow"
+cast_precision_loss = "allow"
+cast_sign_loss = "allow"
+many_single_char_names = "allow"
+similar_names = "allow"
+must_use_candidate = "allow"
+missing_errors_doc = "allow"
+missing_panics_doc = "allow"
+module_name_repetitions = "allow"
+unreadable_literal = "allow"
+# Enabled on purpose (docs/research/06-testing-strategy.md, section 10.2):
+float_cmp = "warn"
+match_same_arms = "warn"
+too_many_lines = "warn"
+iter_over_hash_type = "warn"
+unwrap_used = "warn"
+expect_used = "warn"
+dbg_macro = "warn"
+todo = "warn"
+unimplemented = "warn"
+print_stdout = "warn"
+allow_attributes = "warn"
+allow_attributes_without_reason = "warn"
+undocumented_unsafe_blocks = "deny"
+let_underscore_must_use = "warn"
+missing_assert_message = "warn"

@@ -233,7 +233,7 @@ impl LayoutFile {
         let mut layout: Layout = match std::fs::read_to_string(path) {
             Ok(text) => parse(&path.display().to_string(), &text)?,
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => Layout::default(),
-            Err(e) => return Err(format!("{}: {e}", path.display())),
+            Err(e) => return Err(gs_engine::file_refused("read", path, &e).message),
         };
         // A favorite written by hand without arguments has none, which TOML cannot write back.
         for f in layout.favorites.iter_mut().filter(|f| f.args.is_null()) {

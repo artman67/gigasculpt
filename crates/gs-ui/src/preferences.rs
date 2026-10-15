@@ -14,6 +14,9 @@ use crate::keymap::write_file;
 /// The version this program writes and reads.
 const VERSION: i64 = 1;
 
+/// What a file that does not read leaves the window using.
+const DEFAULTS: &str = "the defaults are used";
+
 /// The file's first line.
 const HEADER: &str =
     "# GigaSculpt preferences, saved automatically. Keys this version does not know are kept.";
@@ -52,26 +55,35 @@ impl Preferences {
         let text = match std::fs::read_to_string(path) {
             Ok(text) => text,
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => return (prefs, None),
-            Err(e) => return prefs.frozen(&format!("{}: {e}", path.display())),
+            Err(e) => {
+                let why = gs_engine::file_refused("read", path, &e).message;
+                return prefs.frozen(&why, DEFAULTS);
+            }
         };
         let mut table = match text.parse::<toml::Table>() {
             Ok(table) => table,
-            Err(e) => return prefs.frozen(&format!("{} does not read: {e}", path.display())),
+            Err(e) => {
+                let why = format!("{} does not read: {e}", path.display());
+                return prefs.frozen(&why, DEFAULTS);
+            }
         };
         let version = table.remove("version").and_then(|v| v.as_integer());
         prefs.table = table;
         match version {
-            Some(v) if v > VERSION => prefs.frozen(&format!(
-                "{} is version {v}, newer than this GigaSculpt writes ({VERSION})",
-                path.display()
-            )),
+            Some(v) if v > VERSION => prefs.frozen(
+                &format!(
+                    "{} is version {v}, newer than this GigaSculpt writes ({VERSION})",
+                    path.display()
+                ),
+                "its settings are read",
+            ),
             _ => (prefs, None),
         }
     }
 
-    /// Never written, for `why`.
-    fn frozen(mut self, why: &str) -> (Self, Option<String>) {
-        let said = format!("{why}: its settings are read, and changes last this session");
+    /// Never written, for `why`; `used` says what the window uses meanwhile.
+    fn frozen(mut self, why: &str, used: &str) -> (Self, Option<String>) {
+        let said = format!("{why}: {used}, and changes last this session");
         self.frozen = Some(said.clone());
         (self, Some(said))
     }

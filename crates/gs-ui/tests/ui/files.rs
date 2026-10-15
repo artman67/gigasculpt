@@ -194,3 +194,45 @@ fn the_layout_is_saved_when_it_changes() {
         "the reason names the file, the line and the key: {err}"
     );
 }
+
+/// The window's own files that GigaSculpt may not read (the layout file, the preferences, a
+/// theme, a layout of the user's) say so at start in a person's words, naming the file; never
+/// the system's text with its error number.
+#[test]
+#[cfg(unix)]
+fn the_windows_own_files_it_may_not_read_say_so() {
+    use std::os::unix::fs::PermissionsExt;
+    let dir = scratch("not-allowed");
+    let shut = |name: &str| {
+        let path = dir.join(name);
+        std::fs::create_dir_all(path.parent().unwrap_or(&dir)).unwrap_or_else(|e| panic!("{e}"));
+        std::fs::write(&path, "").unwrap_or_else(|e| panic!("{e}"));
+        let mode = std::fs::Permissions::from_mode(0o000);
+        std::fs::set_permissions(&path, mode).unwrap_or_else(|e| panic!("{e}"));
+        path
+    };
+    let layout = LayoutFile::load(&shut("layout.toml")).err();
+    let (_, preferences) = gs_ui::Preferences::load(&shut("preferences.toml"));
+    let defaults = |p: &String| p.contains("the defaults are used");
+    assert!(
+        preferences.as_ref().is_some_and(defaults),
+        "{preferences:?}"
+    );
+    shut("themes/shut-theme.toml");
+    let (_, themes) = gs_ui::Themes::load(&dir.join("themes"));
+    shut("layouts/shut-layout.toml");
+    let (_, layouts) = gs_ui::Directions::load(&dir.join("layouts"));
+    let said = [
+        ("layout.toml", layout),
+        ("preferences.toml", preferences),
+        ("shut-theme.toml", themes.into_iter().next()),
+        ("shut-layout.toml", layouts.into_iter().next()),
+    ];
+    for (file, said) in said {
+        let said = said.unwrap_or_else(|| panic!("{file}: nothing said"));
+        assert!(said.contains(file), "{said}");
+        assert!(said.contains("not allowed to read"), "{said}");
+        assert!(!said.contains("os error"), "{said}");
+        assert_eq!(said.matches(file).count(), 1, "the file named once: {said}");
+    }
+}

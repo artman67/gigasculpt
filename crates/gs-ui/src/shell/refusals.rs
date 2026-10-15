@@ -5,7 +5,9 @@
 //! the engine's sentence without its code (or other words where that sentence names what a
 //! person never sees), what to do in a person's words in place of the engine's hint, and where
 //! it shows: under the field of the form that sent it, the form kept open as typed; or on the
-//! status line. The engine's own messages and hints stay as they are, for agents.
+//! status line. The engine's own messages and hints stay as they are, for agents. The window
+//! says the system's refusals of its own files in the engine's words, which the table finds
+//! (`gs_engine::file_refused`).
 
 use gs_protocol::{CommandError, ErrorCode, Step};
 
@@ -95,8 +97,20 @@ const ROWS: &[Row] = &[
         hint: "Check the file's name and its folder.",
         ..ANY
     },
-    // Matched on the engine's words (`file/scene/save.rs`, `check_target`): naming its path
-    // would make Ctrl+S, which gives none, ask where to save. Pinned by the test
+    // A settings file to import that is not there, as the engine's check finds it (gs-engine
+    // `ui/layout.rs` `check_import`, in `file::io_error`'s words), or gone after that check,
+    // before the window reads it, which the window says in the same words
+    // (`gs_engine::file_refused`): matched on those words, as `ui.layout`'s other refusals of
+    // a name not found are no file's.
+    Row {
+        code: ErrorCode::NotFound,
+        commands: &["ui.layout"],
+        has: "there is no file at",
+        hint: "Check the file's name and its folder.",
+        ..ANY
+    },
+    // Matched on the engine's words (`file::has_folder`, which every save asks): naming its
+    // path would make Ctrl+S, which gives none, ask where to save. Pinned by the test
     // `refusals::a_good_save_after_a_refused_one_clears_the_line`, which fails if they change.
     Row {
         code: ErrorCode::Precondition,
@@ -106,14 +120,33 @@ const ROWS: &[Row] = &[
     },
     // A folder where a file is wanted (`file::not_a_folder`), as a form run with only the
     // folder it starts at gives one. Matched on the engine's words, as the brush commands name
-    // their path for every refusal and a reference names its `file`. Pinned by the tests
+    // their path for every refusal, a reference names its `file` and a settings import its
+    // `import`; for any command, as only file commands say them. Pinned by the tests
     // `refusals::a_file_form_run_with_no_file_name_asks_for_one` and those in `refused_words`,
     // which fail if they change.
     Row {
         code: ErrorCode::Precondition,
-        commands: FILES,
         has: "\" is a folder",
         hint: "Type a file name after the folder.",
+        ..ANY
+    },
+    // A file the system will not let GigaSculpt write: a folder or a disk that may not be
+    // written, or a file that may not be replaced, in the words every file refusal has
+    // (`gs_engine::file_refused`), the window's own files' too, each coded as a precondition
+    // (`ui.layout`'s settings file as well). The keymap's file is the window's own, not one a
+    // person picked. Matched on the words; pinned by the tests in `refused_words`, which fail
+    // if they change.
+    Row {
+        code: ErrorCode::Precondition,
+        commands: &["ui.keymap"],
+        has: "is not allowed to write",
+        hint: "Check that the file and its folder are not read-only, then try again.",
+        ..ANY
+    },
+    Row {
+        code: ErrorCode::Precondition,
+        has: "is not allowed to write",
+        hint: "Pick a folder you can write to, or check that the file is not read-only.",
         ..ANY
     },
     // A part carried so far from the origin that f32 would flatten it (gs-engine

@@ -18,9 +18,10 @@ use proptest::prelude::any;
 use proptest::test_runner::{Config, RngSeed, TestCaseError, TestRunner};
 use serde_json::Value;
 
-use super::plan::plan;
+use super::plan::{as_given, plan};
 use super::{Claim, declared};
 use crate::compare::Observed;
+use crate::fixtures;
 
 /// What a run checked: per command and claim, how many steps were checked, and for claims with
 /// a tolerance, the worst difference observed (to set tolerances at ten times it).
@@ -169,21 +170,38 @@ impl Harness {
     }
 
     /// [`Harness::run_until_checked`] on share `k` of `shares` of the edit commands (see
-    /// [`Harness::share`]), each held to the claims it declares, then
-    /// [`Harness::check_setup_of`] on each of them that names a setup. The shares together call
-    /// every command and check every claim, each share in a test of its own, so nextest runs
-    /// them side by side; a plan calls the commands of one share. Call it on the harness of the
-    /// whole catalog ([`Harness::new`]): a setup's run takes the commands its setup calls from
-    /// there, in whichever share they are.
+    /// [`Harness::share`]), each held to the claims it declares. The shares together call every
+    /// command and check every claim, each share in a test of its own, so nextest runs them side
+    /// by side; a plan calls the commands of one share. A command that names a setup is held to
+    /// its claims in its setup's run instead ([`Harness::check_setup_share`]).
     pub fn check_share(&self, k: usize, shares: usize) -> Result<Tally, String> {
         if k >= shares {
             return Err(format!("there is no share {k} of {shares}"));
         }
         let names = self.share(k, shares);
         let mine: Vec<&str> = names.iter().map(String::as_str).collect();
-        let mut tally = self.clone().only(&mine).run_until_checked()?;
-        for command in self.setups.keys().filter(|c| mine.contains(&c.as_str())) {
-            tally.merge(self.check_setup_of(command)?);
+        self.clone().only(&mine).run_until_checked()
+    }
+
+    /// Share `k` of `shares` of the commands that name a setup in the catalog, dealt in name
+    /// order as [`Harness::share`] deals the edit commands.
+    pub fn setup_share(&self, k: usize, shares: usize) -> Vec<String> {
+        (self.setups.keys().skip(k).step_by(shares.max(1)))
+            .cloned()
+            .collect()
+    }
+
+    /// [`Harness::check_setup_of`] on each command of setup share `k` of `shares` (see
+    /// [`Harness::setup_share`]): each in a test of its own beside the shares, so a long
+    /// setup's run does not wait for its command's share. Call it on the harness of the whole
+    /// catalog ([`Harness::new`]): a setup's run takes the commands its setup calls from there.
+    pub fn check_setup_share(&self, k: usize, shares: usize) -> Result<Tally, String> {
+        if k >= shares {
+            return Err(format!("there is no setup share {k} of {shares}"));
+        }
+        let mut tally = Tally::default();
+        for command in self.setup_share(k, shares) {
+            tally.merge(self.check_setup_of(&command)?);
         }
         Ok(tally)
     }
@@ -207,21 +225,43 @@ impl Harness {
             .map_err(|e| format!("{command}, on plans that start with its catalog setup: {e}"))
     }
 
-    /// Runs random plans (`PROPTEST_CASES` of them for every five edit commands, and up to
-    /// [`TOP_UPS`] more rounds while a claim is unchecked) and requires every check to pass and
-    /// every claim to have been checked at least once. Whether a command that changes something
-    /// only in some states (a mask filter needs a mask) lands a change is luck, and any new
-    /// command reshuffles every plan, so while a claim is still unchecked this runs the plans of
-    /// the next seeds too: coverage does not hang on which commands the pool holds.
+    /// Runs random plans (`PROPTEST_CASES` of them for every five edit commands) and requires
+    /// every check to pass and every claim to have been checked at least once. Whether a random
+    /// call lands in the state a claim needs (the mask on the masked fixture, a mirror plane its
+    /// frame is off) is luck, and any new command deals every plan again, so each command with a
+    /// claim the random plans left unchecked then runs its examples as given
+    /// ([`Harness::as_given`]), which no seed changes. Only while a claim is still unchecked do
+    /// up to [`TOP_UPS`] more rounds of random plans run, from the next seeds, and they call only
+    /// the commands still unchecked (with the setup calls, if any): the others have had their
+    /// first round's calls.
     pub fn run_until_checked(&self) -> Result<Tally, String> {
         let mut tally = self.run()?;
+        for command in self.unchecked(&tally) {
+            tally.merge(self.as_given(&command)?);
+        }
         for round in 1..=TOP_UPS {
-            if self.require_checked(&tally).is_ok() {
+            let unchecked = self.unchecked(&tally);
+            if unchecked.is_empty() {
                 break;
             }
-            tally.merge(self.run_round(round)?);
+            let names: Vec<&str> = unchecked.iter().map(String::as_str).collect();
+            tally.merge(self.clone().only(&names).run_round(round)?);
         }
         self.require_checked(&tally)?;
+        Ok(tally)
+    }
+
+    /// The plans of `command`'s examples as given ([`as_given`]), one on each standard
+    /// fixture, each starting with the setup calls, if any.
+    pub fn as_given(&self, command: &str) -> Result<Tally, String> {
+        let Some(info) = self.pool.iter().find(|c| c.name == command) else {
+            return Err(format!("{command} is not called by this harness"));
+        };
+        let mut tally = Tally::default();
+        for k in 0..fixtures::all().len() {
+            let plan = as_given(info, k).starting_with(&self.first);
+            tally.merge(self.check(&plan).map_err(|v| v.to_string())?);
+        }
         Ok(tally)
     }
 
@@ -264,18 +304,34 @@ impl Harness {
             }
         }
         for info in &self.pool {
-            let elsewhere = (self.setups.get(&info.name)).is_some_and(|s| *s != self.first);
-            let required: Vec<&str> = match self.claims.get(&info.name) {
-                Some(claims) if !elsewhere => {
-                    (claims.iter().chain(&Claim::UNIVERSAL).map(Claim::name)).collect()
-                }
-                _ => vec![Claim::Deterministic.name()],
-            };
-            if let Some(missing) = required.iter().find(|c| tally.count(&info.name, c) == 0) {
+            if let Some(missing) = self.missing(info, tally) {
                 return Err(format!("{}: {missing} was never checked", info.name));
             }
         }
         Ok(())
+    }
+
+    /// The pool's commands with a claim [`Harness::require_checked`] holds them to that `tally`
+    /// has not checked, in pool order.
+    fn unchecked(&self, tally: &Tally) -> Vec<String> {
+        (self.pool.iter())
+            .filter(|info| self.missing(info, tally).is_some())
+            .map(|info| info.name.clone())
+            .collect()
+    }
+
+    /// The first claim [`Harness::require_checked`] holds `info` to that `tally` has not checked.
+    fn missing(&self, info: &CommandInfo, tally: &Tally) -> Option<&'static str> {
+        let elsewhere = (self.setups.get(&info.name)).is_some_and(|s| *s != self.first);
+        let required: Vec<&'static str> = match self.claims.get(&info.name) {
+            Some(claims) if !elsewhere => {
+                (claims.iter().chain(&Claim::UNIVERSAL).map(Claim::name)).collect()
+            }
+            _ => vec![Claim::Deterministic.name()],
+        };
+        required
+            .into_iter()
+            .find(|c| tally.count(&info.name, c) == 0)
     }
 }
 

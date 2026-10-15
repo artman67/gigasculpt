@@ -70,7 +70,11 @@ impl WindowHost for Host {
         Some(self.shell(|s| s.palette_request(request)))
     }
 
-    fn layout(&mut self, change: &UiLayout) -> Option<Result<LayoutInfo, String>> {
+    #[expect(
+        clippy::result_large_err,
+        reason = "the engine's wire error, as in keymap.rs"
+    )]
+    fn layout(&mut self, change: &UiLayout) -> Option<Result<LayoutInfo, CommandError>> {
         Some(self.shell(|s| s.change_layout(change)))
     }
 

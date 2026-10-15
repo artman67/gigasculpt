@@ -420,10 +420,12 @@ fn a_recovery_stops_at_the_first_line_that_fails() {
 }
 
 /// The command log is there but cannot be read (a folder stands at its path, which no system
-/// reads as a file): the offer is the newest autosave alone and gives the system's reason, and
-/// a replay asked for anyway is refused with the same reason.
+/// reads as a file): the offer is the newest autosave alone and says why in a person's words,
+/// naming the log (gs-engine `file::file_refused`; the system's reason, "Is a directory (os
+/// error 21)" on Linux, by its kind), and a replay asked for anyway is refused with the same
+/// reason.
 #[test]
-fn an_unreadable_log_is_offered_as_the_autosave_alone_with_the_systems_reason() {
+fn an_unreadable_log_is_offered_as_the_autosave_alone_saying_why() {
     let dir = folder("recover-unreadable");
     let (state, log) = (dir.join("state"), dir.join("crashed.jsonl"));
     let config = EngineConfig {
@@ -438,20 +440,22 @@ fn an_unreadable_log_is_offered_as_the_autosave_alone_with_the_systems_reason() 
     drop(s);
     std::fs::remove_file(&log).unwrap();
     std::fs::create_dir(&log).unwrap();
-    let reason = std::fs::read_to_string(&log).unwrap_err().to_string();
     let mut r = session(0, None, Some(&state));
     let candidate = r.query("file.recovery", json!({}))["candidates"][0].clone();
     let offer = candidate["offer"].as_str().unwrap_or_default();
-    let alone = "the newest autosave alone: the command log after it cannot be read";
+    let alone = "the newest autosave alone: the command log after it cannot be read: ";
+    let reason = offer.strip_prefix(alone).unwrap_or_default();
+    // A folder on Linux and macOS; on Windows, a file it may not read.
+    let worded = ["crashed.jsonl\" is a folder", "not allowed to read"];
     assert!(
-        offer.starts_with(alone) && offer.contains(&reason),
-        "the offer gives {reason:?}: {candidate}"
+        worded.iter().any(|w| reason.contains(w)) && !reason.contains("os error"),
+        "the offer says why in a person's words: {candidate}"
     );
     assert_eq!(candidate["lines_after"], Value::Null, "{candidate}");
     let asked = json!({ "session": candidate["id"], "replay": true });
     let e = r.err("file.recover", asked);
     assert!(
-        e.code == ErrorCode::Precondition && e.message.contains(&reason),
+        e.code == ErrorCode::Precondition && e.message.contains(reason),
         "the refusal gives {reason:?}: {}",
         e.message
     );

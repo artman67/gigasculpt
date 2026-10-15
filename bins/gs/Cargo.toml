@@ -21,6 +21,10 @@ serde_path_to_error.workspace = true
 rmcp = { version = "~3.5.1", default-features = false, features = ["server", "transport-io"] }
 tokio = { version = "1.53", default-features = false, features = ["rt", "macros", "sync"] }
 
+[target.'cfg(windows)'.dependencies]
+# Keeps gs's own input and output from the engines it starts (decision 0065).
+gs-win32.workspace = true
+
 [dev-dependencies]
 # The tests run the real engine code as the session process (see tests/cli.rs), rendering
 # offscreen looks through gs-ui as the gigasculpt binary does (tests/mcp).

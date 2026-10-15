@@ -13,10 +13,18 @@
     windows_subsystem = "windows"
 )]
 
+// Opened from Finder or Explorer, a release build has no terminal to print why its window could
+// not open, so it shows the reason in a message box too. The console twin prints it only.
+const ALOUD: bool = cfg!(all(
+    not(debug_assertions),
+    not(feature = "console"),
+    any(target_os = "macos", windows)
+));
+
 fn main() -> std::process::ExitCode {
     let args: Vec<std::ffi::OsString> = std::env::args_os().collect();
     if gs_ui::app::wants_window(&args) {
-        gs_ui::app::main(&args)
+        gs_ui::app::main(&args, ALOUD)
     } else {
         gs_engine::cli::main_with(args, gs_ui::Offscreen::host)
     }

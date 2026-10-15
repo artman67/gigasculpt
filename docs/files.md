@@ -5,8 +5,9 @@ recovery, importing and exporting meshes, brush files, and where GigaSculpt keep
 
 ## Saving and opening
 
-Everything here is in the File menu, which shows a shorter name for some items (Save as for Save
-scene as, Open recent for Open a recent scene).
+Everything here is in the File menu, which shows a shorter name for most items (Open for Open
+scene, Save as for Save scene as, Open recent for Open a recent scene, Import for Import a file,
+Export for Export a file).
 
 - **New scene** (Ctrl+N) starts an empty scene with no file.
 - **Open scene** (Ctrl+O) opens a scene, or a Part file, in place of this scene. Picking a mesh
@@ -111,6 +112,9 @@ the name's extension; a name without one writes OBJ (`out` writes `out.obj`):
 | OBJ | Each part as an object, with face groups, UVs, vertex colors and the mask. |
 | PLY | Vertex colors. |
 | STL | Triangles only, for 3D printing. |
+
+Export a file is gray in an empty scene, which has nothing to write. Given a folder that is not
+there, it writes nothing and says so, naming the file and the folder.
 
 A part you imported remembers the size and place it had in its file, so exporting it writes it
 back the same way.

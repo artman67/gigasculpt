@@ -89,7 +89,8 @@ fn a_save_refused_on_the_jobs_thread_reads_in_a_persons_words_and_a_good_one_cle
     rig.press("file.save", json!({}));
     rig.until_done();
     let said = line_after_a_frame(&rig);
-    assert!(said.starts_with("There is no folder"), "{said}");
+    assert!(said.starts_with("Cannot write"), "{said}");
+    assert!(said.contains("there is no folder"), "{said}");
     assert!(said.contains("Check the folder"), "what to do: {said}");
     rig.press("file.save", json!({ "path": dir.join("two.gss") }));
     rig.until_done();

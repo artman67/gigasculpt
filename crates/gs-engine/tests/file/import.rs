@@ -474,7 +474,11 @@ fn a_file_that_cannot_be_opened_is_refused() {
     let mut s = Session::new();
     let err = s.err("file.import", json!({ "path": path }));
     assert_eq!(code(err.code), "E_PRECONDITION");
-    assert!(err.message.starts_with("cannot use"), "{}", err.message);
+    // In a person's words, naming the file; never the system's text with its error number.
+    for words in ["locked.obj", "not allowed to read"] {
+        assert!(err.message.contains(words), "{}", err.message);
+    }
+    assert!(!err.message.contains("os error"), "{}", err.message);
 }
 
 /// One damaged file per open format carrying a value that is not a finite number into a column

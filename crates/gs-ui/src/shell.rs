@@ -289,8 +289,9 @@ impl Shell {
     pub fn ui(&mut self, ui: &mut egui::Ui) {
         self.start(ui.ctx());
         let rec = Recorder::new(ui.ctx().pixels_per_point());
-        // One Escape, Enter, Tab or arrow, each to the one thing in front, before any region or
-        // key sees it (`escape`).
+        // Every key to the one thing in front, kept once a frame before any region or key sees
+        // it (`escape`): Escape taken out of the frame, Enter, Tab and the arrows given, and the
+        // rest for a piece that takes keys of its own to ask (`in_front`).
         self.escape(ui.ctx());
         self.route(ui.ctx());
         self.keys(ui);

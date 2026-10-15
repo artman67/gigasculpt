@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 
 use super::{Landing, StateFolder, write_whole};
-use crate::errors::{error, internal};
+use crate::errors::internal;
 use crate::{Command, Ctx, Example, Unavailable, register_command};
 
 /// Max Duration's lowest and highest minutes; the highest turns it off.
@@ -150,11 +150,9 @@ impl Command for FileAutosave {
         };
         if s != now {
             let text = serde_json::to_string_pretty(&s).map_err(|e| internal(&e.to_string()))?;
-            write_whole(&config.state_dir, FILE, &text).map_err(|e| {
-                let file = config.state_dir.join(FILE);
-                let message = format!("cannot write {}: {e}", file.display());
-                error(ErrorCode::Precondition, message)
-            })?;
+            let file = config.state_dir.join(FILE);
+            let written = write_whole(&config.state_dir, FILE, &text);
+            written.map_err(|e| crate::file::file_refused("write", &file, &e))?;
             cx.land(Landing::Autosave(config.with(s)));
         }
         Ok(s)

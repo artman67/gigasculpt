@@ -17,6 +17,9 @@
 //! A harness may name steps every plan starts with ([`Plan::starting_with`]), called as given
 //! on each loaded part before the random steps. Unlike a random step, each must succeed and
 //! change something, or the run fails as a harness error (review 0008, T1).
+//!
+//! A plan can also call one command's examples as given ([`as_given`]), with nothing random in
+//! it, for the claims random calls reach only now and then.
 
 use gs_protocol::{CommandInfo, Step};
 use serde_json::{Map, Number, Value, json};
@@ -117,17 +120,66 @@ fn step(pool: &[&CommandInfo], parts: &[&str], rng: &mut SplitMix64) -> Step {
     call(&info.name, args)
 }
 
-/// Sets the part arguments, drops an argument now and then, and sometimes adds an unknown one.
-fn reshape(map: &mut Map<String, Value>, info: &CommandInfo, parts: &[&str], rng: &mut SplitMix64) {
+/// A plan that calls each of `info`'s examples once as given, on the `k`-th standard fixture
+/// with the next one loaded beside it: no value perturbed and no argument dropped, the `part`
+/// argument naming the `k`-th and any other one-part argument an example gives the other. Then
+/// the first example once more with an argument the command does not have, which every
+/// command refuses, so a failed call is checked too. Each call is checked under one of the cube
+/// symmetries other than the identity, in turn, and the session seed is fixed: it is the same
+/// plan on every run.
+pub fn as_given(info: &CommandInfo, k: usize) -> Plan {
+    let mut both = fixtures::all();
+    let n = both.len();
+    both.rotate_left(k % n);
+    both.truncate(2);
+    let names = [both[0].name, both[1].name];
+    let mut calls: Vec<Value> = info.examples.iter().map(|e| e.args.clone()).collect();
+    if let Some(Value::Object(first)) = calls.first() {
+        let mut refused = first.clone();
+        refused.insert("zz_unknown".into(), json!(1));
+        calls.push(Value::Object(refused));
+    }
+    let steps: Vec<Step> = (calls.into_iter())
+        .map(|mut args| {
+            if let Value::Object(map) = &mut args {
+                for key in part_keys(map, info) {
+                    let name = if key == "part" { names[0] } else { names[1] };
+                    map.insert(key, json!(name));
+                }
+            }
+            Step {
+                command: info.name.clone(),
+                args,
+            }
+        })
+        .collect();
+    let symmetries = CubeSymmetry::all();
+    let others = &symmetries[1..];
+    Plan {
+        seed: 7,
+        fixtures: both,
+        mirrors: (0..steps.len()).map(|i| others[i % others.len()]).collect(),
+        steps,
+        setup: 0,
+    }
+}
+
+/// The arguments of `map` that name a part: `part`, if the command has it, and any other
+/// one-part argument `map` gives.
+fn part_keys(map: &Map<String, Value>, info: &CommandInfo) -> Vec<String> {
     let properties = info.args_schema["properties"]
         .as_object()
         .into_iter()
         .flatten();
-    let named: Vec<String> = (properties)
+    (properties)
         .filter(|(key, schema)| *key == "part" || (map.contains_key(*key) && one_part(schema)))
         .map(|(key, _)| key.clone())
-        .collect();
-    for key in named {
+        .collect()
+}
+
+/// Sets the part arguments, drops an argument now and then, and sometimes adds an unknown one.
+fn reshape(map: &mut Map<String, Value>, info: &CommandInfo, parts: &[&str], rng: &mut SplitMix64) {
+    for key in part_keys(map, info) {
         let part = if rng.below(8) == 0 {
             "zz-missing"
         } else {

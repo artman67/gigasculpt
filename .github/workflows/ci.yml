@@ -169,6 +169,17 @@ jobs:
           cargo nextest run --locked --no-fail-fast -p gs-engine --test scene
           -E "test(autosave::)"
 
+      # gs's own tests: `gs spawn`, `gs mcp` and the rest against real sessions, among them the
+      # two that read gs through a pipe and check its output ends while the session runs on,
+      # which only Windows could fail (decision 0065). Sessions sit in the runner's temp folder,
+      # as nothing sets XDG_RUNTIME_DIR here. Left out: looks_are_one_png_of_the_size_asked, the
+      # one that renders, through lavapipe (Linux's software Vulkan).
+      - name: gs's tests
+        timeout-minutes: 30
+        run: >
+          cargo nextest run --locked --no-fail-fast -p gs --test cli --test mcp
+          -E "not test(=looks_are_one_png_of_the_size_asked)"
+
       # The app's icon inside the Windows program (bins/gigasculpt/build.rs).
       - name: Windows icon
         if: runner.os == 'Windows'

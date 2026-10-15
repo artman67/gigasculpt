@@ -20,8 +20,8 @@ use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::{Path, PathBuf};
 
 use gs_protocol::{
-    BUNDLE_FORMAT, Bundle, BundleInfo, Catalog, CommandError, ErrorCode, LogRecord, Predicate,
-    Source, Start, bundle_file, free_path, method, panic_message,
+    BUNDLE_FORMAT, Bundle, BundleInfo, Catalog, CommandError, LogRecord, Predicate, Source, Start,
+    bundle_file, free_path, method, panic_message,
 };
 use serde_json::json;
 
@@ -233,7 +233,10 @@ impl Engine {
                 "a bug bundle was written to {}; `gs repro minimize` shrinks it",
                 folder.display()
             ),
-            Err(e) => format!("writing a bug bundle to {} failed: {e}", folder.display()),
+            Err(e) => format!(
+                "no bug bundle was written: {}",
+                unwritable(&folder, &e).message
+            ),
         };
         err.hint = Some(match err.hint.take() {
             Some(hint) => format!("{hint}; {said}"),
@@ -252,8 +255,5 @@ fn panic_folder(log: &Path, seq: Option<u64>) -> PathBuf {
 
 /// The error a bundle that cannot be written gives a command.
 pub(crate) fn unwritable(folder: &Path, e: &io::Error) -> CommandError {
-    crate::errors::error(
-        ErrorCode::Precondition,
-        format!("cannot write the bug bundle {}: {e}", folder.display()),
-    )
+    file::file_refused("write", folder, e)
 }

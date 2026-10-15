@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 
 use crate::errors::error;
+use crate::file::file_refused;
 use crate::{Command, Ctx, Example, register_command};
 
 /// How many files the list keeps: the catalog's recent count.
@@ -36,7 +37,7 @@ pub(crate) fn read(state: &Path) -> Result<Vec<String>, String> {
     let text = match std::fs::read_to_string(&file) {
         Ok(text) => text,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
-        Err(e) => return Err(format!("cannot read {}: {e}", file.display())),
+        Err(e) => return Err(file_refused("read", &file, &e).message),
     };
     let stored: Stored = serde_json::from_str(&text)
         .map_err(|e| format!("{} does not read as a recent list: {e}", file.display()))?;
@@ -45,15 +46,18 @@ pub(crate) fn read(state: &Path) -> Result<Vec<String>, String> {
 
 /// Puts `path` at the top of the list in `state`, once, and keeps the newest [`KEPT`]. A list
 /// that does not read is started afresh. Written under a temporary name and renamed, so a
-/// crash never leaves half a list.
-pub(crate) fn record(state: &Path, path: &Path) -> std::io::Result<()> {
-    let path = std::path::absolute(path)?.display().to_string();
+/// crash never leaves half a list. An error says why in a person's words.
+pub(crate) fn record(state: &Path, path: &Path) -> Result<(), String> {
+    // Only a relative path, with the engine's folder gone, fails to be made absolute.
+    let path = std::path::absolute(path).map_err(|e| e.to_string())?;
+    let path = path.display().to_string();
     let mut files = read(state).unwrap_or_default();
     files.retain(|f| *f != path);
     files.insert(0, path);
     files.truncate(KEPT);
-    let text = serde_json::to_string_pretty(&Stored { files }).map_err(std::io::Error::other)?;
-    super::write_whole(state, LIST, &text)
+    let text = serde_json::to_string_pretty(&Stored { files }).map_err(|e| e.to_string())?;
+    let written = super::write_whole(state, LIST, &text);
+    written.map_err(|e| file_refused("write", &list_file(state), &e).message)
 }
 
 /// The state folder that holds the list: autosave's (decision 0016, section 10). `None` in a

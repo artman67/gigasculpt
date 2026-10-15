@@ -72,6 +72,36 @@ fn a_floor_preset_returns_every_setting_and_replays() {
     std::fs::remove_dir_all(dir).ok();
 }
 
+/// A floor preset or a light probe GigaSculpt may not read says so in a person's words, naming
+/// the file at its argument, where it said "there is no such file" for any file it could not
+/// read; a file not there is still not found.
+#[test]
+#[cfg(unix)]
+fn a_floor_preset_or_a_light_probe_it_may_not_read_says_so() {
+    use std::os::unix::fs::PermissionsExt;
+    let dir = folder("canvas-not-allowed");
+    let shut = dir.join("shut.toml");
+    std::fs::write(&shut, "").unwrap();
+    std::fs::set_permissions(&shut, std::fs::Permissions::from_mode(0o000)).unwrap();
+    let (shut, gone) = (shut.display().to_string(), dir.join("gone.toml"));
+    let mut s = seeded(0, None);
+    for (command, arg) in [("view.floor", "preset"), ("view.environment", "path")] {
+        let at = format!("/{arg}");
+        let e = s.err(command, json!({ arg: shut }));
+        assert_eq!(e.code, ErrorCode::Precondition, "{command}: {}", e.message);
+        assert_eq!(e.path.as_deref(), Some(at.as_str()), "{command}");
+        for words in ["shut.toml", "not allowed to read"] {
+            assert!(e.message.contains(words), "{command}: {}", e.message);
+        }
+        assert!(!e.message.contains("os error"), "{}", e.message);
+        let e = s.err(command, json!({ arg: gone.display().to_string() }));
+        assert_eq!(e.code, ErrorCode::NotFound, "{command}: {}", e.message);
+        assert!(e.message.contains("there is no file at"), "{}", e.message);
+        assert_eq!(e.path.as_deref(), Some(at.as_str()), "{command}");
+    }
+    std::fs::remove_dir_all(dir).ok();
+}
+
 /// `view.wire` sets each part of the wire's style alone, reports it in `session.state`, refuses
 /// a color that is not `"#rrggbb"` and an opacity past 1, and replays to the same style.
 #[test]

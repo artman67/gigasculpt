@@ -37,8 +37,12 @@ fn main() -> ExitCode {
 }
 
 /// Every case, by name.
-const CASES: [(&str, fn()); 24] = [
+const CASES: [(&str, fn()); 25] = [
     ("spawn_call_and_stop", sessions::spawn_call_and_stop),
+    (
+        "spawns_output_ends_before_its_session_does",
+        sessions::spawns_output_ends_before_its_session_does,
+    ),
     (
         "names_stay_in_the_session_folder",
         sessions::names_stay_in_the_session_folder,

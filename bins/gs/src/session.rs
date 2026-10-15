@@ -171,8 +171,8 @@ pub fn engine_program() -> PathBuf {
 
 /// Starting the engine apart from this terminal, so the terminal's Ctrl-C reaches `gs` alone.
 pub trait Detach {
-    /// Unix: a process group of its own. Windows: a process group of its own and no console
-    /// window.
+    /// Unix: a process group of its own. Windows: a process group of its own, no console
+    /// window, and none of `gs`'s own standard handles but those the command passes on purpose.
     fn detached(&mut self) -> &mut Self;
 }
 
@@ -180,9 +180,20 @@ impl Detach for Command {
     fn detached(&mut self) -> &mut Self {
         #[cfg(unix)]
         std::os::unix::process::CommandExt::process_group(self, 0);
-        // CREATE_NEW_PROCESS_GROUP and CREATE_NO_WINDOW.
         #[cfg(windows)]
-        std::os::windows::process::CommandExt::creation_flags(self, 0x0000_0200 | 0x0800_0000);
+        {
+            use std::os::windows::io::AsHandle;
+            // CREATE_NEW_PROCESS_GROUP and CREATE_NO_WINDOW.
+            std::os::windows::process::CommandExt::creation_flags(self, 0x0000_0200 | 0x0800_0000);
+            // Windows hands a program every inheritable handle its parent holds, and gs's
+            // standard handles come inheritable from whoever started it: the engine would hold
+            // the pipe a script or MCP client reads gs through, so the reader would wait until
+            // the session stopped (decision 0065). A null handle (no console) has nothing to keep.
+            let (input, output, errors) = (std::io::stdin(), std::io::stdout(), std::io::stderr());
+            for handle in [input.as_handle(), output.as_handle(), errors.as_handle()] {
+                gs_win32::keep_from_children(handle).ok();
+            }
+        }
         self
     }
 }

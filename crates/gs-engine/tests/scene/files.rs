@@ -76,6 +76,50 @@ fn open_and_new_on_unsaved_changes_name_the_argument_that_lets_them_go() {
     assert!(dry_run(&mut s, "file.new", json!({})).is_none(), "saved");
 }
 
+/// A save into a folder GigaSculpt may not write, as a shared or a system folder is, says so in
+/// a person's words naming the file; never the system's text with its error number.
+#[test]
+#[cfg(unix)]
+fn a_save_it_may_not_write_says_so() {
+    use std::os::unix::fs::PermissionsExt;
+    let dir = folder("save-not-allowed");
+    std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o555)).unwrap();
+    let mut s = session(1, None, None);
+    s.ok("primitive.sphere", json!({ "subdivisions": 4 }));
+    let e = s.err("file.save", json!({ "path": at(&dir, "shut.gss") }));
+    assert_eq!(code(e.code), "E_PRECONDITION", "{}", e.message);
+    for words in ["shut.gss", "not allowed to write"] {
+        assert!(e.message.contains(words), "{}", e.message);
+    }
+    for system in ["os error", "Permission denied"] {
+        assert!(!e.message.contains(system), "{}", e.message);
+    }
+}
+
+/// Opening a scene file GigaSculpt may not read, as a shared one can be, says so in a person's
+/// words naming the file, as a save does.
+#[test]
+#[cfg(unix)]
+fn an_open_it_may_not_read_says_so() {
+    use std::os::unix::fs::PermissionsExt;
+    let path = at(&folder("open-not-allowed"), "shut.gss");
+    let mut s = session(1, None, None);
+    s.ok("primitive.sphere", json!({ "subdivisions": 4 }));
+    s.ok("file.save", json!({ "path": path }));
+    std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o000)).unwrap();
+    let e = s.err(
+        "file.open",
+        json!({ "path": path, "discard_changes": true }),
+    );
+    assert_eq!(code(e.code), "E_PRECONDITION", "{}", e.message);
+    for words in ["shut.gss", "not allowed to read"] {
+        assert!(e.message.contains(words), "{}", e.message);
+    }
+    for system in ["os error", "Permission denied"] {
+        assert!(!e.message.contains(system), "{}", e.message);
+    }
+}
+
 /// `file.save {}` on a scene that has no file is refused before it starts a job, naming
 /// `path`, so a dry run says so and the window asks a name; the first save with a path and the
 /// next without write the same file (decision 0016, section 17; R6).

@@ -240,8 +240,14 @@ impl Themes {
                 ));
                 continue;
             }
-            let text = std::fs::read_to_string(&path).map_err(|e| e.to_string());
-            match text.and_then(|text| Theme::from_toml(&name, &text)) {
+            let text = match std::fs::read_to_string(&path) {
+                Ok(text) => text,
+                Err(e) => {
+                    problems.push(gs_engine::file_refused("read", &path, &e).message);
+                    continue;
+                }
+            };
+            match Theme::from_toml(&name, &text) {
                 Ok(theme) => {
                     problems.extend(theme.faint_words(&shown.to_string()));
                     user.push(&*Box::leak(Box::new(theme)));

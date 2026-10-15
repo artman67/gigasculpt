@@ -3,8 +3,10 @@
 //! expects: before any region draws, the window finds the first thing open in [`ORDER`] and
 //! tells that one. Escape's press is taken out of the frame so nothing behind it sees the key;
 //! the others ([`ROUTED`]) are left for egui's own fields and buttons, and each piece that
-//! answers one asks whether it was given the press ([`went_to`]). With nothing open a press is
-//! left in the frame, for a key the user bound to it; a given one is not the keymap's.
+//! answers one asks whether it was given the press ([`went_to`]). Every other key goes to the
+//! same one: a piece that takes keys of its own asks what is in front ([`in_front`]), kept once
+//! a frame. With nothing open a press is left in the frame, for a key the user bound to it; a
+//! given one is not the keymap's.
 //!
 //! egui acts on the press before the window sees it, and that is left as it is: on Escape it
 //! lets go of the text field that has the keyboard (the `Field` row), and ends its own drag of a
@@ -99,6 +101,19 @@ fn palette() -> LayerId {
     LayerId::new(Order::Middle, Id::new(crate::palette::WINDOW))
 }
 
+/// Where egui's memory keeps what is in front this frame.
+fn front_id() -> Id {
+    Id::new("in front")
+}
+
+/// What is in front this frame: the first thing open in [`ORDER`] once Escape has shut its one.
+/// Every key pressed is that one's, not only Enter, Tab and the arrows, so a piece that takes
+/// keys of its own, as Bind a key… takes any chord, asks here and takes none while another is in
+/// front of it.
+pub(crate) fn in_front(ctx: &egui::Context) -> Option<To> {
+    ctx.data(|d| d.get_temp::<To>(front_id()))
+}
+
 /// What this frame's `key` went to, if it was pressed with something open.
 fn went(ctx: &egui::Context, key: Key) -> Option<To> {
     ctx.data(|d| d.get_temp::<To>(given_id(key)))
@@ -148,45 +163,54 @@ fn pressed(e: &egui::Event, key: Key) -> bool {
     matches!(e, egui::Event::Key { key: k, pressed: true, .. } if *k == key)
 }
 
+/// Keeps `to` in egui's memory at `id`, or nothing there.
+fn keep(ctx: &egui::Context, id: Id, to: Option<To>) {
+    ctx.data_mut(|d| {
+        if let Some(to) = to {
+            d.insert_temp(id, to);
+        } else {
+            d.remove::<To>(id);
+        }
+    });
+}
+
+/// Keeps what this frame's `key` goes to, if it was pressed: `front`. Returns it.
+fn give(ctx: &egui::Context, key: Key, front: Option<To>) -> Option<To> {
+    let to = front.filter(|_| ctx.input(|i| i.key_pressed(key)));
+    keep(ctx, given_id(key), to);
+    to
+}
+
 impl Shell {
     /// Gives this frame's Escape, if it was pressed, to the first thing open in [`ORDER`], and
     /// takes the press out of the frame. Call before anything reads the keys.
     pub(super) fn escape(&mut self, ctx: &egui::Context) {
-        let Some(to) = self.give(ctx, Key::Escape) else {
+        let front = ctx
+            .input(|i| i.key_pressed(Key::Escape))
+            .then(|| self.front(ctx));
+        let Some(to) = give(ctx, Key::Escape, front.flatten()) else {
             return;
         };
         ctx.input_mut(|i| i.events.retain(|e| !pressed(e, Key::Escape)));
         self.close(ctx, to);
     }
 
-    /// Gives this frame's Enter, Tab and arrows, each if pressed, to the first thing open in
-    /// [`ORDER`], for the pieces that answer them to ask ([`went_to`]); the presses stay in the
-    /// frame for egui's own fields and buttons. egui moves the keyboard on Tab only from a field
-    /// that took it, in the palette or not, so it never lands on a field behind the one in
-    /// front. Call before anything reads the keys or draws.
+    /// Keeps what is in front once Escape has acted, for every key this frame ([`in_front`]),
+    /// and gives it Enter, Tab and the arrows, each if pressed, for the pieces that answer them
+    /// to ask ([`went_to`]); the presses stay in the frame for egui's own fields and buttons.
+    /// egui moves the keyboard on Tab only from a field that took it, in the palette or not, so
+    /// it never lands on a field behind the one in front. Call before anything reads the keys or
+    /// draws.
     pub(super) fn route(&self, ctx: &egui::Context) {
+        let front = self.front(ctx);
+        keep(ctx, front_id(), front);
         for key in ROUTED {
-            self.give(ctx, key);
+            give(ctx, key, front);
         }
         let tab = ctx.input(|i| i.key_pressed(Key::Tab));
         if tab && !matches!(went(ctx, Key::Tab), Some(To::Field | To::Palette)) {
             ctx.memory_mut(|m| m.move_focus(egui::FocusDirection::None));
         }
-    }
-
-    /// Keeps what this frame's `key` goes to, if it was pressed: the first thing open in
-    /// [`ORDER`]. Returns it.
-    fn give(&self, ctx: &egui::Context, key: Key) -> Option<To> {
-        let pressed = ctx.input(|i| i.key_pressed(key));
-        let to = pressed.then(|| self.front(ctx)).flatten();
-        ctx.data_mut(|d| {
-            if let Some(to) = to {
-                d.insert_temp(given_id(key), to);
-            } else {
-                d.remove::<To>(given_id(key));
-            }
-        });
-        to
     }
 
     /// The first thing open in [`ORDER`].

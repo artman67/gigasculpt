@@ -3,8 +3,8 @@
 use std::fs;
 #[cfg(unix)]
 use std::os::unix::process::ExitStatusExt;
-use std::path::PathBuf;
-use std::process::ExitStatus;
+use std::path::{Path, PathBuf};
+use std::process::{Command, ExitStatus};
 use std::sync::atomic::{AtomicU32, Ordering};
 
 /// A new private runtime folder for one case, `PREFIX-PID-N`: under `$XDG_RUNTIME_DIR` (else the
@@ -17,6 +17,27 @@ pub fn runtime_dir(prefix: &str) -> PathBuf {
     let dir = base.join(format!("{prefix}-{}-{n}", std::process::id()));
     fs::create_dir_all(&dir).unwrap_or_else(|e| panic!("cannot make {}: {e}", dir.display()));
     dir
+}
+
+/// `gs` with `args`, in a case's runtime folder `dir`, with this test program as its engine.
+pub fn gs_command(dir: &Path, args: &[&str]) -> Command {
+    let me = std::env::current_exe().unwrap_or_else(|e| panic!("no test program path: {e}"));
+    let mut command = Command::new(env!("CARGO_BIN_EXE_gs"));
+    command
+        .args(args)
+        .env("XDG_RUNTIME_DIR", dir)
+        // Engines log in the state folder: keep their logs in this case's folder.
+        .env("XDG_STATE_HOME", dir.join("state"))
+        .env("GS_ENGINE", me)
+        .env_remove("GS_SESSION");
+    command
+}
+
+/// The stop key in what `gs spawn` printed (`gs mcp --spawn` prints the same to its log).
+pub fn stop_key_in(printed: &str) -> Option<&str> {
+    (printed.lines())
+        .find_map(|l| l.strip_prefix("stop key: "))
+        .and_then(|rest| rest.split_whitespace().next())
 }
 
 /// A `gs` run's exit code. A `gs` that died by a stray SIGKILL ((G-kill) in docs/STATUS.md)

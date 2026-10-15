@@ -228,6 +228,10 @@ impl Command for UiLayout {
                     format!("`{p}`: give an absolute path"),
                 ));
             }
+            // A folder asks for a file name, as Open and Save do, not the system's words.
+            if let Some(p) = path {
+                crate::file::not_a_folder(Path::new(p)).map_err(|e| named(at, e))?;
+            }
         }
         if let Some(path) = &self.import {
             check_import(path, &self.parts)?;
@@ -243,23 +247,27 @@ impl Command for UiLayout {
                 return Err(errors::args_invalid("/save", message));
             }
         }
-        let shown = cx.window.with(|w| w.layout(&self)).ok_or_else(no_window)?;
-        shown.map_err(|e| errors::error(ErrorCode::NotFound, e))
+        // The window codes its refusal by what went wrong.
+        cx.window.with(|w| w.layout(&self)).ok_or_else(no_window)?
     }
 }
 register_command!(UiLayout, "Set layout");
+
+/// `e` as the refusal of the argument at `at`, so the window says it under that field.
+fn named(at: &str, e: CommandError) -> CommandError {
+    CommandError {
+        path: Some(at.into()),
+        ..e
+    }
+}
 
 /// `import`'s file, read far enough to refuse it before the window is asked (decision 0050
 /// section 4): it is there, reads as TOML, is a settings file of a version this program
 /// reads, and holds every part `parts` names.
 fn check_import(path: &str, parts: &[LayoutPart]) -> Result<(), CommandError> {
-    let text = std::fs::read_to_string(path).map_err(|e| {
-        let code = match e.kind() {
-            std::io::ErrorKind::NotFound => ErrorCode::NotFound,
-            _ => ErrorCode::Precondition,
-        };
-        errors::error(code, format!("{path}: {e}"))
-    })?;
+    // A file that is not there as Open says it, not the system's words.
+    let read = std::fs::read_to_string(path);
+    let text = read.map_err(|e| named("/import", crate::file::io_error(path, &e)))?;
     let table: toml::Table = (text.parse())
         .map_err(|e: toml::de::Error| errors::error(ErrorCode::Damaged, format!("{path}: {e}")))?;
     let refused = |message: String, hint: &str| CommandError {

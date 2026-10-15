@@ -100,6 +100,12 @@ fn an_import_is_refused_whole_and_changes_nothing() {
     let (code, message) = import(&mut ui, quick, json!(["keymap"]));
     assert_eq!(code, ErrorCode::NotFound, "{message}");
     assert!(message.contains("quick"), "names what it holds: {message}");
+    // The window's own check codes what went wrong, as the engine's does: a file it cannot
+    // read as settings is damaged (it was not found).
+    let none = "version = 1\n[quick]\nshown = 1\nmenus = []\n";
+    let (code, message) = import(&mut ui, none, json!(["quick"]));
+    assert_eq!(code, ErrorCode::Damaged, "{message}");
+    assert!(message.contains("0 quick menus"), "{message}");
     let unknown =
         format!("{quick}[[keymap.bind]]\nkey = \"Ctrl+K\"\ncommand = \"primitive.donut\"\n");
     let before = menus(&mut ui);

@@ -86,12 +86,9 @@ impl ViewEnvironment {
         let Some(path) = &self.path else {
             return Ok(Environment::Own);
         };
-        let hash = self.hash.clone().ok_or_else(|| {
-            let message = format!("cannot read {path}: there is no such file");
-            CommandError {
-                path: Some("/path".into()),
-                ..error(ErrorCode::NotFound, message)
-            }
+        let hash = self.hash.clone().ok_or_else(|| CommandError {
+            path: Some("/path".into()),
+            ..crate::file::unhashed(path)
         })?;
         Ok(Environment::File {
             path: path.clone(),

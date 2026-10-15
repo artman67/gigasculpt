@@ -265,12 +265,7 @@ pub(crate) fn save(
     overwrite: bool,
     write: impl Fn(&mut File) -> io::Result<()>,
 ) -> Result<(), CommandError> {
-    let failed = |e: &io::Error| {
-        error(
-            ErrorCode::Precondition,
-            format!("cannot write \"{path}\": {e}"),
-        )
-    };
+    let failed = |e: &io::Error| super::file_refused("write", Path::new(path), e);
     super::has_folder(Path::new(path))?;
     super::not_a_folder(Path::new(path))?;
     if !overwrite {

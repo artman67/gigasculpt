@@ -61,7 +61,7 @@ pub struct WindowArgs {
     /// GPU: `lavapipe`, `nvidia` or `radv`. Default: the fastest one that can present.
     #[arg(long)]
     pub adapter: Option<String>,
-    /// SDL video driver (`wayland`, `x11`). Default: SDL's choice.
+    /// SDL video driver (`wayland` or `x11` on Linux). Default: SDL's choice.
     #[arg(long)]
     pub driver: Option<String>,
     /// Close the window by itself after this many seconds.
@@ -92,8 +92,9 @@ pub fn wants_window(args: &[OsString]) -> bool {
     args.len() < 2 || args[1] == "window" || file(&args[1])
 }
 
-/// Runs `gigasculpt` or `gigasculpt window [options]`.
-pub fn main(args: &[OsString]) -> ExitCode {
+/// Runs `gigasculpt` or `gigasculpt window [options]`. With `aloud`, a reason the window could
+/// not open is shown in a message box as well as printed.
+pub fn main(args: &[OsString], aloud: bool) -> ExitCode {
     let rest = args.iter().skip(1).filter(|a| *a != "window");
     let args = args.iter().take(1).chain(rest);
     let options = match WindowArgs::try_parse_from(args) {
@@ -107,6 +108,9 @@ pub fn main(args: &[OsString]) -> ExitCode {
         Ok(()) => ExitCode::SUCCESS,
         Err(message) => {
             eprintln!("gigasculpt: {message}");
+            if aloud {
+                gs_platform::tell("GigaSculpt could not start", &message);
+            }
             ExitCode::FAILURE
         }
     }

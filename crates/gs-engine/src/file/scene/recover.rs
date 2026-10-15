@@ -392,7 +392,8 @@ fn log_lines(
             at.path
         ));
     }
-    let bytes = fs::read(&at.path).map_err(|e| format!("{}: {e}", at.path))?;
+    let refused = |e| crate::file::file_refused("read", Path::new(&at.path), &e).message;
+    let bytes = fs::read(&at.path).map_err(refused)?;
     let (whole, cut) = whole_records(&bytes);
     let text = std::str::from_utf8(whole).map_err(|e| format!("{}: {e}", at.path))?;
     let mut header = None;

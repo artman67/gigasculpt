@@ -5,11 +5,16 @@
 //! taken as a person takes it, from a menu and its form. Since UI-last (2026-10-14) a save
 //! into a folder that is not there says so in place of the system's "No such file or
 //! directory", Load curve given a folder asks for a file name, and a gizmo drag refused as it
-//! ends reads as a refused call does.
+//! ends reads as a refused call does. Since UI-tail (2026-10-14) Save as says what Export says,
+//! and Save floor preset and the settings file say theirs in a person's words too. Since
+//! UI-tail2 (2026-10-14) so does a settings file gone before the window reads it, and a file
+//! GigaSculpt may not write: settings exported, a key put back, a floor preset saved.
 
 use std::path::MAIN_SEPARATOR;
 
+use gs_engine::UiLayout;
 use gs_platform::Modifiers;
+use gs_protocol::{ErrorCode, Step};
 use serde_json::json;
 
 use crate::header::open;
@@ -130,6 +135,26 @@ fn a_save_into_a_folder_that_is_not_there_says_so() {
     assert!(!gone.exists(), "nothing is written");
 }
 
+/// Save as… into a folder that is not there says what Export… says, naming the file and the
+/// folder: every save checks the folder the one way (since UI-tail, 2026-10-14).
+#[test]
+fn save_as_into_a_folder_that_is_not_there_says_what_export_says() {
+    let gone = folder("save-as-no-folder").join("gone");
+    let mut why = Vec::new();
+    for (label, name) in [("Save as…", "head.gss"), ("Export…", "head.obj")] {
+        let mut ui = Ui::new();
+        ui.ok("primitive.sphere", json!({ "subdivisions": 4 }));
+        press(&mut ui, label);
+        answer(&mut ui, &gone.join(name).display().to_string());
+        let line = (ui.labels("palette").into_iter()).find(|l| l.contains("no folder"));
+        let line = line.unwrap_or_else(|| panic!("{label}: {}", said(&mut ui)));
+        why.push(line.replace(name, "head"));
+        no_folder(&mut ui, label);
+    }
+    assert_eq!(why[0], why[1], "Save as… says what Export… says");
+    assert!(why[0].contains("head"), "the file is named: {}", why[0]);
+}
+
 /// Load curve, from the palette's list, given only a folder asks for a file name, as Load
 /// brush… does, in place of the system's "Is a directory".
 #[test]
@@ -140,6 +165,169 @@ fn load_curve_given_a_folder_asks_for_a_file_name() {
     ui.tap("Enter", Modifiers::default());
     let typing = format!("{}{MAIN_SEPARATOR}", dir.display());
     folder_only(&mut ui, "Load curve", &typing);
+}
+
+/// Save floor preset, from the palette's list, into a folder that is not there says so, as
+/// Export… does, and given only a folder asks for a file name, in place of the system's "No such
+/// file or directory" and of asking to replace the folder (since UI-tail, 2026-10-14).
+#[test]
+fn save_floor_preset_refused_reads_in_a_persons_words() {
+    let mut ui = Ui::new();
+    let dir = folder("floor-save-words");
+    let open = |ui: &mut Ui| {
+        ui.ok("ui.palette", json!({ "query": "view.floor_save" }));
+        ui.tap("Enter", Modifiers::default());
+    };
+    open(&mut ui);
+    let gone = dir.join("gone");
+    answer(&mut ui, &gone.join("floor.toml").display().to_string());
+    no_folder(&mut ui, "Save floor preset");
+    open(&mut ui);
+    let typing = format!("{}{MAIN_SEPARATOR}", dir.display());
+    folder_only(&mut ui, "Save floor preset", &typing);
+    assert!(!gone.exists(), "nothing is written");
+}
+
+/// Set layout's settings file to import, asked in the palette's form, that is not there says
+/// so and what to check, and one given only a folder asks for a file name, as does the file to
+/// export settings to, in place of the system's "No such file or directory" and "Is a directory"
+/// (since UI-tail, 2026-10-14).
+#[test]
+fn a_settings_file_refused_reads_in_a_persons_words() {
+    let mut ui = Ui::new();
+    let dir = folder("settings-import-words");
+    let import = json!({ "form": "ui.layout", "ask": ["import"] });
+    ui.ok("ui.palette", import.clone());
+    answer(&mut ui, &dir.join("gone.toml").display().to_string());
+    let words = said(&mut ui);
+    let person = [
+        "There is no file at",
+        "Check the file's name and its folder.",
+    ];
+    assert!(person.iter().all(|w| words.contains(w)), "{words}");
+    for system in ["os error", "No such file", "E_"] {
+        assert!(!words.contains(system), "{words}");
+    }
+    assert!(form(&ui).is_some(), "the form stays open");
+    ui.tap("Escape", Modifiers::default());
+    ui.ok("ui.palette", import);
+    let typing = format!("{}{MAIN_SEPARATOR}", dir.display());
+    folder_only(&mut ui, "Import settings", &typing);
+    ui.ok(
+        "ui.palette",
+        json!({ "form": "ui.layout", "ask": ["export"] }),
+    );
+    folder_only(&mut ui, "Export settings", &typing);
+}
+
+/// Set layout's settings file to import that goes after the engine's check found it, before
+/// the window reads it, says so as that check does, naming the file, in place of the system's
+/// "No such file or directory". A race cannot be made in a test: this asks the window's half
+/// of `ui.layout` (`Shell::change_layout`) alone, as the engine does once its check passed, and
+/// gives its refusal back to the window as gs-engine's `ui/layout.rs` passes it on (not found).
+#[test]
+fn a_settings_file_gone_before_the_window_reads_it_says_so() {
+    let ui = Ui::new();
+    let gone = folder("settings-import-race").join("gone.toml");
+    let import = UiLayout {
+        import: Some(gone.display().to_string()),
+        ..UiLayout::default()
+    };
+    let refused = ui.host.lock().shell.change_layout(&import).err();
+    let e = refused.unwrap_or_else(|| panic!("there is nothing to read"));
+    assert_eq!(e.code, ErrorCode::NotFound, "{}", e.message);
+    let step = json!({ "command": "ui.layout", "args": { "import": gone } });
+    let step: Step = serde_json::from_value(step).unwrap_or_else(|e| panic!("{e}"));
+    ui.host.lock().shell.refused(Some(step), &e);
+    let line = problem(&ui).unwrap_or_default();
+    let person = [
+        "There is no file at",
+        "gone.toml",
+        "Check the file's name and its folder.",
+    ];
+    assert!(person.iter().all(|w| line.contains(w)), "{line}");
+    for system in ["os error", "No such file", "E_"] {
+        assert!(!line.contains(system), "{line}");
+    }
+}
+
+/// Gives the file or folder at `path` the Unix permissions `mode`.
+#[cfg(unix)]
+fn set_mode(path: &std::path::Path, mode: u32) {
+    use std::os::unix::fs::PermissionsExt;
+    let mode = std::fs::Permissions::from_mode(mode);
+    std::fs::set_permissions(path, mode).unwrap_or_else(|e| panic!("{e}"));
+}
+
+/// A fresh, empty folder named `name` that GigaSculpt may read but not write, as a shared or a
+/// system folder is.
+#[cfg(unix)]
+fn locked(name: &str) -> std::path::PathBuf {
+    let dir = folder(name);
+    set_mode(&dir, 0o555);
+    dir
+}
+
+/// What a person reads of a save GigaSculpt may not write: that, naming the file, and what to
+/// do; no system words; the form still open.
+#[cfg(unix)]
+fn not_allowed(ui: &mut Ui, what: &str, file: &str) {
+    let words = said(ui);
+    let person = [file, "not allowed to write", "a folder you can write to"];
+    assert!(person.iter().all(|w| words.contains(w)), "{what}: {words}");
+    for system in ["os error", "Permission denied", "E_"] {
+        assert!(!words.contains(system), "{what}: {words}");
+    }
+    assert!(form(ui).is_some(), "{what}: the form stays open");
+    ui.tap("Escape", Modifiers::default());
+}
+
+/// Export settings… into a folder GigaSculpt may not write says so, naming the file, in place
+/// of the system's "Permission denied"; so does a key put back on the Keys page when the keymap
+/// file may not be written, in place of calling it a fault in GigaSculpt. Both write through
+/// `keymap::write_file`, as every settings file the window keeps does. Nothing is written.
+#[test]
+#[cfg(unix)]
+fn a_settings_file_that_may_not_be_written_says_so() {
+    let mut ui = Ui::new();
+    let keymap = folder("keymap-not-allowed").join("keymap.toml");
+    ui.host.lock().shell.keymap_file = Some(keymap.clone());
+    ui.ok(
+        "ui.keymap",
+        json!({ "bind": "Ctrl+K", "command": "primitive.cube" }),
+    );
+    set_mode(&keymap, 0o444);
+    let export = locked("settings-not-allowed").join("settings.toml");
+    let form = json!({ "form": "ui.layout", "ask": ["export"] });
+    ui.ok("ui.palette", form);
+    answer(&mut ui, &export.display().to_string());
+    not_allowed(&mut ui, "Export settings", "settings.toml");
+    assert!(!export.exists(), "nothing is written");
+    ui.ok("ui.settings", json!({ "open": true, "page": "Keys" }));
+    ui.settle();
+    ui.press("settings > Restore Ctrl+K");
+    let line = problem(&ui).unwrap_or_default();
+    let person = ["keymap.toml", "not allowed to write", "not read-only"];
+    assert!(person.iter().all(|w| line.contains(w)), "{line}");
+    for system in ["os error", "Permission denied", "fault in GigaSculpt", "E_"] {
+        assert!(!line.contains(system), "{line}");
+    }
+    let file = std::fs::read_to_string(&keymap).unwrap_or_default();
+    assert!(file.contains("Ctrl+K"), "the file is as it was: {file}");
+}
+
+/// Save floor preset, from the palette's list, into a folder GigaSculpt may not write says so,
+/// naming the file, in place of the system's "Permission denied". Nothing is written.
+#[test]
+#[cfg(unix)]
+fn save_floor_preset_into_a_folder_it_may_not_write_says_so() {
+    let mut ui = Ui::new();
+    let preset = locked("floor-not-allowed").join("floor.toml");
+    ui.ok("ui.palette", json!({ "query": "view.floor_save" }));
+    ui.tap("Enter", Modifiers::default());
+    answer(&mut ui, &preset.display().to_string());
+    not_allowed(&mut ui, "Save floor preset", "floor.toml");
+    assert!(!preset.exists(), "nothing is written");
 }
 
 /// A gizmo drag the engine refuses as it ends reads as a refused call does, in a person's

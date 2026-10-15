@@ -5,8 +5,8 @@
 use gs_engine::{CallReport, GizmoSettings, LayoutInfo, Navigation, PaletteInfo, UiGizmo};
 use gs_engine::{HeldCurve, UiCurve};
 use gs_engine::{LibraryInfo, UiLayout, UiLibrary, UiNavigation};
-use gs_engine::{PartReport, QuickInfo, UiPalette, UiQuick, UiWheel, WheelInfo};
-use gs_protocol::{Role, Step};
+use gs_engine::{PartReport, QuickInfo, UiPalette, UiQuick, UiWheel, WheelInfo, errors};
+use gs_protocol::{CommandError, ErrorCode, Role, Step};
 
 use super::{Shell, listed, wheel_slots};
 use crate::direction::{Control, Edge, is_shipped, to_toml};
@@ -127,14 +127,22 @@ impl Shell {
     }
 
     /// `ui.layout`: shows the layout called `name`, arranges it for a hand, shows a theme, or
-    /// writes or reads the settings file (`settings_file.rs`), all or nothing.
-    pub fn change_layout(&mut self, change: &UiLayout) -> Result<LayoutInfo, String> {
-        let theme = self.theme_to_show(change)?;
+    /// writes or reads the settings file (`settings_file.rs`), all or nothing. A refusal is
+    /// coded by what went wrong: a name or a file not there, a file it may not use or write, a
+    /// settings file it cannot read as settings.
+    #[expect(
+        clippy::result_large_err,
+        reason = "the engine's wire error, as in keymap.rs"
+    )]
+    pub fn change_layout(&mut self, change: &UiLayout) -> Result<LayoutInfo, CommandError> {
+        let not_there = |message: String| errors::error(ErrorCode::NotFound, message);
+        let cannot = |message: String| errors::error(ErrorCode::Precondition, message);
+        let theme = self.theme_to_show(change).map_err(not_there)?;
         let names: Vec<&str> = (self.directions.list.iter())
             .map(|d| d.name.as_str())
             .collect();
         if names.is_empty() {
-            return Err("no layout files are loaded".into());
+            return Err(cannot("no layout files are loaded".into()));
         }
         // `step`: the next layout or the one before, wrapping.
         let at = names.iter().position(|n| *n == self.shown()).unwrap_or(0);
@@ -145,10 +153,10 @@ impl Shell {
         if let Some(name) = change.name.as_ref().or(stepped.as_ref()) {
             if !names.contains(&name.as_str()) {
                 let there = names.join(", ");
-                return Err(format!(
+                return Err(not_there(format!(
                     "no layout called {name}; there are {there} (`save` saves the one shown \
                      under a name)"
-                ));
+                )));
             }
             // Another layout shows its trays at its own widths.
             if name != self.shown() {
@@ -161,10 +169,10 @@ impl Shell {
             self.layout.layout.restore(shipped);
         }
         if let Some(name) = &change.save {
-            self.save_arrangement(name)?;
+            self.save_arrangement(name).map_err(cannot)?;
         }
         if let Some(path) = &change.export {
-            self.export_settings(path)?;
+            self.export_settings(path).map_err(cannot)?;
         }
         if let Some(path) = &change.import {
             self.import_settings(path, &change.parts)?;

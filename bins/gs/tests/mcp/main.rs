@@ -66,7 +66,7 @@ fn main() -> ExitCode {
     if args.get(1).is_some_and(|a| a == "serve") {
         return gs_engine::cli::main_with(args, gs_ui::Offscreen::host);
     }
-    let cases: [(&str, fn()); 6] = [
+    let cases: [(&str, fn()); 7] = [
         (
             "six_tools_that_answer_like_gs",
             six_tools_that_answer_like_gs,
@@ -90,6 +90,10 @@ fn main() -> ExitCode {
         (
             "with_spawn_the_server_starts_its_session",
             with_spawn_the_server_starts_its_session,
+        ),
+        (
+            "the_servers_output_ends_when_the_client_leaves_though_its_session_runs",
+            the_servers_output_ends_when_the_client_leaves_though_its_session_runs,
         ),
     ];
     // Listed and run the way the standard harness does, so a runner can run each case alone.
@@ -450,13 +454,14 @@ fn looks_are_one_png_of_the_size_asked() {
 /// `gs mcp --spawn` starts its session at the first call when it is not running, and uses it
 /// as it is when it is; the session outlives the server.
 fn with_spawn_the_server_starts_its_session() {
-    let env = Env::new();
+    let mut env = Env::new();
     let mut mcp = env.mcp_with("fresh", &["--spawn"]);
     let (text, failed) = mcp.text("gs_run", json!({ "command": "primitive.cube" }));
     assert!(
         !failed && text.starts_with("ok seq=1 "),
         "a new session: {text}"
     );
+    env.keep_spawned_key("fresh");
     drop(mcp);
     let mut again = env.mcp_with("fresh", &["--spawn"]);
     let (text, failed) = again.text("gs_query", json!({ "command": "scene.describe" }));
@@ -464,4 +469,23 @@ fn with_spawn_the_server_starts_its_session() {
         !failed && text.contains("cube"),
         "the same session, still running: {text}"
     );
+}
+
+/// A client that leaves (closes the server's input) sees the server's output end, while the
+/// session `--spawn` started runs on. On Windows the engine inherited a copy of the server's
+/// own input and output, so its output ended only when the session stopped (decisions 0064
+/// and 0065). Linux and macOS hand a program only the handles it is given, so there this
+/// passes with or without the fix.
+fn the_servers_output_ends_when_the_client_leaves_though_its_session_runs() {
+    let mut env = Env::new();
+    let mut mcp = env.mcp_with("stays", &["--spawn"]);
+    let (text, failed) = mcp.text("gs_run", json!({ "command": "primitive.cube" }));
+    assert!(!failed, "a new session: {text}");
+    env.keep_spawned_key("stays");
+    assert!(
+        mcp.leave(),
+        "the output did not end within 30 s of the client leaving"
+    );
+    let out = env.gs(&["-s", "stays", "query", "mesh.hash"]);
+    assert_eq!(out.code, 0, "the session still answers: {}", out.stderr);
 }

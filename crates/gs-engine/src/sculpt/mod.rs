@@ -57,11 +57,17 @@ pub use symmetry::SymmetrySettings;
 pub(crate) struct Sculpting {
     pub settings: BrushSettings,
     pub live: Option<Live>,
-    /// What else went wrong between calls (a gizmo drag, the recent list), for the window's
-    /// status bar. A job's failure is not one: the window follows its job and gets it whole.
+    /// What else went wrong beside the call itself, for the window's status line: the recent
+    /// list or a new command log that could not be written after a save, an open, a new scene
+    /// or a recovery (`file/scene/mod.rs`), an opened file's materials the renderer cannot
+    /// draw, or a user materials folder that no longer reads (`material/folder.rs`). A refused
+    /// pen stroke, gizmo drag or deformer is not one (see `refused`), nor is a job's failure:
+    /// the window follows its job and gets it whole.
     pub problem: Option<String>,
-    /// Why the last pen stroke was refused, whole: the window says it in a person's words by its
-    /// code, as it says a call's refusal.
+    /// Why the last pen stroke, gizmo drag or deformer was refused, whole: the window says it in
+    /// a person's words by its code, as it says a call's refusal. The pen's stroke sets it in
+    /// `engine/session.rs`, the gizmo's live drag in `gizmo/live.rs` (`end_drag`) and an
+    /// accepted deformer in `gizmo/deformer.rs` (`accept_deformer`).
     pub refused: Option<gs_protocol::CommandError>,
     /// The pen's last press landed on empty canvas, so the window navigates with it.
     pub on_canvas: bool,

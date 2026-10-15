@@ -25,12 +25,13 @@ pub(crate) fn keep(window: Window) -> &'static Window {
     window
 }
 
-/// The window, if this thread has one and its video driver has native handles (the `sdl3`
-/// crate panics on the others, such as `offscreen`).
+/// The window, if this thread has one and its video driver is the system's own, with native
+/// handles: `cocoa` on macOS, `windows` on Windows, `wayland` or `x11` on Linux. On the others,
+/// such as `offscreen`, the `sdl3` crate panics or reads a handle the window does not have.
 fn window() -> Result<&'static Window, HandleError> {
     let window = WINDOW.with(Cell::get).ok_or(HandleError::Unavailable)?;
     match window.subsystem().current_video_driver() {
-        "wayland" | "x11" => Ok(window),
+        "cocoa" | "windows" | "wayland" | "x11" => Ok(window),
         _ => Err(HandleError::NotSupported),
     }
 }

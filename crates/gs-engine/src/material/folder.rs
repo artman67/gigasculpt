@@ -15,6 +15,7 @@ use serde_json::json;
 use super::{PaletteEntry, RefusedMaterial, hand_over};
 use crate::engine::Engine;
 use crate::errors::error;
+use crate::file::file_refused;
 use crate::{Command, Ctx, Example, Origin, register_command};
 
 /// What `material.folder` read.
@@ -68,10 +69,10 @@ impl Command for MaterialFolder {
         for file in files {
             match std::fs::read_to_string(Path::new(&self.folder).join(&file)) {
                 Ok(text) => texts.push((file, text)),
-                Err(e) => refused.push(Refused {
-                    file,
-                    error: format!("cannot read: {e}"),
-                }),
+                Err(e) => {
+                    let error = file_refused("read", Path::new(&file), &e).message;
+                    refused.push(Refused { file, error });
+                }
             }
         }
         let pairs: Vec<(&str, &str)> = (texts.iter())
@@ -170,7 +171,7 @@ fn look_files(folder: &Path) -> Result<Vec<String>, CommandError> {
             ErrorCode::Precondition,
             format!("{shown} is a file, not a folder"),
         ),
-        _ => error(ErrorCode::Precondition, format!("cannot read {shown}: {e}")),
+        _ => file_refused("read", folder, &e),
     })?;
     let mut names: Vec<String> = (entries.flatten())
         .filter(|e| e.file_type().is_ok_and(|t| !t.is_dir()))

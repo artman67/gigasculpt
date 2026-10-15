@@ -315,7 +315,7 @@ fn read_files(dir: &Path, prefix: &str, problems: &mut Vec<String>) -> Vec<(Stri
         }
         match std::fs::read_to_string(&path) {
             Ok(text) => files.push((format!("{prefix}{}", file_name(&path)), text)),
-            Err(e) => problems.push(format!("{}: {e}", path.display())),
+            Err(e) => problems.push(gs_engine::file_refused("read", &path, &e).message),
         }
     }
     files.sort();

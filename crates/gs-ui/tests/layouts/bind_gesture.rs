@@ -80,6 +80,59 @@ fn a_chord_with_the_recovery_question_in_front_binds_nothing() {
     assert!(shown.iter().any(|l| l == "Ctrl+Shift+K"), "{shown:?}");
 }
 
+/// Something opened over the panel: what it is, and how it opens.
+type Over = (&'static str, fn(&mut Ui));
+
+/// What is opened over the panel, each by the step that opens it, so no press shuts it first:
+/// a header menu, the brush tray's ⋯ (an egui popup), the quick menu and the brush wheel.
+fn over_the_panel() -> [Over; 4] {
+    [
+        ("a menu", |ui| {
+            ui.ok("ui.menu", json!({ "open": "window" }));
+        }),
+        ("a popup", |ui| ui.press("brush > ···")),
+        ("the quick menu", |ui| {
+            ui.ok("ui.quick", json!({ "open": true }));
+        }),
+        ("the wheel", |ui| {
+            ui.ok("ui.wheel", json!({ "open": true }));
+        }),
+    ]
+}
+
+/// Every key goes to the one thing in front, not only Escape, Enter, Tab and the arrows
+/// (decision 0025, section 5, amended 2026-10-14, UI-tail): a chord pressed with a menu, a
+/// popup, the quick menu or the brush wheel over the panel binds nothing, and once Escape puts
+/// that away the panel takes the next, as it does with nothing over it.
+#[test]
+fn a_chord_with_a_menu_a_popup_the_quick_menu_or_the_wheel_in_front_binds_nothing() {
+    for (what, open) in over_the_panel() {
+        let mut ui = Ui::new();
+        ui.settle();
+        open(&mut ui);
+        let asks = json!({ "command": "file.quick_save" });
+        let bind = json!({ "form": "ui.keymap", "ask": ["bind"], "args": asks });
+        ui.ok("ui.palette", bind);
+        ui.settle();
+        let shown = ui.labels("palette");
+        let asked = "Press the keys for Quick save";
+        assert!(shown.iter().any(|l| l == asked), "{what}: {shown:?}");
+        ui.tap("K", ctrl_shift());
+        let shown = ui.labels("palette");
+        assert!(
+            shown.iter().any(|l| l == "Waiting for a key…"),
+            "{what} in front: {shown:?}"
+        );
+        ui.tap("Escape", Modifiers::default());
+        ui.tap("K", ctrl_shift());
+        let shown = ui.labels("palette");
+        assert!(
+            shown.iter().any(|l| l == "Ctrl+Shift+K"),
+            "{what} put away: {shown:?}"
+        );
+    }
+}
+
 /// Review 0009, C11: a taken chord asks Replace, naming what holds it by title; Replace moves
 /// the key.
 #[test]

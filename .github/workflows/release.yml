@@ -285,6 +285,20 @@ jobs:
         shell: pwsh
         run: '& .github/release/vc-runtime.ps1 $env:FOLDER'
 
+      # The window opens, draws and closes, as a double click opens it. 0.1.0 never tried it, and
+      # its window took no drawing surface on Windows or macOS. The runner has no graphics card,
+      # so it draws with Windows' own software one. The console twin first, which prints why;
+      # gigasculpt.exe would say it in a message box no one here can close.
+      - name: The window opens
+        timeout-minutes: 5
+        shell: pwsh
+        run: |
+          & "$env:FOLDER\gigasculpt.com" window --close-after 5
+          if ($LASTEXITCODE -ne 0) { throw "gigasculpt.com opened no window (exit $LASTEXITCODE)" }
+          $app = Start-Process "$env:FOLDER\gigasculpt.exe" -ArgumentList 'window', '--close-after', '5' -Wait -PassThru
+          if ($app.ExitCode -ne 0) { throw "gigasculpt.exe opened no window (exit $($app.ExitCode))" }
+          "both opened the window, drew for 5 seconds and closed"
+
       - name: Versions, help and Quad Remesh
         timeout-minutes: 10
         shell: bash
@@ -413,6 +427,15 @@ jobs:
           else
             echo "no Rosetta on this machine: the Intel half is checked by lipo alone"
           fi
+
+      # The window opens, draws and closes, from / with no terminal, as a double click opens it.
+      # 0.1.0 never tried it, and its window took no drawing surface on macOS or Windows.
+      - name: The window opens
+        timeout-minutes: 5
+        run: |
+          cd /
+          "$APP/Contents/MacOS/gigasculpt" window --close-after 5
+          echo "the window opened, drew for 5 seconds and closed"
 
       - name: Versions, help and Quad Remesh
         timeout-minutes: 10
